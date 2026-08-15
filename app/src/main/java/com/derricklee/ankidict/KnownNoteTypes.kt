@@ -9,7 +9,11 @@ const val CHINESE_MNEMONICS_MODEL_ID = 1691967670208L
 // Confirmed against the note type's own field names and card template (01 NihongoShark.com: Kanji).
 const val NIHONGO_SHARK_KANJI_MODEL_ID = 1354697467375L
 
-val SEARCHABLE_MODEL_IDS = listOf(CHINESE_MNEMONICS_MODEL_ID, NIHONGO_SHARK_KANJI_MODEL_ID)
+// Which SearchSource (see SearchSource.kt / the settings menu) each Anki note type belongs to.
+val SEARCH_SOURCE_MODEL_ID: Map<SearchSource, Long> = mapOf(
+    SearchSource.ANKI_CHINESE to CHINESE_MNEMONICS_MODEL_ID,
+    SearchSource.ANKI_JAPANESE to NIHONGO_SHARK_KANJI_MODEL_ID,
+)
 
 // The field index holding the character/kanji itself (the "question") for each note type, used
 // to rank a match there above a match found elsewhere (meaning, mnemonic, vocab, etc.).

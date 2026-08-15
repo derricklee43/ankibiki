@@ -23,14 +23,18 @@ class DictionaryRepository(context: Context) {
         return SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
     }
 
-    /** All exact matches for [query] across kanji, Japanese words, and Chinese words. */
-    fun lookupExact(query: String): List<DictionaryEntry> {
+    /** All exact matches for [query] across whichever of [enabledSources] apply here. */
+    fun lookupExact(query: String, enabledSources: Set<SearchSource>): List<DictionaryEntry> {
         val results = mutableListOf<DictionaryEntry>()
-        if (query.length == 1) {
+        if (query.length == 1 && SearchSource.DICT_KANJI in enabledSources) {
             lookupKanji(query)?.let { results.add(it) }
         }
-        results.addAll(lookupJapaneseWords(query))
-        results.addAll(lookupChineseWords(query))
+        if (SearchSource.DICT_JAPANESE_WORDS in enabledSources) {
+            results.addAll(lookupJapaneseWords(query))
+        }
+        if (SearchSource.DICT_CHINESE_WORDS in enabledSources) {
+            results.addAll(lookupChineseWords(query))
+        }
         return results
     }
 

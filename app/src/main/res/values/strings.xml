@@ -9,4 +9,6 @@
     <string name="dictionary_tag">Dictionary</string>
     <string name="dictionary_attribution">Dictionary data: KANJIDIC2, JMdict, RADKFILE (EDRDG) and CC-CEDICT — CC BY-SA 4.0</string>
     <string name="play_audio">Play audio</string>
+    <string name="settings_menu">Search settings</string>
+    <string name="settings_title">Search sources</string>
 </resources>

@@ -22,18 +22,18 @@ class AnkiRepository(private val context: Context) {
         AddContentApi.getAnkiDroidPackageName(context) != null
 
     /**
-     * Searches every note's fields for [query] (a plain substring match, restricted to note
-     * types this app has a display mapping for) and ranks them: a match on the character/kanji
-     * field, then a match on the meaning field, then anywhere else -- with each tier interleaved
-     * round-robin across decks so a deck with far more raw matches (e.g. NihongoShark's huge,
-     * narrative mnemonics matching a common substring) doesn't bury the other deck's results.
+     * Searches every note's fields for [query] (a plain substring match, restricted to
+     * [modelIds]) and ranks them: a match on the character/kanji field, then a match on the
+     * meaning field, then anywhere else -- with each tier interleaved round-robin across decks
+     * so a deck with far more raw matches (e.g. NihongoShark's huge, narrative mnemonics
+     * matching a common substring) doesn't bury the other deck's results.
      */
-    fun searchTiered(query: String): TieredNotes {
-        if (query.isBlank()) return TieredNotes(emptyList(), emptyList())
+    fun searchTiered(query: String, modelIds: Collection<Long>): TieredNotes {
+        if (query.isBlank() || modelIds.isEmpty()) return TieredNotes(emptyList(), emptyList())
 
-        val modelPlaceholders = SEARCHABLE_MODEL_IDS.joinToString(",") { "?" }
+        val modelPlaceholders = modelIds.joinToString(",") { "?" }
         val selection = "flds LIKE ? AND mid IN ($modelPlaceholders)"
-        val selectionArgs = (listOf("%$query%") + SEARCHABLE_MODEL_IDS.map { it.toString() }).toTypedArray()
+        val selectionArgs = (listOf("%$query%") + modelIds.map { it.toString() }).toTypedArray()
 
         // CONTENT_URI_V2 runs selection/selectionArgs as parameterized SQL against the notes
         // table. The plain CONTENT_URI instead parses `selection` as Anki's browser search
