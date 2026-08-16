@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AnkiDict</string>
+    <string name="app_name">AnkiBiki</string>
     <string name="search_hint">Search your Anki cards…</string>
     <string name="status_ankidroid_missing">AnkiDroid isn\'t installed on this device.</string>
     <string name="status_permission_needed">Requesting access to your AnkiDroid collection…</string>
