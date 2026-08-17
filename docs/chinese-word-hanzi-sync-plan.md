@@ -231,9 +231,13 @@ a simple progress/result callback back to the button's UI state.
    check happens naturally in step 6 once `Constituents` has real data.
    **Still need to do:** sync Anki Desktop ↔ AnkiDroid so the phone's collection picks up the
    new fields/model/deck before step 2 below.
-2. Confirm the new model/deck IDs and full field lists on-device (`getFieldList`,
-   `getModelList`, `getDeckList` from `AddContentApi`), hardcode into `KnownNoteTypes.kt` the
-   same way the existing two note types are.
+2. ✅ **DONE** — confirmed on-device via a temporary debug hook in `MainActivity` (added,
+   triggered once via `adb shell am start --ez dumpSchema true`, logcat captured, then fully
+   reverted -- same throwaway-hook pattern used earlier this project). Chinese Word model id
+   `1786984418063` with fields exactly `[Word, Translation, Pinyin, Audio, HanziBreakdown]`;
+   Hanzi model's full field list now ends `..., JP Constituent, Constituents, UsedInWords`
+   (indices 12/13, matching Phase 1); deck ids `🇨🇳 Chinese Words` = `1786984418128`,
+   `🇨🇳 RSH1 Hanzi` = `1786665356369`. All hardcoded into `KnownNoteTypes.kt`.
 3. `scripts/build_ids_db.py` + bundle the decomposition data.
 4. `HanziWordSyncService` (Section 6).
 5. Button + wiring (Section 7).

@@ -27,3 +27,22 @@ val MEANING_FIELD_INDEX: Map<Long, Int> = mapOf(
     CHINESE_MNEMONICS_MODEL_ID to 0,
     NIHONGO_SHARK_KANJI_MODEL_ID to 3,
 )
+
+// Chinese Word <-> Hanzi sync (see docs/chinese-word-hanzi-sync-plan.md). Created by
+// scripts/setup_chinese_word_deck.py against Anki Desktop via AnkiConnect, confirmed on-device
+// afterward via AddContentApi (getModelList/getFieldList/getDeckList).
+const val CHINESE_WORD_MODEL_ID = 1786984418063L
+const val CHINESE_WORD_DECK_ID = 1786984418128L
+const val CHINESE_HANZI_DECK_ID = 1786665356369L
+
+// Chinese Word fields, in creation order: [Word, Translation, Pinyin, Audio, HanziBreakdown].
+const val WORD_FIELD_INDEX = 0
+const val TRANSLATION_FIELD_INDEX = 1
+const val WORD_PINYIN_FIELD_INDEX = 2
+const val WORD_AUDIO_FIELD_INDEX = 3
+const val HANZI_BREAKDOWN_FIELD_INDEX = 4
+
+// Fields appended (at the end -- see the plan doc) to the Hanzi note type for the sync. Both are
+// sync-owned: never hand-edit them, never read/write them through CardAdapters.
+const val HANZI_CONSTITUENTS_FIELD_INDEX = 12
+const val HANZI_USED_IN_WORDS_FIELD_INDEX = 13
