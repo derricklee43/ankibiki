@@ -308,3 +308,20 @@ a simple progress/result callback back to the button's UI state.
    sync never touches it.
 6. **`UsedInWords` on Hanzi notes**: confirmed, this is what "my hanzi character cards will get
    added to this new word" meant.
+
+## 11. HSK 1/2 bulk import
+
+Resolves decision 3's open "HSK wordlist source" question, for levels 1/2 at least.
+`scripts/import_hsk_words.py`, run against Anki Desktop via AnkiConnect (same as
+`setup_chinese_word_deck.py`): pulls the old (classic 6-level, not 2021's HSK 3.0) standard's
+level-1 and level-2 word lists from `drkameleon/complete-hsk-vocabulary` (MIT licensed), creates
+a Word note per word tagged `HSK::1`/`HSK::2`, and deliberately leaves Translation/Pinyin/
+HanziBreakdown blank -- filling those in (from CC-CEDICT, so there's one consistent source for
+definitions/pinyin across the whole deck, not this dataset's own translations mixed in too) and
+auto-creating/cross-linking the component hanzi is the existing sync button's job, run
+afterward. Idempotent (skips words already present as a Word note).
+
+Run against the real collection: 150 HSK1 + 147 HSK2 = 297 new Word notes (one word, 悲伤, was
+already there from Phase 6's test and got skipped). Verified via AnkiConnect afterward: tag
+counts match (150/147), a sample note (爸爸) has the right tag and blank enrichment fields.
+Re-ran the script once more -- "Nothing to add", confirming idempotency.
