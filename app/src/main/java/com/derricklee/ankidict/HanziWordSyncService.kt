@@ -102,7 +102,7 @@ class HanziWordSyncService(
                     changed = true
                 }
                 if (needsPinyin) {
-                    wordFields[WORD_PINYIN_FIELD_INDEX] = dictEntry.pinyin
+                    wordFields[WORD_PINYIN_FIELD_INDEX] = toDiacriticPinyin(dictEntry.pinyin)
                     changed = true
                 }
             }
@@ -116,7 +116,7 @@ class HanziWordSyncService(
         val fields = MutableList(HANZI_FIELD_COUNT) { "" }
         fields[hanziMeaningIndex] = dictEntry?.definitions.orEmpty()
         fields[hanziCharIndex] = character
-        fields[HANZI_PINYIN_FIELD_INDEX] = dictEntry?.pinyin.orEmpty()
+        fields[HANZI_PINYIN_FIELD_INDEX] = dictEntry?.pinyin?.let(::toDiacriticPinyin).orEmpty()
         fields[HANZI_CONSTITUENTS_FIELD_INDEX] = idsRepository.constituentsTreeJson(character)
         // Mnemonic and everything else (Number/Audio/Image/Tags/JP*) stay blank -- yours to fill in.
         return fields

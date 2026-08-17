@@ -281,6 +281,18 @@ a simple progress/result callback back to the button's UI state.
    JS) on an actual review screen -- 悲's card hasn't been reviewed yet. Worth a look next time
    it comes up in a study session.
 
+   **Follow-up fix**: CC-CEDICT pinyin is numbered-tone ("bei1 shang1"), but the collection's
+   own convention (e.g. 一's existing Pinyin field) is diacritic form ("yī") -- so the sync's
+   writes were inconsistent with data already in the deck. Added `toDiacriticPinyin()`
+   (`PinyinFormat.kt`) and applied it everywhere the sync writes a Pinyin field. Converts at
+   write time rather than at render/template time, since (a) it's a deterministic one-line
+   transform, not a real structure like `Constituents` that needs JS, and (b) it keeps the raw
+   field plain, correct text in the Anki browser outside the card view too. Verified against
+   13 cases including both `u:`-notation (nu:3 -> nǚ) and the "iu"/"ui" mark-placement rule
+   (jiu3 -> jiǔ, hui4 -> huì) -- all correct. Manually fixed the two already-written fields from
+   the Phase 6 test (悲's and 悲伤's Pinyin) via AnkiConnect directly, since the sync's
+   non-destructive design means it won't retroactively touch a field it already filled in.
+
 ## 10. Decisions
 
 1. **Deck name**: "🇨🇳 Chinese Words" — confirmed.
