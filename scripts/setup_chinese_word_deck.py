@@ -114,36 +114,69 @@ CONSTITUENT_TREE_CSS = """
 WORD_FRONT_TEMPLATE = """
 <div class="word-front">
   <div class="word">{{Word}}</div>
-  {{#Tags}}<div class="tags">{{Tags}}</div>{{/Tags}}
   {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
 </div>
 """
 
+# {{Tags}} renders a note's raw tags verbatim (e.g. "HSK::1") -- Anki's mustache templates have
+# no string manipulation of their own, so turning that into "HSK1" needs the same hidden-data +
+# small script pattern already used for the Constituents tree: stash the raw value in a hidden
+# div, then a tiny script strips "::" and writes the result into the visible one.
 WORD_BACK_TEMPLATE = """
 <div class="word-front">
   <div class="word">{{Word}}</div>
-  {{#Tags}}<div class="tags">{{Tags}}</div>{{/Tags}}
   {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
 </div>
 <hr id="answer">
 <div class="word-back">
+  {{#Tags}}
+  <div id="tags-data" style="display:none">{{Tags}}</div>
+  <div class="tags-display" id="tags-display"></div>
+  <script>
+  (function() {
+    var raw = document.getElementById('tags-data');
+    var target = document.getElementById('tags-display');
+    if (!raw || !target) return;
+    target.textContent = raw.textContent.trim().split(' ').filter(Boolean)
+      .map(function(t) { return t.replace(/::/g, ''); }).join(' ');
+  })();
+  </script>
+  {{/Tags}}
   <div class="translation">{{Translation}}</div>
   <div class="pinyin">{{Pinyin}}</div>
   {{#HanziBreakdown}}<div class="hanzi-breakdown">{{HanziBreakdown}}</div>{{/HanziBreakdown}}
 </div>
 """
 
-# Pre-tags versions of the same blocks, so ensure_word_tags_rendered() can find-and-replace them
-# in an already-created live template (created before this field was added to the templates
-# above) rather than re-deriving the diff by hand.
-_OLD_FRONT_BLOCK = """<div class="word-front">
-  <div class="word">{{Word}}</div>
-  {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
-</div>"""
-_NEW_FRONT_BLOCK = """<div class="word-front">
+# Migration markers, so ensure_word_answer_tags() can find-and-fix an already-live template
+# (created before this shape existed) rather than re-deriving the diff by hand each time.
+_FRONT_WITH_SMALL_TAGS = """<div class="word-front">
   <div class="word">{{Word}}</div>
   {{#Tags}}<div class="tags">{{Tags}}</div>{{/Tags}}
   {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
+</div>"""
+_OLD_ANSWER_BLOCK = """<div class="word-back">
+  <div class="translation">{{Translation}}</div>
+  <div class="pinyin">{{Pinyin}}</div>
+  {{#HanziBreakdown}}<div class="hanzi-breakdown">{{HanziBreakdown}}</div>{{/HanziBreakdown}}
+</div>"""
+_NEW_ANSWER_BLOCK = """<div class="word-back">
+  {{#Tags}}
+  <div id="tags-data" style="display:none">{{Tags}}</div>
+  <div class="tags-display" id="tags-display"></div>
+  <script>
+  (function() {
+    var raw = document.getElementById('tags-data');
+    var target = document.getElementById('tags-display');
+    if (!raw || !target) return;
+    target.textContent = raw.textContent.trim().split(' ').filter(Boolean)
+      .map(function(t) { return t.replace(/::/g, ''); }).join(' ');
+  })();
+  </script>
+  {{/Tags}}
+  <div class="translation">{{Translation}}</div>
+  <div class="pinyin">{{Pinyin}}</div>
+  {{#HanziBreakdown}}<div class="hanzi-breakdown">{{HanziBreakdown}}</div>{{/HanziBreakdown}}
 </div>"""
 
 WORD_CSS = """
@@ -156,7 +189,7 @@ WORD_CSS = """
   text-align: center;
 }
 .word { font-size: 48px; margin-bottom: 16px; }
-.tags { font-size: 12px; color: #888; margin-top: 4px; }
+.tags-display { font-size: 24px; font-weight: bold; color: #555; margin-bottom: 12px; }
 .translation { font-size: 23px; font-weight: bold; text-transform: capitalize; margin-bottom: 12px; }
 .pinyin { font-style: italic; color: #1a4fd6; font-size: 18px; margin-bottom: 16px; }
 .hanzi-breakdown { text-align: left; max-width: 90%; margin: 12px auto 0; font-size: 16px; }
@@ -167,11 +200,16 @@ WORD_CSS = """
   color: #f0f0f0;
   border-color: #555;
 }
-.nightMode .tags, .night_mode .tags { color: #999; }
+.nightMode .tags-display, .night_mode .tags-display { color: #ccc; }
 .nightMode .pinyin, .night_mode .pinyin { color: #7fb3ff; }
 """
 
-_TAGS_CSS_MARKER = ".tags {"
+# Old (revision-1) CSS rules to strip out if present, since .tags no longer exists anywhere.
+_OLD_TAGS_CSS_RULES = [
+    '.tags { font-size: 12px; color: #888; margin-top: 4px; }\n',
+    '.nightMode .tags, .night_mode .tags { color: #999; }\n',
+]
+_TAGS_DISPLAY_CSS_MARKER = ".tags-display {"
 
 
 def invoke(action: str, **params):
@@ -234,45 +272,56 @@ def ensure_word_model():
     print(f"  [add]  model {WORD_MODEL_NAME!r} with fields {WORD_FIELDS}")
 
 
-def ensure_word_tags_rendered():
+def ensure_word_answer_tags():
     templates = invoke("modelTemplates", modelName=WORD_MODEL_NAME)
     card_name, sides = next(iter(templates.items()))
-    new_sides = {}
-    changed = False
-    for side_name, html in sides.items():
-        if 'class="tags"' in html:
-            new_sides[side_name] = html
-            continue
-        if _OLD_FRONT_BLOCK not in html:
-            print(f"  [warn] {WORD_MODEL_NAME!r} {card_name!r} {side_name} doesn't match the "
-                  f"expected pre-tags template -- leaving it alone, check by hand")
-            new_sides[side_name] = html
-            continue
-        new_sides[side_name] = html.replace(_OLD_FRONT_BLOCK, _NEW_FRONT_BLOCK)
-        changed = True
+    new_sides = dict(sides)
+    template_changed = False
 
-    if changed:
-        invoke("updateModelTemplates", model={"name": WORD_MODEL_NAME, "templates": {card_name: new_sides}})
-        print(f"  [add]  tags rendering -> {WORD_MODEL_NAME!r} {card_name!r} template")
+    # Revision 1 put a small {{Tags}} badge on both Front and the Back's echoed front block --
+    # strip that back out to the plain pre-tags shape wherever it's still present.
+    for side_name, html in sides.items():
+        if _FRONT_WITH_SMALL_TAGS in html:
+            new_sides[side_name] = html.replace(_FRONT_WITH_SMALL_TAGS, WORD_FRONT_TEMPLATE.strip())
+            template_changed = True
+
+    back = new_sides["Back"]
+    if 'id="tags-display"' in back:
+        pass  # already migrated, nothing to do here
+    elif _OLD_ANSWER_BLOCK in back:
+        new_sides["Back"] = back.replace(_OLD_ANSWER_BLOCK, _NEW_ANSWER_BLOCK)
+        template_changed = True
     else:
-        print(f"  [skip] {WORD_MODEL_NAME!r} template already renders tags")
+        print(f"  [warn] {WORD_MODEL_NAME!r} {card_name!r} Back doesn't match any known answer-"
+              f"block shape -- leaving it alone, check by hand")
+
+    if template_changed:
+        invoke("updateModelTemplates", model={"name": WORD_MODEL_NAME, "templates": {card_name: new_sides}})
+        print(f"  [add]  reformatted answer-side tags -> {WORD_MODEL_NAME!r} {card_name!r} template")
+    else:
+        print(f"  [skip] {WORD_MODEL_NAME!r} template already shows reformatted tags on the answer")
 
     css = invoke("modelStyling", modelName=WORD_MODEL_NAME)["css"]
-    if _TAGS_CSS_MARKER in css:
-        print(f"  [skip] {WORD_MODEL_NAME!r} CSS already has .tags styling")
-    else:
-        new_css = css.replace(
+    new_css = css
+    for old_rule in _OLD_TAGS_CSS_RULES:
+        new_css = new_css.replace(old_rule, "")
+    if _TAGS_DISPLAY_CSS_MARKER not in new_css:
+        new_css = new_css.replace(
             ".word { font-size: 48px; margin-bottom: 16px; }",
-            ".word { font-size: 48px; margin-bottom: 16px; }\n.tags { font-size: 12px; color: #888; margin-top: 4px; }",
+            ".word { font-size: 48px; margin-bottom: 16px; }\n"
+            ".tags-display { font-size: 24px; font-weight: bold; color: #555; margin-bottom: 12px; }",
         )
-        if ".nightMode .pinyin" in new_css and ".nightMode .tags" not in new_css:
-            new_css = new_css.replace(
-                ".nightMode .pinyin, .night_mode .pinyin { color: #7fb3ff; }",
-                ".nightMode .tags, .night_mode .tags { color: #999; }\n"
-                ".nightMode .pinyin, .night_mode .pinyin { color: #7fb3ff; }",
-            )
+        new_css = new_css.replace(
+            ".nightMode .pinyin, .night_mode .pinyin { color: #7fb3ff; }",
+            ".nightMode .tags-display, .night_mode .tags-display { color: #ccc; }\n"
+            ".nightMode .pinyin, .night_mode .pinyin { color: #7fb3ff; }",
+        )
+
+    if new_css != css:
         invoke("updateModelStyling", model={"name": WORD_MODEL_NAME, "css": new_css})
-        print(f"  [add]  .tags styling -> {WORD_MODEL_NAME!r} CSS")
+        print(f"  [add]  .tags-display styling -> {WORD_MODEL_NAME!r} CSS")
+    else:
+        print(f"  [skip] {WORD_MODEL_NAME!r} CSS already correct")
 
 
 def ensure_word_deck():
@@ -292,7 +341,7 @@ def main():
     print("Chinese Word note type:")
     ensure_word_model()
     print("Chinese Word template tags rendering:")
-    ensure_word_tags_rendered()
+    ensure_word_answer_tags()
     print("Chinese Word deck:")
     ensure_word_deck()
     print("Done. Sync AnkiDroid with this collection before using the new fields on the phone.")
