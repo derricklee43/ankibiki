@@ -252,10 +252,34 @@ a simple progress/result callback back to the button's UI state.
    ~89k-character source down to CJK Unified Ideographs + Extension A + the radical/stroke
    blocks (27,577 characters, 11.1MB) -- the rest is Unicode planes no Chinese word/hanzi study
    deck will ever reference.
-4. `HanziWordSyncService` (Section 6).
-5. Button + wiring (Section 7).
-6. Manually create a couple of test Word notes, run the sync, verify: hanzi auto-created,
-   breakdown filled in, reverse links populated, tree renders, re-running does nothing extra.
+4. ✅ **DONE** — `HanziWordSyncService`. Also needed: exposing `AnkiRepository.queryAllNotes`/
+   `createNote`/`updateNoteFields` (the repository only had search-scoped reads before),
+   `DictionaryRepository.lookupChineseWords` made non-private, `isCjkCharacter` (previously
+   private to `SearchService`) shared, and `HANZI_FIELD_COUNT`/`HANZI_PINYIN_FIELD_INDEX` added
+   to `KnownNoteTypes.kt` (the latter also de-duplicates `ChineseCardAdapter`'s private copy of
+   the same constant). `Word`/`NoteResult.toWord()` per decision 4 -- deliberately no
+   `CardAdapter`-style registry since there's only one note type to map, that'd be premature.
+5. ✅ **DONE** — sync icon button next to the hamburger, runs on a plain background `Thread`
+   (no coroutines dependency in this codebase) with `runOnUiThread` back for the
+   enable/disable + result Toast, matching the existing `Handler`-based patterns already used
+   for search debouncing.
+6. ✅ **DONE** — real end-to-end test against the live collection, not a simulation. Created a
+   genuine Word note (悲伤/"sad", via AnkiConnect) with one existing component (伤) and one
+   missing (悲), synced Anki Desktop -> AnkiDroid, tapped the button on-device, and read the
+   actual resulting note fields back (via the same temporary-debug-hook-then-revert pattern as
+   Phase 2). Result matched exactly: 悲 auto-created with correct Meaning/Pinyin from
+   CC-CEDICT, Mnemonic left blank, `Constituents` = `{"char":"悲","op":"⿱","children":[{"char":
+   "非",...},{"char":"心",...}]}` (linguistically correct -- 悲 really is 非 over 心), and
+   `UsedInWords` = "悲伤" on *both* the new 悲 note and the pre-existing 伤 note. The word note
+   got `Translation`/`Pinyin` auto-filled and `HanziBreakdown` = "悲 (sad; sadness; sorrow;
+   grief), 伤 (wound)", `Audio` left untouched. Re-ran the sync a second time: toast reported
+   `0 hanzi created, 0 words updated, 0 hanzi updated` -- confirmed idempotent. Kept the test
+   note/card in the real collection (both are legitimate, correctly-filled-in cards) rather
+   than deleting them.
+
+   Not yet checked: what the `Constituents` tree actually looks like *rendered* (expand/collapse
+   JS) on an actual review screen -- 悲's card hasn't been reviewed yet. Worth a look next time
+   it comes up in a study session.
 
 ## 10. Decisions
 

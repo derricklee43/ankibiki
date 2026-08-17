@@ -18,6 +18,8 @@ private const val FIELD_SEPARATOR = "\u001F"
 
 class AnkiRepository(private val context: Context) {
 
+    private val addContentApi by lazy { AddContentApi(context) }
+
     fun isAnkiDroidAvailable(): Boolean =
         AddContentApi.getAnkiDroidPackageName(context) != null
 
@@ -34,17 +36,35 @@ class AnkiRepository(private val context: Context) {
         val modelPlaceholders = modelIds.joinToString(",") { "?" }
         val selection = "flds LIKE ? AND mid IN ($modelPlaceholders)"
         val selectionArgs = (listOf("%$query%") + modelIds.map { it.toString() }).toTypedArray()
+        val results = queryNotes(selection, selectionArgs)
 
-        // CONTENT_URI_V2 runs selection/selectionArgs as parameterized SQL against the notes
-        // table. The plain CONTENT_URI instead parses `selection` as Anki's browser search
-        // syntax and ignores selectionArgs entirely, which isn't what we want here.
+        val byTier = results.groupBy { matchPriority(it, query) }
+        val exact = interleaveByModel(byTier[0].orEmpty())
+        val rest = (1..2).flatMap { tier -> interleaveByModel(byTier[tier].orEmpty()) }
+        return TieredNotes(exact, rest)
+    }
+
+    /** Every note of [modelId], unfiltered -- used by HanziWordSyncService to load a whole deck. */
+    fun queryAllNotes(modelId: Long): List<NoteResult> =
+        queryNotes("mid = ?", arrayOf(modelId.toString()))
+
+    fun createNote(modelId: Long, deckId: Long, fields: List<String>, tags: Set<String> = emptySet()): Long? =
+        addContentApi.addNote(modelId, deckId, fields.toTypedArray(), tags)
+
+    fun updateNoteFields(noteId: Long, fields: List<String>): Boolean =
+        addContentApi.updateNoteFields(noteId, fields.toTypedArray())
+
+    // CONTENT_URI_V2 runs selection/selectionArgs as parameterized SQL against the notes table.
+    // The plain CONTENT_URI instead parses `selection` as Anki's browser search syntax and
+    // ignores selectionArgs entirely, which isn't what we want here.
+    private fun queryNotes(selection: String, selectionArgs: Array<String>): List<NoteResult> {
         val cursor = context.contentResolver.query(
             FlashCardsContract.Note.CONTENT_URI_V2,
             FlashCardsContract.Note.DEFAULT_PROJECTION,
             selection,
             selectionArgs,
             null,
-        ) ?: return TieredNotes(emptyList(), emptyList())
+        ) ?: return emptyList()
 
         val results = mutableListOf<NoteResult>()
         cursor.use {
@@ -64,11 +84,7 @@ class AnkiRepository(private val context: Context) {
                 )
             }
         }
-
-        val byTier = results.groupBy { matchPriority(it, query) }
-        val exact = interleaveByModel(byTier[0].orEmpty())
-        val rest = (1..2).flatMap { tier -> interleaveByModel(byTier[tier].orEmpty()) }
-        return TieredNotes(exact, rest)
+        return results
     }
 
     private fun matchPriority(note: NoteResult, query: String): Int {

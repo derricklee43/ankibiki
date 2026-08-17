@@ -19,10 +19,9 @@ private fun buildReading(vararg entries: Pair<String, List<String>>): Map<String
 
 private object ChineseCardAdapter : CardAdapter {
     private const val MNEMONIC_FIELD = 3
-    private const val PINYIN_FIELD = 4
 
     override fun toCard(note: NoteResult): Card {
-        val pinyin = note.field(PINYIN_FIELD)
+        val pinyin = note.field(HANZI_PINYIN_FIELD_INDEX)
         return Card(
             word = note.field(CHARACTER_FIELD_INDEX.getValue(CHINESE_MNEMONICS_MODEL_ID)),
             meaning = note.field(MEANING_FIELD_INDEX.getValue(CHINESE_MNEMONICS_MODEL_ID)),

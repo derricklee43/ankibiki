@@ -46,3 +46,13 @@ const val HANZI_BREAKDOWN_FIELD_INDEX = 4
 // sync-owned: never hand-edit them, never read/write them through CardAdapters.
 const val HANZI_CONSTITUENTS_FIELD_INDEX = 12
 const val HANZI_USED_IN_WORDS_FIELD_INDEX = 13
+
+// Full field count for the Hanzi note type: [Meaning, Number, Hanzi, Story, Pinyin, Audio,
+// Image, Tags, JP Kanji, JP Kanji ID, JP Story, JP Constituent, Constituents, UsedInWords].
+// Needed when the sync creates a brand-new Hanzi note -- AddContentApi.addNote requires one
+// value per field, in order, even for the ones this app never touches.
+const val HANZI_FIELD_COUNT = 14
+
+// Public (ChineseCardAdapter's own PINYIN_FIELD is private to that file) since the sync needs
+// it too, to carry CC-CEDICT's pinyin into a newly-created Hanzi note.
+const val HANZI_PINYIN_FIELD_INDEX = 4

@@ -13,6 +13,15 @@
         android:gravity="end">
 
         <ImageButton
+            android:id="@+id/syncButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/sync_hanzi_words"
+            android:padding="8dp"
+            android:src="@drawable/ic_sync" />
+
+        <ImageButton
             android:id="@+id/settingsButton"
             android:layout_width="40dp"
             android:layout_height="40dp"

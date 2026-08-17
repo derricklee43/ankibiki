@@ -11,4 +11,8 @@
     <string name="play_audio">Play audio</string>
     <string name="settings_menu">Search settings</string>
     <string name="settings_title">Search sources</string>
+    <string name="sync_hanzi_words">Sync Chinese words with Hanzi deck</string>
+    <string name="sync_running">Syncing…</string>
+    <string name="sync_result">Sync done: %1$d hanzi created, %2$d words updated, %3$d hanzi updated</string>
+    <string name="sync_failed">Sync failed: %1$s</string>
 </resources>

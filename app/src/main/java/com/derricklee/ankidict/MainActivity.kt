@@ -10,6 +10,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.ViewGroup
 import android.widget.PopupWindow
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -26,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var repository: AnkiRepository
     private lateinit var searchService: SearchService
+    private lateinit var syncService: HanziWordSyncService
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var adapter: SearchResultAdapter
 
@@ -38,7 +40,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         repository = AnkiRepository(this)
-        searchService = SearchService(repository, DictionaryRepository(this))
+        val dictionaryRepository = DictionaryRepository(this)
+        searchService = SearchService(repository, dictionaryRepository)
+        syncService = HanziWordSyncService(repository, dictionaryRepository, IdsRepository(this))
         settingsRepository = SettingsRepository(this)
         adapter = SearchResultAdapter(AudioRepository(this))
 
@@ -54,8 +58,34 @@ class MainActivity : AppCompatActivity() {
         })
 
         binding.settingsButton.setOnClickListener { showSettingsMenu() }
+        binding.syncButton.setOnClickListener { runSync() }
 
         checkAccessAndMaybeSearch()
+    }
+
+    private fun runSync() {
+        binding.syncButton.isEnabled = false
+        Toast.makeText(this, R.string.sync_running, Toast.LENGTH_SHORT).show()
+
+        Thread {
+            val outcome = runCatching { syncService.sync() }
+            runOnUiThread {
+                binding.syncButton.isEnabled = true
+                outcome.fold(
+                    onSuccess = { result ->
+                        Toast.makeText(
+                            this,
+                            getString(R.string.sync_result, result.hanziCreated, result.wordsUpdated, result.hanziUpdated),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                        scheduleSearch(binding.searchBox.text?.toString().orEmpty())
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(this, getString(R.string.sync_failed, error.message), Toast.LENGTH_LONG).show()
+                    },
+                )
+            }
+        }.start()
     }
 
     // Iterates SearchSource.entries so a new source added later needs no UI changes here.

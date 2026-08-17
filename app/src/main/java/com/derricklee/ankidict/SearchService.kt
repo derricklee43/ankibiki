@@ -41,7 +41,8 @@ class SearchService(
     }
 }
 
-private fun isCjkCharacter(c: Char): Boolean {
+// Also used by HanziWordSyncService to split a word into its component hanzi.
+fun isCjkCharacter(c: Char): Boolean {
     val block = Character.UnicodeBlock.of(c)
     return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS ||
         block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||

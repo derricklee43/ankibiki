@@ -84,7 +84,10 @@ class DictionaryRepository(context: Context) {
         return results
     }
 
-    private fun lookupChineseWords(query: String): List<DictionaryEntry.ChineseWord> {
+    /** Exact matches for [query] against CC-CEDICT's simplified/traditional headwords. Also
+     *  used directly by HanziWordSyncService (not just [lookupExact]) to look up a single
+     *  hanzi character's or word's meaning/pinyin when auto-filling sync-owned fields. */
+    fun lookupChineseWords(query: String): List<DictionaryEntry.ChineseWord> {
         val results = mutableListOf<DictionaryEntry.ChineseWord>()
         db.rawQuery(
             "SELECT traditional, simplified, pinyin, definitions FROM cedict " +
