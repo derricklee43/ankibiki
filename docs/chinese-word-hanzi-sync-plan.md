@@ -314,14 +314,25 @@ a simple progress/result callback back to the button's UI state.
 Resolves decision 3's open "HSK wordlist source" question, for levels 1/2 at least.
 `scripts/import_hsk_words.py`, run against Anki Desktop via AnkiConnect (same as
 `setup_chinese_word_deck.py`): pulls the old (classic 6-level, not 2021's HSK 3.0) standard's
-level-1 and level-2 word lists from `drkameleon/complete-hsk-vocabulary` (MIT licensed), creates
-a Word note per word tagged `HSK::1`/`HSK::2`, and deliberately leaves Translation/Pinyin/
-HanziBreakdown blank -- filling those in (from CC-CEDICT, so there's one consistent source for
-definitions/pinyin across the whole deck, not this dataset's own translations mixed in too) and
-auto-creating/cross-linking the component hanzi is the existing sync button's job, run
-afterward. Idempotent (skips words already present as a Word note).
+level-1 and level-2 word lists from `drkameleon/complete-hsk-vocabulary` (MIT licensed) and
+creates a Word note per word tagged `HSK::1`/`HSK::2`.
 
-Run against the real collection: 150 HSK1 + 147 HSK2 = 297 new Word notes (one word, 悲伤, was
-already there from Phase 6's test and got skipped). Verified via AnkiConnect afterward: tag
-counts match (150/147), a sample note (爸爸) has the right tag and blank enrichment fields.
-Re-ran the script once more -- "Nothing to add", confirming idempotency.
+First version left Translation blank for the sync to fill from CC-CEDICT, same as any other
+word. **Revised** after reviewing real output side by side: CC-CEDICT's raw dictionary gloss is
+often more technical than useful for a beginner word (e.g. 爸爸 got "(coll.) father; dad;
+CL:位[wei4]" -- that trailing classifier note is dictionary jargon, not something a learner
+wants on the card) where the HSK wordlist's own curated gloss is already exactly what's wanted
+("(coll.) father; dad"). So now: **Translation comes from the HSK wordlist itself**, written
+directly by this script (own field per script, not the sync) -- Pinyin/Audio/HanziBreakdown
+stay the sync's job entirely, untouched by this script. Re-running only touches Translation, and
+only when the upstream HSK gloss actually differs from what's already there (checked before
+writing, so an unrelated Pinyin/HanziBreakdown update from the sync never gets clobbered and a
+no-op rerun doesn't even bump the note's mod-time).
+
+Run against the real collection twice: first the original 297-new-word run (150 HSK1 + 147
+HSK2; 悲伤 already existed from Phase 6's test and was left alone), then -- after the sync had
+already filled in CC-CEDICT-sourced translations for those 297 -- the revised script overwrote
+all 297 with the HSK wordlist's own gloss instead, verified via AnkiConnect on both 爸爸
+(classifier note gone) and 爱 (happened to already match CC-CEDICT's, unaffected either way),
+confirmed Pinyin/HanziBreakdown untouched on both. 悲伤 (not an HSK word) confirmed still on its
+original CC-CEDICT translation, out of this script's scope entirely. Re-ran once more: 0 updates.
