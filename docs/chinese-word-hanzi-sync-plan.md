@@ -220,17 +220,17 @@ a simple progress/result callback back to the button's UI state.
 
 ## 9. Build order
 
-1. **`scripts/setup_chinese_word_deck.py`** (new, one-time, requires Anki Desktop running with
-   the AnkiConnect add-on installed):
-   - `modelFieldAdd`: add `Constituents` and `UsedInWords` to the Hanzi note type (appended at
-     the end).
-   - `updateModelTemplates` / `updateModelStyling`: update the Hanzi card template to render
-     `Constituents` as a tree (Section 5).
-   - `createModel`: the "Chinese Word" note type + template (Section 3.1).
-   - `createDeck`: "🇨🇳 Chinese Words".
-   - Idempotent: check `modelFieldNames`/`modelNames`/`deckNames` first so re-running doesn't
-     error on already-created things.
-   - Then sync Anki Desktop ↔ AnkiDroid so the phone's collection picks up the new shape.
+1. ✅ **DONE** — `scripts/setup_chinese_word_deck.py`, run against the live collection via
+   AnkiConnect. Verified afterward (not just trusted): `RSH`'s field list now ends
+   `..., "JP Constituent", "Constituents", "UsedInWords"` (appended, existing 0-11 untouched),
+   the `Chinese Word` model has exactly `[Word, Translation, Pinyin, Audio, HanziBreakdown]`,
+   and deck `🇨🇳 Chinese Words` exists. Re-ran the script a second time and every step reported
+   `[skip]` — confirmed idempotent. The tree-render JS itself is only reviewed by eye so far
+   (no JS runtime available here to execute it, and didn't want to plant a throwaway note with
+   fake `Constituents` JSON in the real Hanzi deck just to preview it) — first real visual
+   check happens naturally in step 6 once `Constituents` has real data.
+   **Still need to do:** sync Anki Desktop ↔ AnkiDroid so the phone's collection picks up the
+   new fields/model/deck before step 2 below.
 2. Confirm the new model/deck IDs and full field lists on-device (`getFieldList`,
    `getModelList`, `getDeckList` from `AddContentApi`), hardcode into `KnownNoteTypes.kt` the
    same way the existing two note types are.
