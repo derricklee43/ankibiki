@@ -56,3 +56,7 @@ const val HANZI_FIELD_COUNT = 14
 // Public (ChineseCardAdapter's own PINYIN_FIELD is private to that file) since the sync needs
 // it too, to carry CC-CEDICT's pinyin into a newly-created Hanzi note.
 const val HANZI_PINYIN_FIELD_INDEX = 4
+
+// Used by the sync to reuse a single-character word's matching Hanzi note's existing audio
+// (same [sound:...] filename, already in the shared collection.media -- no new audio needed).
+const val HANZI_AUDIO_FIELD_INDEX = 5

@@ -336,3 +336,19 @@ all 297 with the HSK wordlist's own gloss instead, verified via AnkiConnect on b
 (classifier note gone) and 爱 (happened to already match CC-CEDICT's, unaffected either way),
 confirmed Pinyin/HanziBreakdown untouched on both. 悲伤 (not an HSK word) confirmed still on its
 original CC-CEDICT translation, out of this script's scope entirely. Re-ran once more: 0 updates.
+
+## 12. Single-character audio reuse
+
+A word that's exactly one hanzi (e.g. 菜) can reuse that character's own pronunciation clip
+directly -- same `[sound:...]` filename, already sitting in the shared `collection.media`
+folder both note types draw from, so this is a plain field-to-field text copy, not new audio
+data or a new pipeline. Added to `HanziWordSyncService`: after resolving a word's component
+hanzi, if the word is a single character and that hanzi's own Audio field is non-blank, copy it
+into the Word's Audio field -- but only if the Word's Audio is still blank (never overwrites
+anything you or a future real word-audio pipeline puts there; see decision 5, still unaffected --
+this is reuse of an *exact match's* existing clip, not synthesis for multi-character words).
+
+Ran the sync against the real collection: 107 of 298 words picked up audio this way (every
+single-character HSK 1/2 word whose hanzi already had a Forvo clip). Verified 菜 specifically --
+its Word note's Audio now reads `[sound:forvo_zh_菜_7b4bb888fb65.mp3]`, identical to its Hanzi
+note's, confirmed via the temporary-debug-hook-then-revert pattern.

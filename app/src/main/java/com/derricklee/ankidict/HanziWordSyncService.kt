@@ -12,8 +12,10 @@ data class SyncResult(val hanziCreated: Int, val wordsUpdated: Int, val hanziUpd
  * readable breakdown of its components.
  *
  * Non-destructive by design: never touches a Hanzi note's Mnemonic, never overwrites a Word's
- * Translation/Pinyin if you've already filled them in yourself, and only issues a write when
- * the computed value actually differs from what's there -- safe to re-run at any time.
+ * Translation/Pinyin/Audio if you've already filled them in yourself (Audio only ever gets
+ * auto-filled when the word is exactly one hanzi, reusing that character's own pronunciation
+ * clip -- never synthesized for multi-character words), and only issues a write when the
+ * computed value actually differs from what's there -- safe to re-run at any time.
  */
 class HanziWordSyncService(
     private val ankiRepository: AnkiRepository,
@@ -65,7 +67,14 @@ class HanziWordSyncService(
                 breakdownParts.add("$charStr (${entry.fields[hanziMeaningIndex]})")
             }
 
-            if (updateWordFields(wordFields, wordText, breakdownParts)) {
+            // A word that's exactly one hanzi can reuse that character's own pronunciation
+            // audio directly -- same [sound:...] filename, already in the shared media folder.
+            val singleCharAudio = hanziByChar[wordText]
+                ?.takeIf { wordText.length == 1 }
+                ?.fields?.getOrNull(HANZI_AUDIO_FIELD_INDEX)
+                ?.takeIf { it.isNotBlank() }
+
+            if (updateWordFields(wordFields, wordText, breakdownParts, singleCharAudio)) {
                 ankiRepository.updateNoteFields(wordNote.id, wordFields)
                 wordsUpdated++
             }
@@ -83,12 +92,22 @@ class HanziWordSyncService(
     }
 
     /** Mutates [wordFields] in place; returns whether anything actually changed. */
-    private fun updateWordFields(wordFields: MutableList<String>, wordText: String, breakdownParts: List<String>): Boolean {
+    private fun updateWordFields(
+        wordFields: MutableList<String>,
+        wordText: String,
+        breakdownParts: List<String>,
+        singleCharAudio: String?,
+    ): Boolean {
         var changed = false
 
         val newBreakdown = breakdownParts.joinToString(", ")
         if (wordFields.getOrNull(HANZI_BREAKDOWN_FIELD_INDEX) != newBreakdown) {
             wordFields[HANZI_BREAKDOWN_FIELD_INDEX] = newBreakdown
+            changed = true
+        }
+
+        if (singleCharAudio != null && wordFields.getOrNull(WORD_AUDIO_FIELD_INDEX).isNullOrBlank()) {
+            wordFields[WORD_AUDIO_FIELD_INDEX] = singleCharAudio
             changed = true
         }
 
