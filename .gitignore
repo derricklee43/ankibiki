@@ -9,3 +9,4 @@ local.properties
 .cxx
 scripts/dictdata/
 app/src/main/assets/audio.db
+app/src/main/assets/ids.db

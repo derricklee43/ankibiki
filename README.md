@@ -66,3 +66,19 @@ missing.
 
 Re-run this any time you've added more audio to cards in Anki (make sure Anki Desktop has synced
 first), then rebuild the app to bundle the update.
+
+### Character decomposition (`app/src/main/assets/ids.db`) — gitignored, **not** committed
+
+```
+python3 scripts/build_ids_db.py
+```
+
+Downloads [cjkvi-ids](https://github.com/cjkvi/cjkvi-ids)' `ids.txt` (derived from the CHISE
+project) and builds a fully-recursive decomposition tree (JSON) per character, for the Hanzi
+note type's "Constituents" field (see `docs/chinese-word-hanzi-sync-plan.md`).
+
+Not committed, for the same reason as `audio.db`: that specific file's README says it "follows
+[CHISE's] terms" rather than the repo's own blanket GPLv2, and CHISE's site doesn't spell those
+terms out anywhere either — unclear redistribution terms get the same treatment as Forvo's
+audio, even though this is just data and the app itself isn't published. Re-run this if the
+upstream data gets corrected/extended; otherwise it basically never changes.

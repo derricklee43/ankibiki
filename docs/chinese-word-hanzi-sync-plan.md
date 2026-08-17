@@ -137,11 +137,12 @@ composition of 女 and 子). License needs a quick check at implementation time 
 KANJIDIC2/JMdict/CC-CEDICT's licenses were checked before bundling — expect CC0/permissive
 based on the project's stated terms, but verify rather than assume.
 
-New script `scripts/build_ids_db.py` (same pattern as `build_dictionary_db.py`): download the
-raw IDS table, recursively resolve each character's components into a nested tree (stop at
-components with no further IDS entry — treat as atomic radicals — and guard against cycles),
-and store the resulting JSON blob per character in a new `ids` table, either in `dictionary.db`
-or a new bundled db. Example shape:
+`scripts/build_ids_db.py` (done — see Section 9 step 3 for the implementation notes) downloads
+the raw IDS table, recursively resolves each character's components into a nested tree (a
+character reference gets re-expanded through the table again; a sub-grouping with no character
+of its own just keeps its already-inlined structure; depth-capped and cycle-guarded), and
+stores the resulting JSON blob per character in its own `ids.db` (not `dictionary.db` — see 9.3
+for why). Example shape:
 
 ```json
 {
@@ -208,8 +209,7 @@ a simple progress/result callback back to the button's UI state.
 ## 8. New/changed files (implementation phase, not yet done)
 
 - `scripts/setup_chinese_word_deck.py` — new (Phase 1, one-time, AnkiConnect)
-- `scripts/build_ids_db.py` — new
-- `dictionary.db` (or new `ids.db`) — gets an `ids` table
+- `scripts/build_ids_db.py` — new, builds `app/src/main/assets/ids.db` (gitignored, not committed)
 - `KnownNoteTypes.kt` — add `CHINESE_WORD_MODEL_ID` once it exists, plus field-index constants
   for the new note type and the two appended Hanzi fields
 - `Word.kt` / `WordAdapter.kt` (naming TBD) — new schema for Word notes, parallel to but
@@ -238,7 +238,20 @@ a simple progress/result callback back to the button's UI state.
    Hanzi model's full field list now ends `..., JP Constituent, Constituents, UsedInWords`
    (indices 12/13, matching Phase 1); deck ids `🇨🇳 Chinese Words` = `1786984418128`,
    `🇨🇳 RSH1 Hanzi` = `1786665356369`. All hardcoded into `KnownNoteTypes.kt`.
-3. `scripts/build_ids_db.py` + bundle the decomposition data.
+3. ✅ **DONE** — `scripts/build_ids_db.py`. One correction from the original Section 4 sketch:
+   CHISE's `ids.txt` already inlines further structure for sub-groupings that aren't
+   themselves an encoded character (e.g. 亭 = ⿱⿳亠口冖丁 -- the top part has no character of
+   its own, so it's spelled out in place), but *does* just reference a real character where
+   one exists (e.g. 谢 = ⿰讠射, not ⿰讠⿰身寸) -- so building the tree needs a proper
+   recursive-descent parse of each IDC's arity (2- or 3-way) *plus* re-expanding every leaf
+   character through the table again, not just one flat parse. Verified against 好, 你, 谢,
+   亭 by hand (谢 correctly expands 射 into 身+寸 via the second lookup). Also discovered the
+   license for this one file is murkier than KANJIDIC2/JMdict/CC-CEDICT (its own README defers
+   to CHISE's terms, which aren't published anywhere I could find) -- so `ids.db` gets the same
+   gitignored, not-committed treatment as `audio.db`, unlike `dictionary.db`. Filtered the
+   ~89k-character source down to CJK Unified Ideographs + Extension A + the radical/stroke
+   blocks (27,577 characters, 11.1MB) -- the rest is Unicode planes no Chinese word/hanzi study
+   deck will ever reference.
 4. `HanziWordSyncService` (Section 6).
 5. Button + wiring (Section 7).
 6. Manually create a couple of test Word notes, run the sync, verify: hanzi auto-created,
