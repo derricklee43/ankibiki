@@ -114,6 +114,7 @@ CONSTITUENT_TREE_CSS = """
 WORD_FRONT_TEMPLATE = """
 <div class="word-front">
   <div class="word">{{Word}}</div>
+  {{#Tags}}<div class="tags">{{Tags}}</div>{{/Tags}}
   {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
 </div>
 """
@@ -121,6 +122,7 @@ WORD_FRONT_TEMPLATE = """
 WORD_BACK_TEMPLATE = """
 <div class="word-front">
   <div class="word">{{Word}}</div>
+  {{#Tags}}<div class="tags">{{Tags}}</div>{{/Tags}}
   {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
 </div>
 <hr id="answer">
@@ -130,6 +132,19 @@ WORD_BACK_TEMPLATE = """
   {{#HanziBreakdown}}<div class="hanzi-breakdown">{{HanziBreakdown}}</div>{{/HanziBreakdown}}
 </div>
 """
+
+# Pre-tags versions of the same blocks, so ensure_word_tags_rendered() can find-and-replace them
+# in an already-created live template (created before this field was added to the templates
+# above) rather than re-deriving the diff by hand.
+_OLD_FRONT_BLOCK = """<div class="word-front">
+  <div class="word">{{Word}}</div>
+  {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
+</div>"""
+_NEW_FRONT_BLOCK = """<div class="word-front">
+  <div class="word">{{Word}}</div>
+  {{#Tags}}<div class="tags">{{Tags}}</div>{{/Tags}}
+  {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
+</div>"""
 
 WORD_CSS = """
 .word-front, .word-back {
@@ -141,6 +156,7 @@ WORD_CSS = """
   text-align: center;
 }
 .word { font-size: 48px; margin-bottom: 16px; }
+.tags { font-size: 12px; color: #888; margin-top: 4px; }
 .translation { font-size: 23px; font-weight: bold; text-transform: capitalize; margin-bottom: 12px; }
 .pinyin { font-style: italic; color: #1a4fd6; font-size: 18px; margin-bottom: 16px; }
 .hanzi-breakdown { text-align: left; max-width: 90%; margin: 12px auto 0; font-size: 16px; }
@@ -151,8 +167,11 @@ WORD_CSS = """
   color: #f0f0f0;
   border-color: #555;
 }
+.nightMode .tags, .night_mode .tags { color: #999; }
 .nightMode .pinyin, .night_mode .pinyin { color: #7fb3ff; }
 """
+
+_TAGS_CSS_MARKER = ".tags {"
 
 
 def invoke(action: str, **params):
@@ -215,6 +234,47 @@ def ensure_word_model():
     print(f"  [add]  model {WORD_MODEL_NAME!r} with fields {WORD_FIELDS}")
 
 
+def ensure_word_tags_rendered():
+    templates = invoke("modelTemplates", modelName=WORD_MODEL_NAME)
+    card_name, sides = next(iter(templates.items()))
+    new_sides = {}
+    changed = False
+    for side_name, html in sides.items():
+        if 'class="tags"' in html:
+            new_sides[side_name] = html
+            continue
+        if _OLD_FRONT_BLOCK not in html:
+            print(f"  [warn] {WORD_MODEL_NAME!r} {card_name!r} {side_name} doesn't match the "
+                  f"expected pre-tags template -- leaving it alone, check by hand")
+            new_sides[side_name] = html
+            continue
+        new_sides[side_name] = html.replace(_OLD_FRONT_BLOCK, _NEW_FRONT_BLOCK)
+        changed = True
+
+    if changed:
+        invoke("updateModelTemplates", model={"name": WORD_MODEL_NAME, "templates": {card_name: new_sides}})
+        print(f"  [add]  tags rendering -> {WORD_MODEL_NAME!r} {card_name!r} template")
+    else:
+        print(f"  [skip] {WORD_MODEL_NAME!r} template already renders tags")
+
+    css = invoke("modelStyling", modelName=WORD_MODEL_NAME)["css"]
+    if _TAGS_CSS_MARKER in css:
+        print(f"  [skip] {WORD_MODEL_NAME!r} CSS already has .tags styling")
+    else:
+        new_css = css.replace(
+            ".word { font-size: 48px; margin-bottom: 16px; }",
+            ".word { font-size: 48px; margin-bottom: 16px; }\n.tags { font-size: 12px; color: #888; margin-top: 4px; }",
+        )
+        if ".nightMode .pinyin" in new_css and ".nightMode .tags" not in new_css:
+            new_css = new_css.replace(
+                ".nightMode .pinyin, .night_mode .pinyin { color: #7fb3ff; }",
+                ".nightMode .tags, .night_mode .tags { color: #999; }\n"
+                ".nightMode .pinyin, .night_mode .pinyin { color: #7fb3ff; }",
+            )
+        invoke("updateModelStyling", model={"name": WORD_MODEL_NAME, "css": new_css})
+        print(f"  [add]  .tags styling -> {WORD_MODEL_NAME!r} CSS")
+
+
 def ensure_word_deck():
     if WORD_DECK_NAME in invoke("deckNames"):
         print(f"  [skip] deck {WORD_DECK_NAME!r} already exists")
@@ -231,6 +291,8 @@ def main():
     ensure_hanzi_template()
     print("Chinese Word note type:")
     ensure_word_model()
+    print("Chinese Word template tags rendering:")
+    ensure_word_tags_rendered()
     print("Chinese Word deck:")
     ensure_word_deck()
     print("Done. Sync AnkiDroid with this collection before using the new fields on the phone.")
