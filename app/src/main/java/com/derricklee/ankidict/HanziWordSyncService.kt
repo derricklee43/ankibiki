@@ -1,5 +1,9 @@
 package com.derricklee.ankidict
 
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
+
 /** hanziCreated: new Hanzi notes auto-created for a word's missing components.
  *  wordsUpdated: Word notes whose HanziBreakdown/Translation/Pinyin/Audio changed.
  *  hanziUpdated: existing Hanzi notes whose UsedInWords changed. */
@@ -9,7 +13,10 @@ data class SyncResult(val hanziCreated: Int, val wordsUpdated: Int, val hanziUpd
  * Keeps the Chinese Word deck and the Hanzi deck cross-linked (see
  * docs/chinese-word-hanzi-sync-plan.md, Section 6): every word's component hanzi get a note
  * (creating any that don't exist yet) and get told this word uses them (word + pinyin +
- * meaning, one per line); every word gets a readable breakdown of its components.
+ * meaning, one per line); every word gets a readable breakdown of its components; every hanzi's
+ * Constituents tree gets each node's meaning filled in from that character's own card in this
+ * deck (when it has one), recomputed every run so a component that gets its own card later
+ * still picks up a meaning retroactively.
  *
  * Non-destructive by design: never touches a Hanzi note's Mnemonic, never overwrites a Word's
  * Translation/Pinyin/Audio if you've already filled them in yourself (Audio only ever gets
@@ -73,6 +80,14 @@ class HanziWordSyncService(
                 if (usedIn[wordText] != line) {
                     usedIn[wordText] = line
                     entry.fields[HANZI_USED_IN_WORDS_FIELD_INDEX] = usedIn.values.joinToString("\n")
+                    entry.dirty = true
+                }
+
+                // Recomputed every run (not just at creation) so a component that gets its own
+                // card *after* this tree was first built still picks up a meaning here later.
+                val annotatedTree = annotateWithMeanings(idsRepository.constituentsTreeJson(charStr), hanziByChar)
+                if (entry.fields[HANZI_CONSTITUENTS_FIELD_INDEX] != annotatedTree) {
+                    entry.fields[HANZI_CONSTITUENTS_FIELD_INDEX] = annotatedTree
                     entry.dirty = true
                 }
 
@@ -142,9 +157,38 @@ class HanziWordSyncService(
         fields[hanziMeaningIndex] = dictEntry?.definitions.orEmpty()
         fields[hanziCharIndex] = character
         fields[HANZI_PINYIN_FIELD_INDEX] = dictEntry?.pinyin?.let(::toDiacriticPinyin).orEmpty()
-        fields[HANZI_CONSTITUENTS_FIELD_INDEX] = idsRepository.constituentsTreeJson(character)
+        // Constituents is left blank here -- the per-character loop in sync() fills it in (and
+        // keeps it current on every later run) right after this note exists, annotated with
+        // meanings pulled from this deck's own cards.
         // Mnemonic and everything else (Number/Audio/Image/Tags/JP*) stay blank -- yours to fill in.
         return fields
+    }
+
+    /** Walks a raw (unannotated) Constituents tree from [IdsRepository] and adds a "meaning"
+     *  string to every node whose character has its own card in this deck -- pulled from that
+     *  card's own Meaning field, not a dictionary lookup, since the whole point is showing what
+     *  *you already know this piece as*, not a fresh definition. A character with no card of
+     *  its own is left without one; the template just shows the bare character for those. */
+    private fun annotateWithMeanings(treeJson: String, hanziByChar: Map<String, HanziEntry>): String {
+        if (treeJson.isBlank()) return treeJson
+        return try {
+            val root = JSONObject(treeJson)
+            annotateNode(root, hanziByChar)
+            root.toString()
+        } catch (e: JSONException) {
+            treeJson
+        }
+    }
+
+    private fun annotateNode(node: JSONObject, hanziByChar: Map<String, HanziEntry>) {
+        val char = node.optString("char")
+        hanziByChar[char]?.fields?.getOrNull(hanziMeaningIndex)?.takeIf { it.isNotBlank() }?.let {
+            node.put("meaning", it)
+        }
+        val children: JSONArray = node.optJSONArray("children") ?: return
+        for (i in 0 until children.length()) {
+            annotateNode(children.getJSONObject(i), hanziByChar)
+        }
     }
 
     /** word -> its current line, keyed so re-running can update a line in place (e.g. once a
