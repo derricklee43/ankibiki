@@ -437,3 +437,20 @@ Ran against the real collection: 悲's `Constituents` is now `{"char":"悲","op"
 "meaning":"heart"}],"meaning":"sad; sadness; sorrow; grief"}` -- both 非 and 心 already had their
 own cards in the deck, and their meanings got pulled in correctly. Verified via the
 temporary-debug-hook pattern; migration confirmed idempotent on a second script run.
+
+## 16. Word audio moved to the answer side
+
+Audio was on the Front template (and echoed again at the top of Back), so it played before
+you'd tried to recall the pronunciation yourself -- moved out of Front entirely and into the
+`.word-back` answer section (right after Pinyin), so hearing it is part of checking your answer,
+not a freebie beforehand.
+
+`ensure_word_audio_on_answer()` in `setup_chinese_word_deck.py`, same migrate-in-place pattern
+as the other template changes: strips `{{#Audio}}...{{/Audio}}` from the front block wherever it
+appears (both Front and the echoed block at the top of Back), and inserts it into the answer
+block after Pinyin. No CSS changes needed -- `.audio` styling already existed.
+
+Ran against the real collection and verified the actual rendered question/answer HTML via
+AnkiConnect for 菜: question is now just the bare word, answer has
+`<div class="audio">[anki:play:a:0]</div>` between Pinyin and HanziBreakdown. Confirmed
+idempotent on a second run.

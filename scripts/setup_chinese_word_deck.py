@@ -354,10 +354,12 @@ USED_IN_WORDS_CSS = """
 .nightMode .used-in-words-label, .night_mode .used-in-words-label { color: #888; }
 """
 
+# Audio plays as soon as the card front is shown, before you've tried to recall the
+# pronunciation yourself -- moved to the answer side instead (see ensure_word_audio_on_answer()),
+# so hearing it is part of checking the answer, not a freebie before you've attempted it.
 WORD_FRONT_TEMPLATE = """
 <div class="word-front">
   <div class="word">{{Word}}</div>
-  {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
 </div>
 """
 
@@ -368,7 +370,6 @@ WORD_FRONT_TEMPLATE = """
 WORD_BACK_TEMPLATE = """
 <div class="word-front">
   <div class="word">{{Word}}</div>
-  {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
 </div>
 <hr id="answer">
 <div class="word-back">
@@ -387,12 +388,14 @@ WORD_BACK_TEMPLATE = """
   {{/Tags}}
   <div class="translation">{{Translation}}</div>
   <div class="pinyin">{{Pinyin}}</div>
+  {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
   {{#HanziBreakdown}}<div class="hanzi-breakdown">{{HanziBreakdown}}</div>{{/HanziBreakdown}}
 </div>
 """
 
-# Migration markers, so ensure_word_answer_tags() can find-and-fix an already-live template
-# (created before this shape existed) rather than re-deriving the diff by hand each time.
+# Migration markers, so ensure_word_answer_tags()/ensure_word_audio_on_answer() can find-and-fix
+# an already-live template (created before this shape existed) rather than re-deriving the diff
+# by hand each time.
 _FRONT_WITH_SMALL_TAGS = """<div class="word-front">
   <div class="word">{{Word}}</div>
   {{#Tags}}<div class="tags">{{Tags}}</div>{{/Tags}}
@@ -419,6 +422,37 @@ _NEW_ANSWER_BLOCK = """<div class="word-back">
   {{/Tags}}
   <div class="translation">{{Translation}}</div>
   <div class="pinyin">{{Pinyin}}</div>
+  {{#HanziBreakdown}}<div class="hanzi-breakdown">{{HanziBreakdown}}</div>{{/HanziBreakdown}}
+</div>"""
+
+# Front/Back as they stood right before moving Audio to the answer side (tags already on the
+# answer, per _NEW_ANSWER_BLOCK above) -- kept so ensure_word_audio_on_answer() can migrate an
+# already-live template in place.
+_FRONT_WITH_AUDIO = """<div class="word-front">
+  <div class="word">{{Word}}</div>
+  {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
+</div>"""
+_FRONT_NO_AUDIO = """<div class="word-front">
+  <div class="word">{{Word}}</div>
+</div>"""
+_ANSWER_AUDIO_ON_FRONT = _NEW_ANSWER_BLOCK
+_ANSWER_AUDIO_ON_ANSWER = """<div class="word-back">
+  {{#Tags}}
+  <div id="tags-data" style="display:none">{{Tags}}</div>
+  <div class="tags-display" id="tags-display"></div>
+  <script>
+  (function() {
+    var raw = document.getElementById('tags-data');
+    var target = document.getElementById('tags-display');
+    if (!raw || !target) return;
+    target.textContent = raw.textContent.trim().split(' ').filter(Boolean)
+      .map(function(t) { return t.replace(/::/g, ''); }).join(' ');
+  })();
+  </script>
+  {{/Tags}}
+  <div class="translation">{{Translation}}</div>
+  <div class="pinyin">{{Pinyin}}</div>
+  {{#Audio}}<div class="audio">{{Audio}}</div>{{/Audio}}
   {{#HanziBreakdown}}<div class="hanzi-breakdown">{{HanziBreakdown}}</div>{{/HanziBreakdown}}
 </div>"""
 
@@ -615,6 +649,34 @@ def ensure_word_answer_tags():
         print(f"  [skip] {WORD_MODEL_NAME!r} CSS already correct")
 
 
+def ensure_word_audio_on_answer():
+    templates = invoke("modelTemplates", modelName=WORD_MODEL_NAME)
+    card_name, sides = next(iter(templates.items()))
+    new_sides = dict(sides)
+    changed = False
+
+    for side_name, html in sides.items():
+        if _FRONT_WITH_AUDIO in html:
+            new_sides[side_name] = html.replace(_FRONT_WITH_AUDIO, _FRONT_NO_AUDIO)
+            changed = True
+
+    back = new_sides["Back"]
+    if _ANSWER_AUDIO_ON_ANSWER in back:
+        pass  # already migrated
+    elif _ANSWER_AUDIO_ON_FRONT in back:
+        new_sides["Back"] = back.replace(_ANSWER_AUDIO_ON_FRONT, _ANSWER_AUDIO_ON_ANSWER)
+        changed = True
+    else:
+        print(f"  [warn] {WORD_MODEL_NAME!r} {card_name!r} Back doesn't match any known answer-"
+              f"block shape -- leaving it alone, check by hand")
+
+    if changed:
+        invoke("updateModelTemplates", model={"name": WORD_MODEL_NAME, "templates": {card_name: new_sides}})
+        print(f"  [add]  moved Audio to the answer side -> {WORD_MODEL_NAME!r} {card_name!r} template")
+    else:
+        print(f"  [skip] {WORD_MODEL_NAME!r} template already plays Audio only on the answer")
+
+
 def ensure_word_deck():
     if WORD_DECK_NAME in invoke("deckNames"):
         print(f"  [skip] deck {WORD_DECK_NAME!r} already exists")
@@ -635,6 +697,8 @@ def main():
     ensure_word_model()
     print("Chinese Word template tags rendering:")
     ensure_word_answer_tags()
+    print("Chinese Word template audio placement:")
+    ensure_word_audio_on_answer()
     print("Chinese Word deck:")
     ensure_word_deck()
     print("Done. Sync AnkiDroid with this collection before using the new fields on the phone.")
