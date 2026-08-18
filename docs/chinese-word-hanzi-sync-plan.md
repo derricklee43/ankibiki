@@ -407,3 +407,33 @@ Verified the resulting HTML/CSS/JS via AnkiConnect and traced the JS logic again
 `⿱非心` tree by hand -- correct -- but, same limitation as the original tree, there's no way to
 screenshot Anki Desktop's or AnkiDroid's actual WebView rendering from here, so this hasn't
 been *seen* rendering yet. Worth a look next time a decomposable character comes up for review.
+
+## 15. Constituents nodes show a meaning, not the IDC operator glyph
+
+Didn't want the raw `⿰`/`⿱`/etc. icon next to each node -- wanted each component's *meaning*
+instead, pulled from that character's own card in this deck specifically (not a fresh
+dictionary lookup -- the whole point is showing what you already know this piece as). Since Anki
+templates can't query other notes at render time, this has to be baked into the stored
+`Constituents` JSON at sync time, not resolved client-side.
+
+`HanziWordSyncService.annotateWithMeanings()` (new, uses `org.json` -- built into the Android
+SDK, no new dependency) walks the raw tree from `IdsRepository` and adds a `"meaning"` string to
+every node whose character has its own Hanzi note, pulled from that note's own Meaning field.
+Moved Constituents out of `buildNewHanziFields` (which only ever ran once, at creation) and into
+the per-character loop in `sync()`, recomputed on *every* run rather than write-once -- so a
+component that gets its own card later still picks up a meaning retroactively, not just at the
+moment its parent's tree was first built. `op` stays in the JSON (still structurally correct,
+just unused by the template now) rather than being stripped, in case something else wants it
+later.
+
+`setup_chinese_word_deck.py`: v3 of the tree template, `label.textContent = node.char +
+(node.meaning ? ' — ' + node.meaning : '')` instead of `node.op`. `ensure_hanzi_template()`
+chains v1 -> v2 -> v3 migration (checks for `CONSTITUENT_TREE_V3_MARKER` first; falls back
+through the v2 and v1 exact-string replacements in turn) since CSS didn't need to change this
+time -- only the label logic did.
+
+Ran against the real collection: 悲's `Constituents` is now `{"char":"悲","op":"⿱","children":
+[{"char":"非","op":null,"children":[],"meaning":"non-"},{"char":"心","op":null,"children":[],
+"meaning":"heart"}],"meaning":"sad; sadness; sorrow; grief"}` -- both 非 and 心 already had their
+own cards in the deck, and their meanings got pulled in correctly. Verified via the
+temporary-debug-hook pattern; migration confirmed idempotent on a second script run.

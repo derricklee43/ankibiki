@@ -46,6 +46,9 @@ CONSTITUENT_TREE_MARKER = "constituent-tree-render"
 # Only present in the directory-style redesign (see ensure_hanzi_template()) -- "is it the
 # *current* version" check, since CONSTITUENT_TREE_MARKER alone can't tell v1 from v2.
 CONSTITUENT_TREE_V2_MARKER = "ct-toggle"
+# Only present once a node's label shows its meaning (pulled from that character's own card in
+# this deck) instead of the raw IDC operator glyph (⿰, ⿱, ...).
+CONSTITUENT_TREE_V3_MARKER = "node.meaning"
 
 # v1: exactly what's-live before the directory-tree redesign, kept only so
 # ensure_hanzi_template() can find-and-replace it in an already-set-up collection.
@@ -122,7 +125,9 @@ _OLD_CONSTITUENT_TREE_CSS = """
 # direct children start expanded (so the immediate breakdown is visible without clicking);
 # anything deeper starts collapsed so a long decomposition chain doesn't dump onto the card
 # all at once.
-CONSTITUENT_TREE_HTML = """
+# v2: exactly what's-live before the icon -> meaning change, kept only so
+# ensure_hanzi_template() can find-and-replace it in an already-migrated collection.
+_V2_CONSTITUENT_TREE_HTML = """
 {{#Constituents}}
 <div id="constituent-tree-data" style="display:none">{{Constituents}}</div>
 <div class="constituent-tree-render" id="constituent-tree-render"></div>
@@ -148,6 +153,62 @@ CONSTITUENT_TREE_HTML = """
     var label = document.createElement('span');
     label.className = 'ct-label';
     label.textContent = node.char + (node.op ? ' ' + node.op : '');
+    row.appendChild(label);
+
+    li.appendChild(row);
+
+    if (hasChildren) {
+      var ul = document.createElement('ul');
+      node.children.forEach(function(child) { ul.appendChild(renderNode(child, depth + 1)); });
+      li.appendChild(ul);
+
+      if (depth >= 1) {
+        li.classList.add('ct-collapsed');
+      }
+      row.classList.add('ct-expandable');
+      row.addEventListener('click', function() { li.classList.toggle('ct-collapsed'); });
+    }
+    return li;
+  }
+
+  var rootUl = document.createElement('ul');
+  rootUl.className = 'ct-root';
+  rootUl.appendChild(renderNode(tree, 0));
+  target.appendChild(rootUl);
+})();
+</script>
+{{/Constituents}}
+"""
+
+# v3: label shows the character's own meaning (annotated onto the JSON tree by
+# HanziWordSyncService, pulled from that character's own card in this deck) instead of the raw
+# IDC operator glyph -- a character with no card of its own just shows bare, no icon either.
+CONSTITUENT_TREE_HTML = """
+{{#Constituents}}
+<div id="constituent-tree-data" style="display:none">{{Constituents}}</div>
+<div class="constituent-tree-render" id="constituent-tree-render"></div>
+<script>
+(function() {
+  var raw = document.getElementById('constituent-tree-data');
+  var target = document.getElementById('constituent-tree-render');
+  if (!raw || !target) return;
+  var tree;
+  try { tree = JSON.parse(raw.textContent); } catch (e) { return; }
+
+  function renderNode(node, depth) {
+    var li = document.createElement('li');
+    var row = document.createElement('span');
+    row.className = 'ct-node';
+
+    var hasChildren = !!(node.children && node.children.length);
+
+    var toggle = document.createElement('span');
+    toggle.className = 'ct-toggle';
+    row.appendChild(toggle);
+
+    var label = document.createElement('span');
+    label.className = 'ct-label';
+    label.textContent = node.char + (node.meaning ? ' — ' + node.meaning : '');
     row.appendChild(label);
 
     li.appendChild(row);
@@ -423,10 +484,13 @@ def ensure_hanzi_template():
     templates = invoke("modelTemplates", modelName=HANZI_MODEL_NAME)
     card_name, sides = next(iter(templates.items()))
     back = sides["Back"]
-    if CONSTITUENT_TREE_V2_MARKER in back:
-        print(f"  [skip] {HANZI_MODEL_NAME!r} {card_name!r} already has the directory-tree renderer")
+    if CONSTITUENT_TREE_V3_MARKER in back:
+        print(f"  [skip] {HANZI_MODEL_NAME!r} {card_name!r} already shows meanings in the tree")
     else:
-        if _OLD_CONSTITUENT_TREE_HTML in back:
+        if _V2_CONSTITUENT_TREE_HTML in back:
+            new_back = back.replace(_V2_CONSTITUENT_TREE_HTML, CONSTITUENT_TREE_HTML)
+            verb = "migrated"
+        elif _OLD_CONSTITUENT_TREE_HTML in back:
             new_back = back.replace(_OLD_CONSTITUENT_TREE_HTML, CONSTITUENT_TREE_HTML)
             verb = "migrated"
         elif CONSTITUENT_TREE_MARKER not in back:
@@ -442,7 +506,7 @@ def ensure_hanzi_template():
                 "updateModelTemplates",
                 model={"name": HANZI_MODEL_NAME, "templates": {card_name: {"Front": sides["Front"], "Back": new_back}}},
             )
-            print(f"  [{verb}] directory-tree renderer -> {HANZI_MODEL_NAME!r} {card_name!r} Back template")
+            print(f"  [{verb}] meaning-based tree renderer -> {HANZI_MODEL_NAME!r} {card_name!r} Back template")
 
     css = invoke("modelStyling", modelName=HANZI_MODEL_NAME)["css"]
     if CONSTITUENT_TREE_V2_MARKER in css:
