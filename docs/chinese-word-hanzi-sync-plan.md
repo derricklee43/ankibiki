@@ -352,3 +352,58 @@ Ran the sync against the real collection: 107 of 298 words picked up audio this 
 single-character HSK 1/2 word whose hanzi already had a Forvo clip). Verified 菜 specifically --
 its Word note's Audio now reads `[sound:forvo_zh_菜_7b4bb888fb65.mp3]`, identical to its Hanzi
 note's, confirmed via the temporary-debug-hook-then-revert pattern.
+
+## 13. Richer UsedInWords + rendering it on the Hanzi card
+
+Two asks: (1) `UsedInWords` should carry the word's pinyin and meaning, not just the bare word
+text, and (2) it should actually be visible on the Hanzi card -- Phase 1 added the field but
+never added it to the template, so it was invisible the whole time.
+
+`HanziWordSyncService`: a word's Translation/Pinyin now get resolved *before* the per-character
+loop (previously resolved after, inside `updateWordFields`) since the "used in words" line
+needs them too, even when the word's own fields are already filled in and nothing there needs
+changing. Each hanzi's `UsedInWords` line is now `"<word> (<pinyin>) — <meaning>"`, one word per
+`\n`-separated line, parsed back into a `word -> line` map keyed on the word (splitting on
+`" ("`) so a re-run updates a line in place (e.g. once a blank Translation gets filled in later)
+rather than leaving a stale duplicate parked next to the new one -- this also means it correctly
+migrates old bare-word-only lines from before this change, since the key extraction works the
+same way on those.
+
+`setup_chinese_word_deck.py`: new `ensure_hanzi_used_in_words_rendered()`, appended to the Back
+template/CSS the same way the Constituents tree was -- `white-space: pre-line` is enough here
+(no JS needed) since the field is already plain, readable text with real `\n`s.
+
+Ran the sync against the real collection: 菜's `UsedInWords` went from `"菜"` to `"菜 (cài) —
+dish (type of food); vegetable; cuisine; (coll.) (one's) type; (of one's skills etc) weak;
+poor"`; 悲's went to `"悲伤 (bēi shāng) — sad; sorrowful"`. Verified via the temporary-debug-hook
+pattern. The toast's `hanziUpdated` count was cut off by the toast's width in the screenshot,
+which briefly looked like nothing had changed -- it hadn't actually failed, the field data
+directly confirmed the enrichment did apply.
+
+## 14. Constituents tree: directory-style redesign
+
+Wasn't happy with the original tree's look (v1: plain nested `<ul>`, bold text for expandable
+nodes, no connecting lines, everything collapsed by default including the root's own direct
+children). Redesigned to look like an actual file-explorer/directory tree --
+[the classic CSS technique](https://freefrontend.com/css-tree-view/) for this: each `<li>` gets
+a vertical "trunk" line (`::before`) and a horizontal "elbow" connecting it to its label
+(`::after`), with the last sibling's trunk shortened so it doesn't run past its own elbow. Added
+a real ▾/▸ disclosure triangle per expandable node (a fixed-width empty spacer on leaf nodes, so
+labels stay aligned whether or not they have one). Monospace font, matching the "directory
+listing" feel.
+
+Also changed the default expand state: v1 collapsed the root's own children too, so flipping the
+card showed nothing but the character itself until you clicked -- now depth-0's children (the
+character's immediate decomposition) start expanded, anything deeper starts collapsed, so the
+immediate breakdown is visible without any interaction while a long decomposition chain still
+doesn't dump everything onto the card at once.
+
+`ensure_hanzi_template()` in `setup_chinese_word_deck.py` now migrates in place: a new
+`ct-toggle`-based marker distinguishes "v2 already applied" from "v1 still live" (the old
+`constituent-tree-render` marker alone can't tell the two apart, since it's present in both
+versions), and finds-and-replaces the exact v1 HTML/CSS strings kept around specifically for
+this. Ran against the real collection and confirmed idempotent (`[skip]` on a second run).
+Verified the resulting HTML/CSS/JS via AnkiConnect and traced the JS logic against 悲's actual
+`⿱非心` tree by hand -- correct -- but, same limitation as the original tree, there's no way to
+screenshot Anki Desktop's or AnkiDroid's actual WebView rendering from here, so this hasn't
+been *seen* rendering yet. Worth a look next time a decomposable character comes up for review.

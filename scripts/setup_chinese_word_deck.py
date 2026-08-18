@@ -41,10 +41,15 @@ WORD_FIELDS = ["Word", "Translation", "Pinyin", "Audio", "HanziBreakdown"]
 
 WORD_DECK_NAME = "🇨🇳 Chinese Words"
 
-# Also used as a "have we already made this edit" marker when re-running.
+# Present in every version of the tree renderer -- "is this feature here at all" check.
 CONSTITUENT_TREE_MARKER = "constituent-tree-render"
+# Only present in the directory-style redesign (see ensure_hanzi_template()) -- "is it the
+# *current* version" check, since CONSTITUENT_TREE_MARKER alone can't tell v1 from v2.
+CONSTITUENT_TREE_V2_MARKER = "ct-toggle"
 
-CONSTITUENT_TREE_HTML = """
+# v1: exactly what's-live before the directory-tree redesign, kept only so
+# ensure_hanzi_template() can find-and-replace it in an already-set-up collection.
+_OLD_CONSTITUENT_TREE_HTML = """
 {{#Constituents}}
 <div id="constituent-tree-data" style="display:none">{{Constituents}}</div>
 <div class="constituent-tree-render" id="constituent-tree-render"></div>
@@ -82,7 +87,7 @@ CONSTITUENT_TREE_HTML = """
 {{/Constituents}}
 """
 
-CONSTITUENT_TREE_CSS = """
+_OLD_CONSTITUENT_TREE_CSS = """
 .constituent-tree-render {
   text-align: left;
   max-width: 90%;
@@ -109,6 +114,183 @@ CONSTITUENT_TREE_CSS = """
 .night_mode .constituent-tree-render .ct-expandable {
   color: #7fb3ff;
 }
+"""
+
+# v2: directory/file-explorer style -- vertical trunk + horizontal elbow connectors drawn with
+# ::before/::after on each <li> (the standard CSS technique for this, e.g.
+# https://freefrontend.com/css-tree-view/), plus a ▾/▸ disclosure triangle. The root's own
+# direct children start expanded (so the immediate breakdown is visible without clicking);
+# anything deeper starts collapsed so a long decomposition chain doesn't dump onto the card
+# all at once.
+CONSTITUENT_TREE_HTML = """
+{{#Constituents}}
+<div id="constituent-tree-data" style="display:none">{{Constituents}}</div>
+<div class="constituent-tree-render" id="constituent-tree-render"></div>
+<script>
+(function() {
+  var raw = document.getElementById('constituent-tree-data');
+  var target = document.getElementById('constituent-tree-render');
+  if (!raw || !target) return;
+  var tree;
+  try { tree = JSON.parse(raw.textContent); } catch (e) { return; }
+
+  function renderNode(node, depth) {
+    var li = document.createElement('li');
+    var row = document.createElement('span');
+    row.className = 'ct-node';
+
+    var hasChildren = !!(node.children && node.children.length);
+
+    var toggle = document.createElement('span');
+    toggle.className = 'ct-toggle';
+    row.appendChild(toggle);
+
+    var label = document.createElement('span');
+    label.className = 'ct-label';
+    label.textContent = node.char + (node.op ? ' ' + node.op : '');
+    row.appendChild(label);
+
+    li.appendChild(row);
+
+    if (hasChildren) {
+      var ul = document.createElement('ul');
+      node.children.forEach(function(child) { ul.appendChild(renderNode(child, depth + 1)); });
+      li.appendChild(ul);
+
+      if (depth >= 1) {
+        li.classList.add('ct-collapsed');
+      }
+      row.classList.add('ct-expandable');
+      row.addEventListener('click', function() { li.classList.toggle('ct-collapsed'); });
+    }
+    return li;
+  }
+
+  var rootUl = document.createElement('ul');
+  rootUl.className = 'ct-root';
+  rootUl.appendChild(renderNode(tree, 0));
+  target.appendChild(rootUl);
+})();
+</script>
+{{/Constituents}}
+"""
+
+CONSTITUENT_TREE_CSS = """
+.constituent-tree-render {
+  text-align: left;
+  max-width: 90%;
+  margin: 16px auto 0;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 16px;
+}
+.constituent-tree-render ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 18px;
+}
+.constituent-tree-render ul.ct-root {
+  padding-left: 0;
+}
+.constituent-tree-render li {
+  position: relative;
+  padding-left: 18px;
+  line-height: 1.8;
+}
+.constituent-tree-render ul.ct-root > li {
+  padding-left: 0;
+}
+.constituent-tree-render li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-left: 1px solid #bbb;
+}
+.constituent-tree-render li::after {
+  content: "";
+  position: absolute;
+  top: 13px;
+  left: 0;
+  width: 14px;
+  border-top: 1px solid #bbb;
+}
+.constituent-tree-render li:last-child::before {
+  height: 13px;
+}
+.constituent-tree-render ul.ct-root > li::before,
+.constituent-tree-render ul.ct-root > li::after {
+  display: none;
+}
+.constituent-tree-render .ct-node {
+  display: inline-flex;
+  align-items: center;
+}
+.constituent-tree-render .ct-expandable {
+  cursor: pointer;
+}
+.constituent-tree-render .ct-toggle {
+  display: inline-block;
+  width: 14px;
+  text-align: center;
+  color: #888;
+  font-size: 11px;
+}
+.constituent-tree-render .ct-expandable .ct-toggle::before {
+  content: "▾";
+}
+.constituent-tree-render .ct-collapsed > .ct-node.ct-expandable .ct-toggle::before {
+  content: "▸";
+}
+.constituent-tree-render .ct-collapsed > ul {
+  display: none;
+}
+.constituent-tree-render .ct-label {
+  font-weight: 500;
+}
+
+.nightMode .constituent-tree-render li::before,
+.nightMode .constituent-tree-render li::after,
+.night_mode .constituent-tree-render li::before,
+.night_mode .constituent-tree-render li::after {
+  border-color: #555;
+}
+.nightMode .constituent-tree-render .ct-toggle,
+.night_mode .constituent-tree-render .ct-toggle {
+  color: #999;
+}
+"""
+
+# UsedInWords is plain "word (pinyin) — meaning" text, one entry per \n-separated line (written
+# by HanziWordSyncService) -- no JSON/JS needed like Constituents, just CSS that preserves the
+# line breaks a raw {{Field}} reference would otherwise collapse.
+USED_IN_WORDS_MARKER = "used-in-words"
+
+USED_IN_WORDS_HTML = """
+{{#UsedInWords}}
+<div class="used-in-words-label">Used in</div>
+<div class="used-in-words">{{UsedInWords}}</div>
+{{/UsedInWords}}
+"""
+
+USED_IN_WORDS_CSS = """
+.used-in-words-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #999;
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+.used-in-words {
+  white-space: pre-line;
+  text-align: left;
+  max-width: 90%;
+  margin: 0 auto;
+  font-size: 14px;
+}
+
+.nightMode .used-in-words-label, .night_mode .used-in-words-label { color: #888; }
 """
 
 WORD_FRONT_TEMPLATE = """
@@ -240,22 +422,67 @@ def ensure_hanzi_fields():
 def ensure_hanzi_template():
     templates = invoke("modelTemplates", modelName=HANZI_MODEL_NAME)
     card_name, sides = next(iter(templates.items()))
-    if CONSTITUENT_TREE_MARKER in sides["Back"]:
-        print(f"  [skip] {HANZI_MODEL_NAME!r} {card_name!r} already has the tree renderer")
+    back = sides["Back"]
+    if CONSTITUENT_TREE_V2_MARKER in back:
+        print(f"  [skip] {HANZI_MODEL_NAME!r} {card_name!r} already has the directory-tree renderer")
     else:
-        new_back = sides["Back"] + "\n" + CONSTITUENT_TREE_HTML
+        if _OLD_CONSTITUENT_TREE_HTML in back:
+            new_back = back.replace(_OLD_CONSTITUENT_TREE_HTML, CONSTITUENT_TREE_HTML)
+            verb = "migrated"
+        elif CONSTITUENT_TREE_MARKER not in back:
+            new_back = back + "\n" + CONSTITUENT_TREE_HTML
+            verb = "added"
+        else:
+            print(f"  [warn] {HANZI_MODEL_NAME!r} {card_name!r} has an unrecognized tree-renderer "
+                  f"version -- leaving it alone, check by hand")
+            new_back = None
+
+        if new_back is not None:
+            invoke(
+                "updateModelTemplates",
+                model={"name": HANZI_MODEL_NAME, "templates": {card_name: {"Front": sides["Front"], "Back": new_back}}},
+            )
+            print(f"  [{verb}] directory-tree renderer -> {HANZI_MODEL_NAME!r} {card_name!r} Back template")
+
+    css = invoke("modelStyling", modelName=HANZI_MODEL_NAME)["css"]
+    if CONSTITUENT_TREE_V2_MARKER in css:
+        print(f"  [skip] {HANZI_MODEL_NAME!r} CSS already has the directory-tree styles")
+    else:
+        if _OLD_CONSTITUENT_TREE_CSS in css:
+            new_css = css.replace(_OLD_CONSTITUENT_TREE_CSS, CONSTITUENT_TREE_CSS)
+            verb = "migrated"
+        elif CONSTITUENT_TREE_MARKER not in css:
+            new_css = css + "\n" + CONSTITUENT_TREE_CSS
+            verb = "added"
+        else:
+            print(f"  [warn] {HANZI_MODEL_NAME!r} CSS has an unrecognized tree-renderer version "
+                  f"-- leaving it alone, check by hand")
+            new_css = None
+
+        if new_css is not None:
+            invoke("updateModelStyling", model={"name": HANZI_MODEL_NAME, "css": new_css})
+            print(f"  [{verb}] directory-tree styles -> {HANZI_MODEL_NAME!r} CSS")
+
+
+def ensure_hanzi_used_in_words_rendered():
+    templates = invoke("modelTemplates", modelName=HANZI_MODEL_NAME)
+    card_name, sides = next(iter(templates.items()))
+    if USED_IN_WORDS_MARKER in sides["Back"]:
+        print(f"  [skip] {HANZI_MODEL_NAME!r} {card_name!r} already renders UsedInWords")
+    else:
+        new_back = sides["Back"] + "\n" + USED_IN_WORDS_HTML
         invoke(
             "updateModelTemplates",
             model={"name": HANZI_MODEL_NAME, "templates": {card_name: {"Front": sides["Front"], "Back": new_back}}},
         )
-        print(f"  [add]  tree renderer -> {HANZI_MODEL_NAME!r} {card_name!r} Back template")
+        print(f"  [add]  UsedInWords rendering -> {HANZI_MODEL_NAME!r} {card_name!r} Back template")
 
     css = invoke("modelStyling", modelName=HANZI_MODEL_NAME)["css"]
-    if CONSTITUENT_TREE_MARKER in css:
-        print(f"  [skip] {HANZI_MODEL_NAME!r} CSS already has the tree styles")
+    if USED_IN_WORDS_MARKER in css:
+        print(f"  [skip] {HANZI_MODEL_NAME!r} CSS already has UsedInWords styles")
     else:
-        invoke("updateModelStyling", model={"name": HANZI_MODEL_NAME, "css": css + "\n" + CONSTITUENT_TREE_CSS})
-        print(f"  [add]  tree styles -> {HANZI_MODEL_NAME!r} CSS")
+        invoke("updateModelStyling", model={"name": HANZI_MODEL_NAME, "css": css + "\n" + USED_IN_WORDS_CSS})
+        print(f"  [add]  UsedInWords styles -> {HANZI_MODEL_NAME!r} CSS")
 
 
 def ensure_word_model():
@@ -338,6 +565,8 @@ def main():
     ensure_hanzi_fields()
     print("Hanzi note type template/styling:")
     ensure_hanzi_template()
+    print("Hanzi note type UsedInWords rendering:")
+    ensure_hanzi_used_in_words_rendered()
     print("Chinese Word note type:")
     ensure_word_model()
     print("Chinese Word template tags rendering:")
