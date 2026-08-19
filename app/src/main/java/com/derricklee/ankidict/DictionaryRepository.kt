@@ -84,14 +84,20 @@ class DictionaryRepository(context: Context) {
         return results
     }
 
-    /** Exact matches for [query] against CC-CEDICT's simplified/traditional headwords. Also
-     *  used directly by HanziWordSyncService (not just [lookupExact]) to look up a single
-     *  hanzi character's or word's meaning/pinyin when auto-filling sync-owned fields. */
+    /** Exact matches for [query] against CC-CEDICT's simplified/traditional headwords, ordered
+     *  so a surname/proper-noun sense (CC-CEDICT's convention: pinyin capitalized, e.g. "Shao4"
+     *  for 绍 the surname vs. "shao4" for 绍 "to continue") never wins over a common-word sense
+     *  when both exist for the same character -- otherwise callers taking [firstOrNull] (e.g.
+     *  HanziWordSyncService, auto-filling a brand-new note's Meaning) can land on "surname Shao"
+     *  for a character whose everyday meaning is completely different. Also used directly by
+     *  HanziWordSyncService (not just [lookupExact]) to look up a single hanzi character's or
+     *  word's meaning/pinyin when auto-filling sync-owned fields. */
     fun lookupChineseWords(query: String): List<DictionaryEntry.ChineseWord> {
         val results = mutableListOf<DictionaryEntry.ChineseWord>()
         db.rawQuery(
             "SELECT traditional, simplified, pinyin, definitions FROM cedict " +
-                "WHERE simplified = ? OR traditional = ?",
+                "WHERE simplified = ? OR traditional = ? " +
+                "ORDER BY (pinyin GLOB '[A-Z]*'), rowid",
             arrayOf(query, query),
         ).use { cursor ->
             while (cursor.moveToNext()) {
