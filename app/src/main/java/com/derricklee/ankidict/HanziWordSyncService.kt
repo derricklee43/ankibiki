@@ -33,6 +33,7 @@ class HanziWordSyncService(
     private val dictionaryRepository: DictionaryRepository,
     private val idsRepository: IdsRepository,
     private val hskRepository: HskRepository,
+    private val shinjitaiRepository: ShinjitaiRepository,
 ) {
     private class HanziEntry(val id: Long, val fields: MutableList<String>, var dirty: Boolean = false)
 
@@ -148,16 +149,18 @@ class HanziWordSyncService(
     }
 
     /** Cross-references each hanzi against the NihongoShark Kanji deck already in this
-     *  collection and fills in the JP-tile fields the card template renders. Tries an exact
-     *  character match first, then -- since Japanese kanji often kept the traditional form a
-     *  character Chinese has since simplified (e.g. 绍/紹) -- that character's traditional form
-     *  via CC-CEDICT, so those still cross-reference instead of silently missing every time
-     *  simplification diverged from Japanese. A character matching neither is left as-is --
+     *  collection and fills in the JP-tile fields the card template renders. There are three
+     *  independent CJK character-form lineages, not two -- Traditional Chinese, Simplified
+     *  Chinese, and Japan's own Shinjitai -- so this tries, in order: an exact character match;
+     *  that character's Traditional form via CC-CEDICT (covers cases where Shinjitai happens to
+     *  equal Traditional, e.g. 绍/紹); and finally that Traditional form's actual Shinjitai via
+     *  ShinjitaiRepository, for the cases where all three genuinely differ (e.g. 灵 Simplified /
+     *  靈 Traditional / 霊 Shinjitai). A character matching none of the three is left as-is --
      *  never blanks out a value a previous manual pass entered just because this specific deck
      *  doesn't cover that character. */
     private fun backfillJpTile(hanziByChar: Map<String, HanziEntry>, jpKanjiByChar: Map<String, NoteResult>) {
         for ((charStr, entry) in hanziByChar) {
-            val jpNote = jpKanjiByChar[charStr] ?: traditionalVariant(charStr)?.let { jpKanjiByChar[it] } ?: continue
+            val jpNote = findJpKanjiNote(charStr, jpKanjiByChar) ?: continue
 
             val kanji = jpNote.fields.getOrNull(jpKanjiCharIndex).orEmpty()
             val keyword = jpNote.fields.getOrNull(jpKanjiMeaningIndex).orEmpty()
@@ -167,6 +170,16 @@ class HanziWordSyncService(
             setFieldIfChanged(entry, HANZI_JP_STORY_FIELD_INDEX, jpNote.fields.getOrNull(NIHONGO_SHARK_STORY_FIELD_INDEX).orEmpty())
             setFieldIfChanged(entry, HANZI_JP_CONSTITUENT_FIELD_INDEX, jpNote.fields.getOrNull(NIHONGO_SHARK_CONSTITUENT_FIELD_INDEX).orEmpty())
         }
+    }
+
+    private fun findJpKanjiNote(charStr: String, jpKanjiByChar: Map<String, NoteResult>): NoteResult? {
+        jpKanjiByChar[charStr]?.let { return it }
+
+        val traditional = traditionalVariant(charStr) ?: return null
+        jpKanjiByChar[traditional]?.let { return it }
+
+        val shinjitai = shinjitaiRepository.shinjitaiFor(traditional) ?: return null
+        return jpKanjiByChar[shinjitai]
     }
 
     /** [character]'s traditional form per CC-CEDICT, or null if it's already its own traditional

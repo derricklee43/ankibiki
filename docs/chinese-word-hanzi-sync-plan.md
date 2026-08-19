@@ -742,3 +742,43 @@ constructor-injected field rather than a passed parameter, matching how `idsRepo
 extracted a small `setFieldIfChanged(entry, fieldIndex, value)` helper, since the compute-
 compare-mark-dirty shape was about to be repeated three times (Constituents/HSK/JP-tile) instead
 of two.
+
+## 24. JP-tile matching was still missing a whole class: Shinjitai
+
+Section 22's Traditional-form fallback (绍/紹) fixed the case where Japanese kept the
+Traditional-Chinese form unchanged. But there are genuinely **three** independent CJK
+character-form lineages, not two: Traditional Chinese, Simplified Chinese (Mainland China's own
+1950s reform), and Shinjitai (Japan's own, separate 1946 postwar reform). They frequently
+coincide (国/国, 学/学) or Shinjitai matches Traditional exactly (绍/紹, Section 22's case) -- but
+sometimes all three genuinely differ: 灵 (Simplified) / 靈 (Traditional) / 霊 (Shinjitai) are
+three different characters, and a lookup that only knows Simplified<->Traditional can't find 霊
+for 灵. Confirmed this is real in the actual collection, not hypothetical: 灵 has a Hanzi note,
+its true Japanese counterpart 霊 exists in the NihongoShark deck, and the Section 22 fix alone
+left its JP-tile fields empty.
+
+Checked whether Unicode's own Unihan database (`kSimplifiedVariant`/`kTraditionalVariant`/
+`kSemanticVariant`/`kZVariant` in `Unihan_Variants.txt`, downloaded directly from
+unicode.org/Public/UCD/latest/ucd/Unihan.zip) could cover this before looking further --
+confirmed it can't, empirically, not from assumption: tested five known three-way splits (灵/靈/
+霊, 転/轉/转, 対/對/对, 圧/壓/压, 沢/澤/泽) and every single Shinjitai form had **zero** entries in
+`Unihan_Variants.txt`. Unihan's variant fields are scoped to the Chinese simplification
+relationship only; Japan's separate one isn't represented there at all.
+
+Found and verified `BYVoid/OpenCC`'s `JPShinjitaiCharacters.txt` instead (Apache-2.0, 9900+
+GitHub stars, actively maintained) -- keyed Shinjitai -> Kyuujitai/Traditional variant(s),
+curated specifically from Japan's official 常用漢字表 (jouyou kanji), 人名用漢字表, and
+表外漢字字体表 tables. Confirmed against the same five test characters: all five correctly
+present (霊->靈, 転->轉, 対->對, 圧->壓, 沢->澤).
+
+`scripts/build_shinjitai_db.py` (new) downloads that file and inverts it (kyuujitai/traditional
+-> shinjitai, since that's the direction the sync needs) into the bundled `shinjitai.db`.
+Apache-2.0 is clearly redistributable -- same tier as KANJIDIC2/JMdict/CC-CEDICT/HSK, so unlike
+`ids.db`/`audio.db` this **is** committed. `ShinjitaiRepository` (new) wraps it, same
+degrade-to-null-on-missing-asset pattern as `IdsRepository`/`HskRepository`.
+
+`backfillJpTile`'s lookup is now three tiers via a new `findJpKanjiNote()` helper: exact
+character match, then Traditional form (Section 22, unchanged), then that Traditional form's
+Shinjitai via `ShinjitaiRepository` (new). Verified against the real collection via the
+temporary-debug-hook pattern: 灵's JP Kanji field is now `"霊 (spirits)"`, with the correct note
+ID and story pulled through -- the full three-tier chain confirmed working end to end, not just
+each piece in isolation.
