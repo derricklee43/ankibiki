@@ -28,9 +28,9 @@ val MEANING_FIELD_INDEX: Map<Long, Int> = mapOf(
     NIHONGO_SHARK_KANJI_MODEL_ID to 3,
 )
 
-// Chinese Word <-> Hanzi sync (see docs/chinese-word-hanzi-sync-plan.md). Created by
-// scripts/setup_chinese_word_deck.py against Anki Desktop via AnkiConnect, confirmed on-device
-// afterward via AddContentApi (getModelList/getFieldList/getDeckList).
+// Chinese Word <-> Hanzi sync (see docs/chinese-word-hanzi-sync-plan.md). Created by the
+// sibling scripts-anki/setup_chinese_word_deck.py against Anki Desktop via AnkiConnect,
+// confirmed on-device afterward via AddContentApi (getModelList/getFieldList/getDeckList).
 const val CHINESE_WORD_MODEL_ID = 1786984418063L
 const val CHINESE_WORD_DECK_ID = 1786984418128L
 const val CHINESE_HANZI_DECK_ID = 1786665356369L
@@ -42,16 +42,29 @@ const val WORD_PINYIN_FIELD_INDEX = 2
 const val WORD_AUDIO_FIELD_INDEX = 3
 const val HANZI_BREAKDOWN_FIELD_INDEX = 4
 
-// Fields appended (at the end -- see the plan doc) to the Hanzi note type for the sync. Both are
-// sync-owned: never hand-edit them, never read/write them through CardAdapters.
+// Fields appended (at the end -- see the plan doc) to the Hanzi note type for the sync. All
+// three are sync-owned: never hand-edit them, never read/write them through CardAdapters.
 const val HANZI_CONSTITUENTS_FIELD_INDEX = 12
 const val HANZI_USED_IN_WORDS_FIELD_INDEX = 13
+const val HANZI_HSK_FIELD_INDEX = 14
 
 // Full field count for the Hanzi note type: [Meaning, Number, Hanzi, Story, Pinyin, Audio,
-// Image, Tags, JP Kanji, JP Kanji ID, JP Story, JP Constituent, Constituents, UsedInWords].
+// Image, Tags, JP Kanji, JP Kanji ID, JP Story, JP Constituent, Constituents, UsedInWords, HSK].
 // Needed when the sync creates a brand-new Hanzi note -- AddContentApi.addNote requires one
 // value per field, in order, even for the ones this app never touches.
-const val HANZI_FIELD_COUNT = 14
+const val HANZI_FIELD_COUNT = 15
+
+// NihongoShark.com: Kanji fields needed to backfill the Hanzi note's JP-tile fields (JP Kanji/
+// JP Kanji ID/JP Story/JP Constituent) -- CHARACTER_FIELD_INDEX/MEANING_FIELD_INDEX above already
+// cover that model's kanji/keyword fields.
+const val NIHONGO_SHARK_STORY_FIELD_INDEX = 10
+const val NIHONGO_SHARK_CONSTITUENT_FIELD_INDEX = 7
+
+// Where each backfilled JP-tile value lands on a Hanzi note.
+const val HANZI_JP_KANJI_FIELD_INDEX = 8
+const val HANZI_JP_KANJI_ID_FIELD_INDEX = 9
+const val HANZI_JP_STORY_FIELD_INDEX = 10
+const val HANZI_JP_CONSTITUENT_FIELD_INDEX = 11
 
 // Public (ChineseCardAdapter's own PINYIN_FIELD is private to that file) since the sync needs
 // it too, to carry CC-CEDICT's pinyin into a newly-created Hanzi note.

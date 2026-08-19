@@ -208,7 +208,9 @@ a simple progress/result callback back to the button's UI state.
 
 ## 8. New/changed files (implementation phase, not yet done)
 
-- `scripts/setup_chinese_word_deck.py` — new (Phase 1, one-time, AnkiConnect)
+- `scripts/setup_chinese_word_deck.py` — new (Phase 1, one-time, AnkiConnect). **Moved to the
+  sibling `scripts-anki/` repo in Section 19** -- this and all other references to its old path
+  in this doc are historical.
 - `scripts/build_ids_db.py` — new, builds `app/src/main/assets/ids.db` (gitignored, not committed)
 - `KnownNoteTypes.kt` — add `CHINESE_WORD_MODEL_ID` once it exists, plus field-index constants
   for the new note type and the two appended Hanzi fields
@@ -454,3 +456,289 @@ Ran against the real collection and verified the actual rendered question/answer
 AnkiConnect for 菜: question is now just the bare word, answer has
 `<div class="audio">[anki:play:a:0]</div>` between Pinyin and HanziBreakdown. Confirmed
 idempotent on a second run.
+
+## 17. Constituents tile + pinyin sizing
+
+Two asks: (1) the Constituents tree sat bare on the card background with no label -- give it the
+same bordered/shadowed "tile" treatment already used for the Japanese-kanji section (`.jp-tile`),
+with a "Decomposition" header; (2) Pinyin (18px) read visibly smaller than Meaning (23px) despite
+both being answer-side headline info -- bumped Pinyin to match.
+
+`ensure_hanzi_template()` in `setup_chinese_word_deck.py`: v4 of the tree template. Wraps the
+existing tree-data/tree-render/script in a new `.constituents-tile` div with a
+`.constituents-tile-header` ("Decomposition") above it, styled to match `.jp-tile`/
+`.jp-tile-header` (white/dark rounded box, shadow, padding, centered bold header with a bottom
+border). `.constituent-tree-render`'s own `margin`/`max-width` moved out into the tile wrapper,
+since the tile now supplies that inset. Migration chain extended: v1/v2/v3 (checked via
+`CONSTITUENT_TREE_V4_MARKER` = `"constituents-tile"`, since v3's own marker --
+`node.meaning` -- is still present in v4 and can't tell them apart) all fold forward into v4
+directly.
+
+New `ensure_pinyin_size_matches_meaning()`: finds-and-replaces the exact `.back-card .pinyin`
+rule, `font-size: 18px` -> `23px`, same guarded exact-string-match pattern as the other CSS
+migrations here.
+
+Ran against the real collection via AnkiConnect: both changes applied (`[migrated]` on the tile
+HTML/CSS, `[add]` on the pinyin size). Verified afterward -- not just trusted -- by re-fetching
+`modelStyling`/`modelTemplates` and confirming `.back-card .pinyin` now reads `font-size: 23px`
+and the Back template's Constituents block is wrapped in `.constituents-tile`. Re-ran the script
+a second time: every step reported `[skip]`, confirming idempotent. Not yet visually confirmed in
+an actual AnkiDroid/Anki Desktop review screen (no way to render a WebView from here, same
+limitation as the original tree work in Section 14) -- worth a look next time a Hanzi card comes
+up for review, and remember to sync AnkiDroid with this collection first.
+
+## 18. Confirmed: field additions auto-backfill blank, Constituents/UsedInWords are already sync-owned
+
+Question raised: since the Hanzi template was already updated to reference `Constituents`/
+`UsedInWords`, doesn't adding a new field to a note type automatically give every note (existing
+*and* new) an empty value for it, without any extra step?
+
+**Yes, confirmed on both sides:**
+- `modelFieldAdd` (AnkiConnect) retroactively adds the new field to every *existing* note of that
+  model with an empty string -- this is exactly what let Section 9 step 1 verify `RSH`'s field
+  list ends `..., Constituents, UsedInWords` with "existing 0-11 untouched" and nothing further to
+  do on the schema side.
+- `AddContentApi.addNote` (on-device) requires a fields array sized to the model's current field
+  count, so a *newly created* note gets `""` for any field the creating code doesn't explicitly
+  set -- see `buildNewHanziFields()` (`HanziWordSyncService.kt:154-165`), which deliberately
+  leaves `Constituents`/`UsedInWords` blank at creation time and lets a later pass fill them in.
+
+And on the follow-up ("if so, move Constituents/UsedInWords to the sync script"): **already the
+case, no change needed.** `setup_chinese_word_deck.py` only ever touches note-type schema/
+templates/CSS -- it has never written an actual field *value* for any note. All Constituents/
+UsedInWords value computation already lives in `HanziWordSyncService.sync()` (the per-hanzi
+backfill loop from the Section-17-adjacent fix earlier this session). No steps to build here --
+this section exists so the pattern is written down once, since Sections 20-22 below reuse it
+verbatim for two new fields.
+
+## 19. Move one-time backfill scripts to a new `scripts-anki/` directory
+
+Split `ankidroid-dict/scripts/` by what the script actually operates on, not just "is it one-time":
+
+- **Stay in `ankidroid-dict/scripts/`**: `build_ids_db.py`, `build_dictionary_db.py`,
+  `build_audio_db.py`. These build *bundled app assets* (`app/src/main/assets/*.db`) and use
+  paths relative to the app's own layout (`Path(__file__).parent.parent / "app" / "src" / ...`).
+  They're a build-time dependency of the Android app itself, not the Anki collection.
+- **Move to new top-level `scripts-anki/`** (sibling to `ankidroid-dict/`): `setup_chinese_word_deck.py`
+  and `import_hsk_words.py`. Neither touches the app codebase at all -- both are pure AnkiConnect
+  HTTP clients that mutate the *live Anki collection* (schema/templates/notes), and have no
+  path dependency on living inside `ankidroid-dict/`.
+
+**Decision**: the new repo starts fresh, no shared history with `ankidroid-dict` -- a plain file
+copy + `git rm` in the old repo, not a history-preserving move.
+
+1. ✅ **DONE** -- created `scripts-anki/` at the workspace root (sibling to `ankidroid-dict/`),
+   copied `setup_chinese_word_deck.py` and `import_hsk_words.py` there (carrying over this
+   session's in-progress, not-yet-committed edits to `setup_chinese_word_deck.py`), `git rm`'d
+   both from `ankidroid-dict`, and ran `git init` fresh in `scripts-anki/` with both files staged.
+   Confirmed via read-through that neither file has any path assumption tied to its old location
+   (both are pure AnkiConnect HTTP clients; `import_hsk_words.py`'s only external reference is a
+   GitHub raw URL) -- the move needed no code changes, just relocation.
+2. Updated the stale `scripts/...` references elsewhere in this doc (Sections 8, 20) to point at
+   the new location or note them as historical.
+3. **Still to do**: re-run both scripts from `scripts-anki/` against the live collection to
+   confirm the move didn't break anything (expect all-`[skip]` on `setup_chinese_word_deck.py`
+   since nothing changed but its address; `import_hsk_words.py` should report 0 new words, 0
+   updates, same as its last real run).
+
+## 20. New Hanzi field: HSK level (HSK 3.0)
+
+New field on the Hanzi note type, sync-owned (same treatment as Constituents -- see Section 18).
+"New version" means the current **HSK 3.0** (2021) standard specifically, *not* the old classic
+6-level standard `import_hsk_words.py` already uses for word-level HSK tagging (Section 11) --
+those are different, incompatible level systems, so this needs its own data source, not a reuse
+of the existing word-level one.
+
+Steps:
+1. Decide the exact field name and value shape (e.g. `HSK` holding `"1"`-`"6"`/`"7-9"`/blank).
+2. **Open question -- needs research before implementation**: find a *character-level* HSK 3.0
+   dataset (band per hanzi, not per word) with a clear, redistributable license -- same diligence
+   already applied to `ids.txt`/CC-CEDICT/KANJIDIC2. `import_hsk_words.py`'s existing source
+   (`drkameleon/complete-hsk-vocabulary`) is word-level and old-standard; check whether it (or
+   another source) also ships a character-level HSK 3.0 list before assuming a new dependency is
+   needed.
+3. New `build_hsk_db.py` in `ankidroid-dict/scripts/` (asset-builder, per Section 19's split --
+   it produces a bundled `app/src/main/assets/hsk.db`, same pattern as `build_ids_db.py`).
+   Committed-or-gitignored depends on the source license, same case-by-case call already made for
+   `ids.db` vs. `dictionary.db`.
+4. New `HskRepository.kt` (parallel to `IdsRepository`): `hskLevel(character): String`, degrading
+   to `""` when the asset is missing or the character has no data, same defensive pattern as
+   `IdsRepository`/`AudioRepository`.
+5. `ensure_hanzi_fields()` (now in `scripts-anki/setup_chinese_word_deck.py` per Section 19): add
+   `"HSK"` to the appended-field list, landing at index 14 (after `UsedInWords`), append-only per
+   the load-bearing positional-index rule (Section 3.2).
+6. `KnownNoteTypes.kt`: add `HANZI_HSK_FIELD_INDEX = 14`, bump `HANZI_FIELD_COUNT` to 15.
+7. **Open question**: whether/how to render this on the card template at all (e.g. a small badge
+   near `Number`) -- not asked for explicitly, so left undecided here rather than assumed; likely
+   its main value is for browsing/filtering in the Anki browser (`HSK:5` search) even with no
+   template change.
+
+**✅ DONE.** Decision on step 2: reuse `drkameleon/complete-hsk-vocabulary` (already this
+project's vetted, MIT-licensed source for `import_hsk_words.py`) rather than a new dependency --
+it turns out to also carry the official HSK 3.0 word list, just word- not character-level
+(`wordlists/exclusive/new/{1..7}.json`, "exclusive" meaning each level's file holds only the
+words *first* introduced there, no repeats across levels -- confirmed live: level 1 has 506
+words, level 2 750, ..., level 7 (the combined "7-9" band) 5606). `scripts/build_hsk_db.py`
+derives the character-level table exactly as specified: split every word into its Han
+characters, a character's level = the lowest level any word containing it belongs to. Ran it
+against the live upstream data: 2970 characters resolved, written to
+`app/src/main/assets/hsk.db` (88 KB). Spot-checked: 一/好/爱/谢/菜 -> `"1"`, 伤 -> `"3"`, 悲 ->
+`"5"` -- all plausible against their actual commonality. Committed to the repo (MIT is
+permissive enough, same call as `dictionary.db`; confirmed `git check-ignore` finds no rule
+excluding it, unlike `ids.db`/`audio.db`).
+
+Steps 5-6 done: `HSK` added via the relocated `scripts-anki/setup_chinese_word_deck.py` (ran
+against the live collection, confirmed via `modelFieldNames` that `RSH`'s field list now ends
+`..., Constituents, UsedInWords, HSK` at index 14 exactly as planned; re-run is `[skip]`, still
+idempotent). `KnownNoteTypes.kt`: `HANZI_HSK_FIELD_INDEX = 14`, `HANZI_FIELD_COUNT` bumped to 15.
+`HskRepository.kt` added, same defensive/degrade-to-`""` shape as `IdsRepository`.
+
+Step 7 (template rendering) intentionally left undone -- still an open question, not part of
+what was asked for here.
+
+## 21. HSK lookup in the sync script
+
+Steps:
+1. `HanziWordSyncService` gains an `hskRepository: HskRepository` constructor param, wired up in
+   `MainActivity` next to the existing `IdsRepository(this)`.
+2. New backfill pass (see Section 23's refactor) `backfillHskLevel(hanziByChar, hskRepository)`:
+   for every entry in `hanziByChar`, look up `hskRepository.hskLevel(charStr)`, compare against
+   `entry.fields[HANZI_HSK_FIELD_INDEX]`, write + mark dirty only if different -- identical
+   diff-checked shape to `backfillConstituents`.
+3. **"Mark all existing cards as dirty" -- already handled, no extra mechanism needed.** Every
+   existing Hanzi note has `""` in the brand-new HSK field the moment the schema step runs; the
+   very next sync run, any character that resolves to a real (non-blank) HSK level differs from
+   that `""` and gets written automatically -- the same self-healing first-run backfill already
+   verified for Constituents earlier this session. No explicit "force resync" flag or dirty-marking
+   step needs to be built; running the schema script then tapping the sync button once is enough.
+4. Order of operations: run the (relocated) `setup_chinese_word_deck.py` first (adds the field +
+   builds/bundles `hsk.db`), sync AnkiDroid with Desktop, *then* tap the on-device sync button --
+   expect a large `hanziUpdated` count on that first run, same shape as the Constituents backfill.
+
+**✅ DONE (code).** `backfillHskLevel()` added to `HanziWordSyncService`, wired into `sync()`
+per Section 23's new shape. `HskRepository` threaded through the constructor and
+`MainActivity.onCreate()`. Schema (step 4 prerequisite) already applied live -- see Section 20.
+
+**Not yet run.** Unlike the Python/AnkiConnect changes, this part only executes inside the actual
+Android app talking to AnkiDroid's `AddContentApi` -- nothing reachable from this dev environment
+can trigger it. **You'll need to**: rebuild the app, sync AnkiDroid with Desktop (to pick up the
+new `HSK` field), then tap the in-app sync button once. Expect a large `hanziUpdated` count on
+that first run, same shape as the original Constituents backfill.
+
+## 22. Kanji reference tile sync
+
+"Some cards are already missing that" -- the `.jp-tile` block only shows for Hanzi notes with a
+non-blank `JP Kanji ID`, and today those four `JP *` fields are filled in by hand (or by whatever
+one-off process populated the deck originally), not by anything repeatable -- so any card whose
+match was never manually entered stays permanently missing it.
+
+Checked the live collection directly (via AnkiConnect) to confirm the exact field mapping, using
+一 (id `1577354407397`) as a known-good example against its linked `NihongoShark.com: Kanji` note
+(id `1354715253526`):
+
+| RSH field | Value on 一 | Source |
+|---|---|---|
+| `JP Kanji` | `"一 (one)"` | `"{kanji} ({keyword})"` |
+| `JP Kanji ID` | `"1354715253526"` | the NihongoShark note's own **Anki note ID** (not its internal `id` field, which is `"1"`) |
+| `JP Story` | `"One down, 2041 to go. ;)."` | NihongoShark's `myStory` field |
+| `JP Constituent` | `"One"` | NihongoShark's `constituent` field |
+
+`NihongoShark.com: Kanji` field order: `id(0), frameNoV4(1), frameNoV6(2), keyword(3), kanji(4),
+strokeDiagram(5), hint(6), constituent(7), strokeCount(8), lessonNo(9), myStory(10),
+heisigStory(11), ...` -- `kanji`(4)/`keyword`(3) already match this app's existing
+`CHARACTER_FIELD_INDEX`/`MEANING_FIELD_INDEX` entries for `NIHONGO_SHARK_KANJI_MODEL_ID`.
+
+Steps:
+1. New `KnownNoteTypes.kt` constants: `NIHONGO_SHARK_STORY_FIELD_INDEX = 10`,
+   `NIHONGO_SHARK_CONSTITUENT_FIELD_INDEX = 7` (character/meaning indices already exist).
+2. `HanziWordSyncService` loads all `NihongoShark.com: Kanji` notes once per run
+   (`ankiRepository.queryAllNotes(NIHONGO_SHARK_KANJI_MODEL_ID)`), builds a
+   `character -> NoteResult` map, same construction as `hanziByChar` itself.
+3. New backfill pass (Section 23) `backfillJpTile(hanziByChar, jpKanjiByChar)`: for each Hanzi
+   entry, look up its character in `jpKanjiByChar`; on a match, compute all four `JP *` field
+   values and diff-check/write exactly like the other passes; on no match, leave whatever's
+   already there alone (don't blank out a previously hand-entered value just because this
+   specific deck doesn't cover that character).
+4. **Open question**: a second model, `NihongoShark.com: Kanji+`, exists in the live collection
+   and isn't queried by this app at all today. Some of the "missing" cards may have a match only
+   in `Kanji+`, not the base `Kanji` model -- worth checking at implementation time whether to
+   query both and, if a character appears in both, how to pick.
+5. Handle a character appearing more than once within the base `Kanji` model itself (not observed,
+   but not verified absent either) -- first match wins, same convention as everywhere else in this
+   file.
+
+**✅ DONE (code).** `backfillJpTile()` added, matching the mapping table above exactly.
+`NIHONGO_SHARK_STORY_FIELD_INDEX`/`NIHONGO_SHARK_CONSTITUENT_FIELD_INDEX`/`HANZI_JP_*_FIELD_INDEX`
+constants added to `KnownNoteTypes.kt`. Step 5 resolved by construction: `associateBy` on the JP
+notes list keeps the *last* match on a duplicate key, not "first" as originally guessed -- noted
+here since it's the one place this file's usual "first match wins" convention doesn't actually
+hold, in case it matters later.
+
+**Step 4 resolved -- `Kanji+` was a dead end, no fix needed.** Queried the live collection
+directly: `NihongoShark.com: Kanji+` and `NihongoShark.com: JLPT N4 Cramming Deck` both have
+**zero notes** -- they're model definitions with no data behind them, not a hidden source of
+missing matches. The real shape of "some cards are missing that": of RSH's 1,514 Hanzi notes,
+895 have a character match in the base `Kanji` model (2,200 notes; the other 619 are Chinese-only
+characters with no Japanese-kanji counterpart, so a blank tile there is correct, not missing
+data), and of those 895, 888 already have `JP Kanji ID` filled in from whatever manual process
+populated the deck originally -- leaving exactly **7** cards with a real match but no tile yet.
+`backfillJpTile()` will pick those up (and keep the other 888 current) the first time the
+on-device sync actually runs. No further code needed for this.
+
+**Not yet run**, same reason and same next step as Section 21 -- needs the on-device sync button,
+not reachable from here.
+
+## 23. Refactor: one function per sync concern
+
+Today `sync()` already factors out small helpers (`buildNewHanziFields`, `updateWordFields`,
+`annotateWithMeanings`, `parseUsedInWords`, `formatUsedInWordLine`), but its two top-level passes
+-- the per-word loop (note creation + `UsedInWords`) and the per-hanzi `Constituents` backfill
+loop -- are written inline inside `sync()` itself. Sections 21 and 22 above each add another full
+per-hanzi backfill pass, so that inline-loop shape needs to generalize now rather than turning
+`sync()` into one long function with four loops bodies stacked in it.
+
+Target shape:
+
+```kotlin
+fun sync(): SyncResult {
+    val wordNotes = ankiRepository.queryAllNotes(CHINESE_WORD_MODEL_ID)
+    val hanziNotes = ankiRepository.queryAllNotes(CHINESE_MNEMONICS_MODEL_ID)
+    val hanziByChar = buildHanziIndex(hanziNotes)
+
+    val (hanziCreated, wordsUpdated) = syncWordNotes(wordNotes, hanziByChar)
+    backfillConstituents(hanziByChar)
+    backfillHskLevel(hanziByChar)
+    backfillJpTile(hanziByChar)
+    val hanziUpdated = flushDirtyHanzi(hanziByChar)
+
+    return SyncResult(hanziCreated, wordsUpdated, hanziUpdated)
+}
+```
+
+Each `backfillX(hanziByChar, ...deps)` owns exactly one field's compute/compare/mark-dirty logic
+and takes whatever it needs as an explicit parameter (an `HskRepository`, a `jpKanjiByChar` map,
+...) instead of every pass being an anonymous block inline in `sync()` -- keeps each pass
+independently readable (and testable, if tests get added later) and keeps `sync()` itself a short
+orchestrator that's easy to scan for "what does a sync actually do."
+
+Steps:
+1. Extract `buildHanziIndex(hanziNotes: List<NoteResult>): MutableMap<String, HanziEntry>` from
+   today's inline `associateTo` call.
+2. Extract `syncWordNotes(wordNotes, hanziByChar): Pair<Int, Int>` (hanziCreated, wordsUpdated) --
+   everything currently in the `for (wordNote in wordNotes)` loop, unchanged in behavior.
+3. Extract `backfillConstituents(hanziByChar)` -- today's per-hanzi Constituents loop, verbatim.
+4. Add `backfillHskLevel(hanziByChar, hskRepository)` (Section 21) and
+   `backfillJpTile(hanziByChar, jpKanjiByChar)` (Section 22).
+5. Extract `flushDirtyHanzi(hanziByChar): Int` -- today's final write loop.
+6. `sync()` itself shrinks to the six-line orchestration shown above.
+
+**✅ DONE.** `HanziWordSyncService` now matches the target shape exactly (one difference from
+the sketch above: `jpKanjiByChar` is built once in `sync()`, alongside `hanziByChar`, and passed
+into `backfillJpTile` as a parameter, rather than queried inside it -- keeps all
+`AnkiRepository.queryAllNotes` calls together at the top of `sync()`). `hskRepository` stays a
+constructor-injected field rather than a passed parameter, matching how `idsRepository`/
+`dictionaryRepository` were already handled before this refactor -- only per-call *data*
+(`hanziByChar`, `jpKanjiByChar`, etc.) is threaded through as explicit function parameters. Also
+extracted a small `setFieldIfChanged(entry, fieldIndex, value)` helper, since the compute-
+compare-mark-dirty shape was about to be repeated three times (Constituents/HSK/JP-tile) instead
+of two.

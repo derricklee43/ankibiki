@@ -42,7 +42,7 @@ class MainActivity : AppCompatActivity() {
         repository = AnkiRepository(this)
         val dictionaryRepository = DictionaryRepository(this)
         searchService = SearchService(repository, dictionaryRepository)
-        syncService = HanziWordSyncService(repository, dictionaryRepository, IdsRepository(this))
+        syncService = HanziWordSyncService(repository, dictionaryRepository, IdsRepository(this), HskRepository(this))
         settingsRepository = SettingsRepository(this)
         adapter = SearchResultAdapter(AudioRepository(this))
 
