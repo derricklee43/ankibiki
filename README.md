@@ -1,4 +1,8 @@
-# AnkiDict
+# <img src="docs/icon.png" width="48" align="center" alt="AnkiBiki icon" /> AnkiBiki
+
+<p align="center">
+  <img src="docs/icon.png" width="220" alt="AnkiBiki" />
+</p>
 
 A personal Android dictionary app (Pixel 10 Pro XL) that searches your own Anki cards live via
 AnkiDroid, with an offline dictionary fallback and Chinese pronunciation audio.

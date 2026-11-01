@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "AnkiDict"
+rootProject.name = "AnkiBiki"
 include(":app")
