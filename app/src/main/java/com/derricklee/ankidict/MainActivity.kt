@@ -1,11 +1,14 @@
 package com.derricklee.ankidict
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.ViewGroup
@@ -68,6 +71,10 @@ class MainActivity : AppCompatActivity() {
         binding.settingsButton.setOnClickListener { showSettingsMenu() }
         binding.syncButton.setOnClickListener { runSync() }
 
+        if (settingsRepository.isFloatingBubbleEnabled() && Settings.canDrawOverlays(this)) {
+            FloatingBubbleService.startOrStop(this, true)
+        }
+
         checkAccessAndMaybeSearch()
     }
 
@@ -108,6 +115,26 @@ class MainActivity : AppCompatActivity() {
                 settingsRepository.setEnabled(source, isChecked)
                 scheduleSearch(binding.searchBox.text?.toString().orEmpty())
             }
+        }
+
+        val bubbleRow = ItemSettingsToggleBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
+        bubbleRow.toggleLabelText.text = getString(R.string.floating_bubble_toggle)
+        bubbleRow.toggleSwitch.isChecked =
+            settingsRepository.isFloatingBubbleEnabled() && Settings.canDrawOverlays(this)
+        bubbleRow.toggleSwitch.setOnCheckedChangeListener { buttonView, isChecked ->
+            if (isChecked && !Settings.canDrawOverlays(this)) {
+                buttonView.isChecked = false
+                Toast.makeText(this, R.string.overlay_permission_needed, Toast.LENGTH_LONG).show()
+                startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName"),
+                    ),
+                )
+                return@setOnCheckedChangeListener
+            }
+            settingsRepository.setFloatingBubbleEnabled(isChecked)
+            FloatingBubbleService.startOrStop(this, isChecked)
         }
 
         PopupWindow(popupBinding.root, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)

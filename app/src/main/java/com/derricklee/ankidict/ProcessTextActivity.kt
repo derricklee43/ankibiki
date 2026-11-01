@@ -41,7 +41,10 @@ class ProcessTextActivity : AppCompatActivity() {
         binding.closeButton.setOnClickListener { finish() }
         binding.kanjiPopupList.layoutManager = LinearLayoutManager(this)
 
-        val selectedText = intent?.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString().orEmpty()
+        val selectedText = (
+            intent?.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
+                ?: intent?.getCharSequenceExtra(Intent.EXTRA_TEXT)
+            )?.toString().orEmpty()
         val characters = selectedText.filter(::isCjkCharacter).map { it.toString() }.distinct()
 
         if (characters.isEmpty()) {

@@ -11,6 +11,11 @@
     <string name="process_text_no_kanji">No Kanji found in selected text.</string>
     <string name="process_text_not_in_deck">Not in Kanji deck</string>
     <string name="close_popup">Close</string>
+    <string name="floating_bubble_toggle">Floating clipboard button (引)</string>
+    <string name="overlay_permission_needed">Grant \"Display over other apps\" permission, then toggle the floating button again.</string>
+    <string name="bubble_notification_title">AnkiBiki floating button active</string>
+    <string name="bubble_notification_text">Copy Japanese text anywhere, then tap 引 to view Kanji meanings &amp; stories.</string>
+    <string name="bubble_notification_stop">Stop</string>
     <string name="dictionary_tag">Dictionary</string>
     <string name="dictionary_attribution">Dictionary data: KANJIDIC2, JMdict, RADKFILE (EDRDG) and CC-CEDICT — CC BY-SA 4.0</string>
     <string name="play_audio">Play audio</string>

@@ -15,7 +15,14 @@ class SettingsRepository(context: Context) {
 
     fun enabledSources(): Set<SearchSource> = SearchSource.entries.filterTo(mutableSetOf(), ::isEnabled)
 
+    fun isFloatingBubbleEnabled(): Boolean = prefs.getBoolean(KEY_FLOATING_BUBBLE, false)
+
+    fun setFloatingBubbleEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_FLOATING_BUBBLE, enabled).apply()
+    }
+
     companion object {
         private const val PREFS_NAME = "settings"
+        private const val KEY_FLOATING_BUBBLE = "floating_bubble_enabled"
     }
 }
