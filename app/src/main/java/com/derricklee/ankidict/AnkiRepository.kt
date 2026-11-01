@@ -48,6 +48,19 @@ class AnkiRepository(private val context: Context) {
     fun queryAllNotes(modelId: Long): List<NoteResult> =
         queryNotes("mid = ?", arrayOf(modelId.toString()))
 
+    /**
+     * Exact character-field lookup for a single [character] restricted to [modelId], used by the
+     * ACTION_PROCESS_TEXT popup so selecting text only pulls the exact Kanji card for each character.
+     */
+    fun findNoteByCharacter(character: String, modelId: Long): NoteResult? {
+        val charFieldIndex = CHARACTER_FIELD_INDEX[modelId] ?: return null
+        val candidates = queryNotes(
+            "flds LIKE ? AND mid = ?",
+            arrayOf("%$character%", modelId.toString()),
+        )
+        return candidates.firstOrNull { it.fields.getOrNull(charFieldIndex) == character }
+    }
+
     fun createNote(modelId: Long, deckId: Long, fields: List<String>, tags: Set<String> = emptySet()): Long? =
         addContentApi.addNote(modelId, deckId, fields.toTypedArray(), tags)
 
