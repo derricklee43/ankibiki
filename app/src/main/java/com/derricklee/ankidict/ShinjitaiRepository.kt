@@ -2,7 +2,6 @@ package com.derricklee.ankidict
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import java.io.FileNotFoundException
 
 /**
  * Kyuujitai/Traditional-Chinese character -> Japanese Shinjitai character, built by
@@ -16,21 +15,7 @@ import java.io.FileNotFoundException
  */
 class ShinjitaiRepository(private val context: Context) {
 
-    private val db: SQLiteDatabase? by lazy { openDatabaseOrNull() }
-
-    private fun openDatabaseOrNull(): SQLiteDatabase? {
-        val dbFile = context.getDatabasePath(DB_NAME)
-        if (!dbFile.exists()) {
-            val bundled = try {
-                context.assets.open(DB_NAME)
-            } catch (e: FileNotFoundException) {
-                null
-            } ?: return null
-            dbFile.parentFile?.mkdirs()
-            bundled.use { input -> dbFile.outputStream().use { output -> input.copyTo(output) } }
-        }
-        return SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
-    }
+    private val db: SQLiteDatabase? by lazy { openBundledDatabase(context, DB_NAME) }
 
     /** The Shinjitai form of [kyuujitaiOrTraditional], or null if it's unchanged in Japanese
      *  (not in this table at all -- most characters) or there's no data bundled. */

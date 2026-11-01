@@ -34,7 +34,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="32sp"
-            android:textColor="#000000" />
+            android:textColor="#000000"
+            android:textIsSelectable="true" />
 
         <TextView
             android:id="@+id/dictReadingText"
@@ -42,7 +43,8 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="12dp"
             android:textSize="16sp"
-            android:textColor="#444444" />
+            android:textColor="#444444"
+            android:textIsSelectable="true" />
 
     </LinearLayout>
 
@@ -52,7 +54,8 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
         android:textSize="15sp"
-        android:textColor="#222222" />
+        android:textColor="#222222"
+        android:textIsSelectable="true" />
 
     <TextView
         android:id="@+id/dictDetailText"
@@ -60,6 +63,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:textSize="12sp"
-        android:textColor="#666666" />
+        android:textColor="#666666"
+        android:textIsSelectable="true" />
 
 </LinearLayout>

@@ -18,6 +18,9 @@ import com.derricklee.ankidict.databinding.ActivityMainBinding
 import com.derricklee.ankidict.databinding.ItemSettingsToggleBinding
 import com.derricklee.ankidict.databinding.PopupSettingsBinding
 
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
+
 private const val PERMISSION_REQUEST_CODE = 1
 private const val SEARCH_DEBOUNCE_MS = 250L
 private const val READ_WRITE_PERMISSION = "com.ichi2.anki.permission.READ_WRITE_DATABASE"
@@ -33,6 +36,9 @@ class MainActivity : AppCompatActivity() {
 
     private val searchHandler = Handler(Looper.getMainLooper())
     private var pendingSearch: Runnable? = null
+    private val searchExecutor = Executors.newSingleThreadExecutor()
+    private val syncExecutor = Executors.newSingleThreadExecutor()
+    private val searchGeneration = AtomicInteger(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,9 +75,10 @@ class MainActivity : AppCompatActivity() {
         binding.syncButton.isEnabled = false
         Toast.makeText(this, R.string.sync_running, Toast.LENGTH_SHORT).show()
 
-        Thread {
+        syncExecutor.execute {
             val outcome = runCatching { syncService.sync() }
             runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 binding.syncButton.isEnabled = true
                 outcome.fold(
                     onSuccess = { result ->
@@ -87,7 +94,7 @@ class MainActivity : AppCompatActivity() {
                     },
                 )
             }
-        }.start()
+        }
     }
 
     // Iterates SearchSource.entries so a new source added later needs no UI changes here.
@@ -109,6 +116,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        pendingSearch?.let { searchHandler.removeCallbacks(it) }
+        searchExecutor.shutdownNow()
+        syncExecutor.shutdown()
         adapter.stopAudio()
         super.onDestroy()
     }
@@ -157,11 +167,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun runSearch(query: String) {
         if (!repository.isAnkiDroidAvailable() || !hasReadWritePermission()) return
+        val generation = searchGeneration.incrementAndGet()
         if (query.isBlank()) {
             adapter.submitList(emptyList())
             return
         }
-        adapter.submitList(searchService.search(query, settingsRepository.enabledSources()))
+        val enabledSources = settingsRepository.enabledSources()
+        searchExecutor.execute {
+            val results = searchService.search(query, enabledSources)
+            runOnUiThread {
+                if (isFinishing || isDestroyed || searchGeneration.get() != generation) return@runOnUiThread
+                adapter.submitList(results)
+            }
+        }
     }
 
     private fun showStatus(message: String) {

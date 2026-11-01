@@ -13,4 +13,5 @@ data class Card(
     // different kinds of readings. Absent/empty readings are omitted, not present-with-blank.
     val reading: Map<String, List<String>>,
     val mnemonic: String,
+    val vocab: String = "",
 )

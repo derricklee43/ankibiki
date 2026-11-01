@@ -3,7 +3,6 @@ package com.derricklee.ankidict
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import java.io.File
-import java.io.FileNotFoundException
 
 /**
  * Pronunciation audio, keyed by character, pulled from Anki Desktop's own collection via
@@ -13,34 +12,29 @@ import java.io.FileNotFoundException
  */
 class AudioRepository(private val context: Context) {
 
-    private val db: SQLiteDatabase? by lazy { openDatabaseOrNull() }
+    private val db: SQLiteDatabase? by lazy { openBundledDatabase(context, DB_NAME) }
 
-    private fun openDatabaseOrNull(): SQLiteDatabase? {
-        val dbFile = context.getDatabasePath(DB_NAME)
-        if (!dbFile.exists()) {
-            val bundled = try {
-                context.assets.open(DB_NAME)
-            } catch (e: FileNotFoundException) {
-                null
-            } ?: return null
-            dbFile.parentFile?.mkdirs()
-            bundled.use { input -> dbFile.outputStream().use { output -> input.copyTo(output) } }
+    // Loaded once on first check so RecyclerView binding can test audio availability in O(1)
+    // without running a SQLite query on every scroll frame.
+    private val availableCharacters: Set<String> by lazy {
+        val db = db ?: return@lazy emptySet()
+        val chars = HashSet<String>()
+        db.rawQuery("SELECT character FROM audio", null).use { cursor ->
+            while (cursor.moveToNext()) {
+                chars.add(cursor.getString(0))
+            }
         }
-        return SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+        chars
     }
 
-    fun hasAudio(character: String): Boolean {
-        val db = db ?: return false
-        db.rawQuery("SELECT 1 FROM audio WHERE character = ? LIMIT 1", arrayOf(character)).use {
-            return it.moveToFirst()
-        }
-    }
+    fun hasAudio(character: String): Boolean = character in availableCharacters
 
     /** Writes (once, then cached) and returns a local file playable via MediaPlayer, or null. */
     fun audioFileFor(character: String): File? {
         val db = db ?: return null
+        val dbFile = context.getDatabasePath(DB_NAME)
         val cacheFile = File(context.cacheDir, "audio/$character.mp3")
-        if (cacheFile.exists()) return cacheFile
+        if (cacheFile.exists() && cacheFile.lastModified() >= dbFile.lastModified()) return cacheFile
 
         db.rawQuery("SELECT data FROM audio WHERE character = ?", arrayOf(character)).use { cursor ->
             if (!cursor.moveToFirst()) return null

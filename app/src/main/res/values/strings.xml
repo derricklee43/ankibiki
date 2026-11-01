@@ -6,6 +6,8 @@
     <string name="status_permission_needed">Requesting access to your AnkiDroid collection…</string>
     <string name="status_permission_denied">Permission denied. Grant AnkiDroid access in system settings to search your cards.</string>
     <string name="tap_to_reveal">Tap to reveal</string>
+    <string name="expand_card">Expand card</string>
+    <string name="minimize_card">Minimize card</string>
     <string name="dictionary_tag">Dictionary</string>
     <string name="dictionary_attribution">Dictionary data: KANJIDIC2, JMdict, RADKFILE (EDRDG) and CC-CEDICT — CC BY-SA 4.0</string>
     <string name="play_audio">Play audio</string>

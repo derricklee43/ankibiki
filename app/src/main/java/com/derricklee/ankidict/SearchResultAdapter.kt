@@ -36,14 +36,13 @@ private val NIHONGO_SHARK_FIELD_NAMES = listOf(
 private val NOTE_LAYOUTS: Map<Long, NoteLayout> = mapOf(
     CHINESE_MNEMONICS_MODEL_ID to NoteLayout(
         frequencyField = 1,
-        // 5 unconfirmed, 6/7 are the mnemonic image (html/filename, not renderable yet), 8-11 unconfirmed.
-        knownFields = setOf(0, 1, 2, 3, 4, 6, 7),
+        knownFields = (0 until HANZI_FIELD_COUNT).toSet(),
         revealable = true,
         deckTagLabel = "中文",
         deckTagColorRes = R.color.tag_chinese_red,
     ),
     NIHONGO_SHARK_KANJI_MODEL_ID to NoteLayout(
-        knownFields = setOf(2, 3, 4, 5, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20),
+        knownFields = NIHONGO_SHARK_FIELD_NAMES.indices.toSet(),
         revealable = true,
         deckTagLabel = "日本語",
         deckTagColorRes = R.color.tag_japanese_blue,
@@ -182,12 +181,7 @@ class SearchResultAdapter(private val audioRepository: AudioRepository) : Recycl
             bindOptional(binding.readingText, card?.reading?.let(::formatReading))
             bindOptional(binding.meaningText, card?.meaning)
             bindOptional(binding.mnemonicText, card?.mnemonic)
-
-            if (note.modelId == NIHONGO_SHARK_KANJI_MODEL_ID) {
-                bindNihongoSharkVocab(note)
-            } else {
-                bindOptional(binding.vocabText, null)
-            }
+            bindOptional(binding.vocabText, card?.vocab)
 
             // Unmapped model: dump every non-empty field raw. Mapped model: dump only the
             // fields we haven't identified the purpose of yet, so nothing silently disappears.
@@ -246,33 +240,42 @@ class SearchResultAdapter(private val audioRepository: AudioRepository) : Recycl
                 ColorStateList.valueOf(ContextCompat.getColor(binding.root.context, layout.deckTagColorRes))
         }
 
-        private fun bindNihongoSharkVocab(note: NoteResult) {
-            val constituent = note.fields.getOrNull(7)?.takeIf { it.isNotBlank() }
-            val words = note.fields.getOrNull(17)?.takeIf { it.isNotBlank() }?.replace("<br>", "\n")
-            val examples = note.fields.getOrNull(18)?.takeIf { it.isNotBlank() }
-            val vocab = listOfNotNull(
-                constituent?.let { "Components: $it" },
-                words,
-                examples?.let { "Examples: $it" },
-            ).joinToString("\n\n")
-            bindOptional(binding.vocabText, vocab)
-        }
-
         private fun applyRevealState(layout: NoteLayout?, noteId: Long) {
             if (layout?.revealable != true) {
                 binding.revealGroup.visibility = View.VISIBLE
                 binding.revealHint.visibility = View.GONE
+                binding.toggleExpandButton.visibility = View.GONE
+                binding.toggleExpandButton.setOnClickListener(null)
                 binding.root.setOnClickListener(null)
                 return
             }
 
+            binding.toggleExpandButton.visibility = View.VISIBLE
+
             fun render(expanded: Boolean) {
                 binding.revealGroup.visibility = if (expanded) View.VISIBLE else View.GONE
                 binding.revealHint.visibility = if (expanded) View.GONE else View.VISIBLE
+                binding.toggleExpandButton.setImageResource(
+                    if (expanded) R.drawable.ic_minimize else R.drawable.ic_expand,
+                )
+                binding.toggleExpandButton.contentDescription = binding.root.context.getString(
+                    if (expanded) R.string.minimize_card else R.string.expand_card,
+                )
+                // Only allow tapping the card body to open when collapsed; once expanded,
+                // disable root click so long-pressing/tapping text to copy never closes it.
+                if (expanded) {
+                    binding.root.setOnClickListener(null)
+                    binding.root.isClickable = false
+                } else {
+                    binding.root.setOnClickListener {
+                        expandedNoteIds.add(noteId)
+                        render(true)
+                    }
+                }
             }
 
             render(noteId in expandedNoteIds)
-            binding.root.setOnClickListener {
+            binding.toggleExpandButton.setOnClickListener {
                 val expanded = noteId in expandedNoteIds
                 if (expanded) expandedNoteIds.remove(noteId) else expandedNoteIds.add(noteId)
                 render(!expanded)

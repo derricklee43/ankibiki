@@ -10,17 +10,8 @@ import android.database.sqlite.SQLiteDatabase
  */
 class DictionaryRepository(context: Context) {
 
-    private val db: SQLiteDatabase by lazy { openDatabase(context) }
-
-    private fun openDatabase(context: Context): SQLiteDatabase {
-        val dbFile = context.getDatabasePath(DB_NAME)
-        if (!dbFile.exists()) {
-            dbFile.parentFile?.mkdirs()
-            context.assets.open(DB_NAME).use { input ->
-                dbFile.outputStream().use { output -> input.copyTo(output) }
-            }
-        }
-        return SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
+    private val db: SQLiteDatabase by lazy {
+        checkNotNull(openBundledDatabase(context, DB_NAME)) { "Missing required asset $DB_NAME" }
     }
 
     /** All exact matches for [query] across whichever of [enabledSources] apply here. */

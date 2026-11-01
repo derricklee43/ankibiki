@@ -2,7 +2,6 @@ package com.derricklee.ankidict
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import java.io.FileNotFoundException
 
 /**
  * Character decomposition trees (JSON), built by scripts/build_ids_db.py from cjkvi-ids into
@@ -12,21 +11,7 @@ import java.io.FileNotFoundException
  */
 class IdsRepository(private val context: Context) {
 
-    private val db: SQLiteDatabase? by lazy { openDatabaseOrNull() }
-
-    private fun openDatabaseOrNull(): SQLiteDatabase? {
-        val dbFile = context.getDatabasePath(DB_NAME)
-        if (!dbFile.exists()) {
-            val bundled = try {
-                context.assets.open(DB_NAME)
-            } catch (e: FileNotFoundException) {
-                null
-            } ?: return null
-            dbFile.parentFile?.mkdirs()
-            bundled.use { input -> dbFile.outputStream().use { output -> input.copyTo(output) } }
-        }
-        return SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
-    }
+    private val db: SQLiteDatabase? by lazy { openBundledDatabase(context, DB_NAME) }
 
     /** The recursive decomposition tree (JSON) for [character], or "" if there's no data for it. */
     fun constituentsTreeJson(character: String): String {

@@ -2,7 +2,6 @@ package com.derricklee.ankidict
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
-import java.io.FileNotFoundException
 
 /**
  * Character -> HSK 3.0 level, built by scripts/build_hsk_db.py from drkameleon/complete-hsk-
@@ -13,21 +12,7 @@ import java.io.FileNotFoundException
  */
 class HskRepository(private val context: Context) {
 
-    private val db: SQLiteDatabase? by lazy { openDatabaseOrNull() }
-
-    private fun openDatabaseOrNull(): SQLiteDatabase? {
-        val dbFile = context.getDatabasePath(DB_NAME)
-        if (!dbFile.exists()) {
-            val bundled = try {
-                context.assets.open(DB_NAME)
-            } catch (e: FileNotFoundException) {
-                null
-            } ?: return null
-            dbFile.parentFile?.mkdirs()
-            bundled.use { input -> dbFile.outputStream().use { output -> input.copyTo(output) } }
-        }
-        return SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READONLY)
-    }
+    private val db: SQLiteDatabase? by lazy { openBundledDatabase(context, DB_NAME) }
 
     /** [character]'s HSK 3.0 level ("1".."6", "7-9"), or "" if there's no data for it. */
     fun hskLevel(character: String): String {

@@ -7,19 +7,42 @@
     android:padding="12dp"
     android:layout_marginBottom="8dp">
 
-    <TextView
-        android:id="@+id/deckTagText"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="6dp"
-        android:background="@drawable/bg_tag"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="2dp"
-        android:paddingBottom="2dp"
-        android:textColor="#FFFFFF"
-        android:textSize="11sp"
-        android:textStyle="bold" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <TextView
+            android:id="@+id/deckTagText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_tag"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:textColor="#FFFFFF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+
+        <ImageButton
+            android:id="@+id/toggleExpandButton"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/expand_card"
+            android:padding="4dp"
+            android:src="@drawable/ic_expand"
+            android:visibility="gone" />
+
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -32,7 +55,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="40sp"
-            android:textColor="#000000" />
+            android:textColor="#000000"
+            android:textIsSelectable="true" />
 
         <ImageButton
             android:id="@+id/playButton"
@@ -49,7 +73,7 @@
 
     <!-- Holds everything past the character. For non-revealable note types this is always
          visible; for revealable ones (e.g. flashcard-style decks) it starts hidden and toggles
-         open on tap, mirroring how the deck is actually studied in Anki. -->
+         via the top expand/minimize button so text inside can be selected and copied freely. -->
     <LinearLayout
         android:id="@+id/revealGroup"
         android:layout_width="match_parent"
@@ -62,7 +86,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
             android:textSize="18sp"
-            android:textColor="#444444" />
+            android:textColor="#444444"
+            android:textIsSelectable="true" />
 
         <TextView
             android:id="@+id/meaningText"
@@ -71,7 +96,8 @@
             android:layout_marginTop="4dp"
             android:textSize="18sp"
             android:textStyle="bold"
-            android:textColor="#000000" />
+            android:textColor="#000000"
+            android:textIsSelectable="true" />
 
         <TextView
             android:id="@+id/mnemonicText"
@@ -80,7 +106,8 @@
             android:layout_marginTop="6dp"
             android:textSize="16sp"
             android:textStyle="italic"
-            android:textColor="#222222" />
+            android:textColor="#222222"
+            android:textIsSelectable="true" />
 
         <TextView
             android:id="@+id/vocabText"
@@ -88,7 +115,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:textSize="14sp"
-            android:textColor="#333333" />
+            android:textColor="#333333"
+            android:textIsSelectable="true" />
 
         <TextView
             android:id="@+id/extraText"
@@ -96,7 +124,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
             android:textSize="14sp"
-            android:textColor="#555555" />
+            android:textColor="#555555"
+            android:textIsSelectable="true" />
 
         <TextView
             android:id="@+id/metaText"
@@ -104,7 +133,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:textSize="12sp"
-            android:textColor="#666666" />
+            android:textColor="#666666"
+            android:textIsSelectable="true" />
 
     </LinearLayout>
 

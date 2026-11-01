@@ -63,7 +63,10 @@ class HanziWordSyncService(
 
     private fun buildHanziIndex(hanziNotes: List<NoteResult>): MutableMap<String, HanziEntry> =
         hanziNotes.associateTo(mutableMapOf()) { note ->
-            note.fields.getOrNull(hanziCharIndex).orEmpty() to HanziEntry(note.id, note.fields.toMutableList())
+            val paddedFields = note.fields.toMutableList().apply {
+                while (size < HANZI_FIELD_COUNT) add("")
+            }
+            note.fields.getOrNull(hanziCharIndex).orEmpty() to HanziEntry(note.id, paddedFields)
         }
 
     /** Creates any missing component hanzi, keeps each one's UsedInWords current, and updates
@@ -73,7 +76,9 @@ class HanziWordSyncService(
         var wordsUpdated = 0
 
         for (wordNote in wordNotes) {
-            val wordFields = wordNote.fields.toMutableList()
+            val wordFields = wordNote.fields.toMutableList().apply {
+                while (size <= HANZI_BREAKDOWN_FIELD_INDEX) add("")
+            }
             val wordText = wordFields.getOrNull(WORD_FIELD_INDEX).orEmpty()
             if (wordText.isBlank()) continue
 
@@ -284,7 +289,8 @@ class HanziWordSyncService(
         val map = LinkedHashMap<String, String>()
         for (line in raw.split("\n")) {
             if (line.isBlank()) continue
-            map[line.substringBefore(" (")] = line
+            val key = line.substringBefore(" (").substringBefore(" — ").trim()
+            map[key] = line
         }
         return map
     }
