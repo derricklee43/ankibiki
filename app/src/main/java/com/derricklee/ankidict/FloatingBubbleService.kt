@@ -23,9 +23,10 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.TextView
+import android.widget.ImageView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -129,14 +130,13 @@ class FloatingBubbleService : Service() {
     private fun showBubble() {
         if (bubbleView != null) return
 
-        val sizePx = dpToPx(48)
-        val label = TextView(this).apply {
-            text = "引"
-            setTextColor(Color.WHITE)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
-            paint.isFakeBoldText = true
-            gravity = Gravity.CENTER
+        val sizePx = dpToPx(52)
+        val label = ImageView(this).apply {
+            setImageResource(R.drawable.ic_launcher_original)
+            scaleType = ImageView.ScaleType.CENTER_CROP
             background = ContextCompat.getDrawable(this@FloatingBubbleService, R.drawable.bg_floating_bubble)
+            outlineProvider = ViewOutlineProvider.BACKGROUND
+            clipToOutline = true
             elevation = dpToPx(6).toFloat()
         }
 
