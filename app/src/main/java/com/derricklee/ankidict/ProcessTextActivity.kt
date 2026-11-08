@@ -45,6 +45,7 @@ class ProcessTextActivity : AppCompatActivity() {
             intent?.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
                 ?: intent?.getCharSequenceExtra(Intent.EXTRA_TEXT)
             )?.toString().orEmpty()
+        AnkiAccessibilityService.recordSelection(selectedText)
         val characters = selectedText.filter(::isCjkCharacter).map { it.toString() }.distinct()
 
         if (characters.isEmpty()) {

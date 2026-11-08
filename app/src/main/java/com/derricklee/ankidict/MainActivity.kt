@@ -73,6 +73,10 @@ class MainActivity : AppCompatActivity() {
 
         if (settingsRepository.isFloatingBubbleEnabled() && Settings.canDrawOverlays(this)) {
             FloatingBubbleService.startOrStop(this, true)
+            if (!AnkiAccessibilityService.isServiceEnabled(this)) {
+                Toast.makeText(this, R.string.accessibility_permission_needed, Toast.LENGTH_LONG).show()
+                runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            }
         }
 
         checkAccessAndMaybeSearch()
@@ -135,6 +139,10 @@ class MainActivity : AppCompatActivity() {
             }
             settingsRepository.setFloatingBubbleEnabled(isChecked)
             FloatingBubbleService.startOrStop(this, isChecked)
+            if (isChecked && !AnkiAccessibilityService.isServiceEnabled(this)) {
+                Toast.makeText(this, R.string.accessibility_permission_needed, Toast.LENGTH_LONG).show()
+                runCatching { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            }
         }
 
         PopupWindow(popupBinding.root, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)

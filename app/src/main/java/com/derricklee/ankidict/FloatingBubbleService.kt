@@ -56,6 +56,7 @@ class FloatingBubbleService : Service() {
     private lateinit var windowManager: WindowManager
     private var bubbleView: View? = null
     private var popupView: View? = null
+    private var clipChangedListener: ClipboardManager.OnPrimaryClipChangedListener? = null
     private val lookupExecutor = Executors.newSingleThreadExecutor()
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -167,6 +168,7 @@ class FloatingBubbleService : Service() {
                     touchX = event.rawX
                     touchY = event.rawY
                     dragged = false
+                    AnkiAccessibilityService.instance?.onBubbleTouchDown()
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -216,20 +218,20 @@ class FloatingBubbleService : Service() {
         if (a11y != null) {
             val (directText, triggeredCopyChip) = a11y.captureCurrentSelection()
             if (!directText.isNullOrBlank()) {
-                showClipboardPopup(directText)
+                showClipboardPopup(directText, triggeredCopy = false)
                 return
             }
             if (triggeredCopyChip) {
-                // Give Google Lens / the target app a brief moment to write to the clipboard
-                // after we programmatically clicked its "Copy" chip, then open the popup.
-                bubbleView?.postDelayed({ showClipboardPopup(null) }, 150L)
+                // Give AnkiDroid WebView / Google Lens a brief moment to write to the clipboard
+                // while it still holds window focus, then open the popup.
+                bubbleView?.postDelayed({ showClipboardPopup(null, triggeredCopy = true) }, 160L)
                 return
             }
         }
-        showClipboardPopup(null)
+        showClipboardPopup(null, triggeredCopy = false)
     }
 
-    private fun showClipboardPopup(preCapturedText: String?) {
+    private fun showClipboardPopup(preCapturedText: String?, triggeredCopy: Boolean) {
         dismissPopup()
 
         val themedContext = ContextThemeWrapper(this, R.style.Theme_AnkiDict)
@@ -271,45 +273,97 @@ class FloatingBubbleService : Service() {
             dimAmount = 0.25f
         }
 
-        var loaded = false
-        fun loadText() {
-            if (loaded) return
-            loaded = true
-            val text = preCapturedText?.takeIf { it.isNotBlank() }
-                ?: readClipboardText().takeIf { it.isNotBlank() }
-                ?: AnkiAccessibilityService.lastSelectedText.orEmpty()
-            populatePopup(binding, text, maxCardHeight)
+        var lastResolvedText: String? = null
+        fun refreshFromSources() {
+            if (popupView !== backdrop) return
+            val resolved = resolveBestText(preCapturedText, triggeredCopy)
+            if (lastResolvedText != null && (resolved == lastResolvedText || resolved.isEmpty())) {
+                return
+            }
+            lastResolvedText = resolved
+            populatePopup(binding, resolved, maxCardHeight)
         }
 
-        if (!preCapturedText.isNullOrBlank()) {
-            loadText()
+        if (!preCapturedText.isNullOrBlank() && preCapturedText.any(::isCjkCharacter)) {
+            refreshFromSources()
         } else {
+            val clipboard = getSystemService(ClipboardManager::class.java)
+            val listener = ClipboardManager.OnPrimaryClipChangedListener {
+                backdrop.post { refreshFromSources() }
+            }
+            clipChangedListener = listener
+            runCatching { clipboard?.addPrimaryClipChangedListener(listener) }
+
             backdrop.viewTreeObserver.addOnWindowFocusChangeListener(object : ViewTreeObserver.OnWindowFocusChangeListener {
                 override fun onWindowFocusChanged(hasFocus: Boolean) {
                     if (hasFocus) {
                         backdrop.viewTreeObserver.removeOnWindowFocusChangeListener(this)
-                        loadText()
+                        refreshFromSources()
+                        // Retry briefly after focus in case an async WebView copy completes just after focus arrives.
+                        backdrop.postDelayed({ refreshFromSources() }, 160L)
                     }
                 }
             })
-            backdrop.postDelayed({ loadText() }, 150L)
+            backdrop.postDelayed({ refreshFromSources() }, 250L)
         }
 
         windowManager.addView(backdrop, overlayParams)
         popupView = backdrop
     }
 
-    private fun readClipboardText(): String {
-        val clipboard = getSystemService(ClipboardManager::class.java) ?: return ""
-        val clip = clipboard.primaryClip ?: return ""
-        if (clip.itemCount == 0) return ""
-        return clip.getItemAt(0).coerceToText(this)?.toString().orEmpty()
+    private fun resolveBestText(preCapturedText: String?, triggeredCopy: Boolean): String {
+        if (!preCapturedText.isNullOrBlank() && preCapturedText.any(::isCjkCharacter)) {
+            return preCapturedText
+        }
+        val (clipText, clipTimestamp) = readClipboardTextWithTimestamp()
+        val cjkClip = clipText.takeIf { it.any(::isCjkCharacter) }
+        val (a11yText, a11yTimestamp) = AnkiAccessibilityService.getLastSelectionWithTimestamp()
+        val cjkA11y = a11yText?.takeIf { it.any(::isCjkCharacter) }
+
+        return when {
+            cjkClip != null && cjkA11y != null -> {
+                if (triggeredCopy && clipTimestamp >= a11yTimestamp - 2000L) {
+                    cjkClip
+                } else if (a11yTimestamp > clipTimestamp) {
+                    cjkA11y
+                } else {
+                    cjkClip
+                }
+            }
+            cjkClip != null -> cjkClip
+            cjkA11y != null -> cjkA11y
+            else -> ""
+        }
+    }
+
+    private fun readClipboardTextWithTimestamp(): Pair<String, Long> {
+        val clipboard = getSystemService(ClipboardManager::class.java) ?: return "" to 0L
+        val clip = runCatching { clipboard.primaryClip }.getOrNull() ?: return "" to 0L
+        if (clip.itemCount == 0) return "" to 0L
+        val text = clip.getItemAt(0).coerceToText(this)?.toString().orEmpty()
+        val timestamp = clip.description?.timestamp ?: 0L
+        return text to timestamp
     }
 
     private fun populatePopup(binding: ActivityProcessTextBinding, text: String, maxHeightPx: Int) {
         val characters = text.filter(::isCjkCharacter).map { it.toString() }.distinct()
         if (characters.isEmpty()) {
-            showStatus(binding, getString(R.string.process_text_no_kanji))
+            if (!AnkiAccessibilityService.isServiceEnabled(this)) {
+                showStatus(binding, getString(R.string.process_text_enable_accessibility))
+                binding.popupStatusText.setOnClickListener {
+                    dismissPopup()
+                    runCatching {
+                        startActivity(
+                            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            },
+                        )
+                    }
+                }
+            } else {
+                binding.popupStatusText.setOnClickListener(null)
+                showStatus(binding, getString(R.string.process_text_no_kanji))
+            }
             return
         }
 
@@ -322,6 +376,9 @@ class FloatingBubbleService : Service() {
             showStatus(binding, getString(R.string.status_permission_denied))
             return
         }
+
+        binding.popupStatusText.visibility = View.GONE
+        binding.kanjiPopupList.visibility = View.VISIBLE
 
         lookupExecutor.execute {
             val items = characters.map { ch ->
@@ -353,6 +410,11 @@ class FloatingBubbleService : Service() {
     }
 
     private fun dismissPopup() {
+        clipChangedListener?.let { listener ->
+            val clipboard = getSystemService(ClipboardManager::class.java)
+            runCatching { clipboard?.removePrimaryClipChangedListener(listener) }
+        }
+        clipChangedListener = null
         popupView?.let { view ->
             runCatching { windowManager.removeView(view) }
         }

@@ -13,6 +13,8 @@
     <string name="close_popup">Close</string>
     <string name="floating_bubble_toggle">Floating clipboard button (引)</string>
     <string name="overlay_permission_needed">Grant \"Display over other apps\" permission, then toggle the floating button again.</string>
+    <string name="accessibility_permission_needed">Enable AnkiBiki in Accessibility settings so the floating button can read selected text in AnkiDroid.</string>
+    <string name="process_text_enable_accessibility">No Kanji found. Tap here to enable AnkiBiki in Accessibility settings so selected words in AnkiDroid are picked up automatically.</string>
     <string name="bubble_notification_title">AnkiBiki floating button active</string>
     <string name="bubble_notification_text">Copy Japanese text anywhere, then tap 引 to view Kanji meanings &amp; stories.</string>
     <string name="bubble_notification_stop">Stop</string>
