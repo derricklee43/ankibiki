@@ -146,6 +146,20 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
         }
     }
 
+    /** Returns true if the canonical item already has a non-null `anki_note_id`. */
+    fun hasLinkedAnkiCard(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+    ): Boolean {
+        readableDatabase.rawQuery(
+            "SELECT 1 FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ? AND anki_note_id IS NOT NULL LIMIT 1",
+            arrayOf(languageTag.name, itemType.name, expression),
+        ).use { cursor ->
+            return cursor.moveToFirst()
+        }
+    }
+
     /**
      * Queries the device camera roll from [MediaStore.Images.Media.EXTERNAL_CONTENT_URI] ordered
      * newest first, excluding any photo the user explicitly marked as [PhotoStatus.DELETED] in
@@ -593,6 +607,45 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
             put("is_hidden", if (isHidden) 1 else 0)
         }
         writableDatabase.insertWithOnConflict("extracted_items", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** Updates the cached Anki card match (`anki_account_id`, `deck_id`, `deck_name`, `anki_note_id`) for an item. */
+    fun updateExtractedItemAnkiMatch(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+        match: AnkiCardMatch,
+    ) {
+        val values = ContentValues().apply {
+            put("anki_account_id", match.accountId)
+            put("deck_id", match.deckId)
+            put("deck_name", match.deckName)
+            put("anki_note_id", match.noteId)
+        }
+        writableDatabase.update(
+            "extracted_items",
+            values,
+            "language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag.name, itemType.name, expression),
+        )
+    }
+
+    /** Updates the cached display `deck_name` for all items matching `(accountId, deckId)`. */
+    fun updateCachedDeckName(accountId: String?, deckId: Long, deckName: String) {
+        val values = ContentValues().apply {
+            put("deck_name", deckName)
+        }
+        val whereClause = if (accountId != null) {
+            "anki_account_id = ? AND deck_id = ?"
+        } else {
+            "deck_id = ?"
+        }
+        val whereArgs = if (accountId != null) {
+            arrayOf(accountId, deckId.toString())
+        } else {
+            arrayOf(deckId.toString())
+        }
+        writableDatabase.update("extracted_items", values, whereClause, whereArgs)
     }
 
     fun insertOccurrence(

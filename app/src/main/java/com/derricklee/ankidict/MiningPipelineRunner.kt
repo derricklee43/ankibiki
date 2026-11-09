@@ -231,6 +231,22 @@ class MiningPipelineRunner(
     ) {
         val tag = config.tag
         if (miningRepository.hasExtractedItem(tag, itemType, candidate.expression)) {
+            if (!miningRepository.hasLinkedAnkiCard(tag, itemType, candidate.expression)) {
+                val lateMatch = config.ankiMatchLookup?.findMatch(
+                    languageTag = tag,
+                    itemType = itemType,
+                    expression = candidate.expression,
+                    reading = candidate.readingKana.orEmpty(),
+                )
+                if (lateMatch != null) {
+                    miningRepository.updateExtractedItemAnkiMatch(
+                        languageTag = tag,
+                        itemType = itemType,
+                        expression = candidate.expression,
+                        match = lateMatch,
+                    )
+                }
+            }
             return
         }
 
@@ -278,7 +294,9 @@ class MiningPipelineRunner(
             dictionaryRepository: DictionaryRepository,
             shinjitaiRepository: ShinjitaiRepository,
             hskRepository: HskRepository,
-            ankiMatchLookup: AnkiMatchLookup? = null,
+            ankiMatchLookup: AnkiMatchLookup = AnkiCardService(
+                AnkiDroidAccountGateway(context.applicationContext),
+            ),
         ): MiningPipelineRunner {
             val appContext = context.applicationContext
             val duplicateDetector = LevenshteinDuplicatePhotoDetector(miningRepository)

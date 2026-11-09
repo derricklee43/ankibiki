@@ -153,4 +153,73 @@ class MiningPipelineUnitTest {
         assertEquals(1, restored?.blocks?.size)
         assertEquals(42, restored?.blocks?.first()?.lines?.first()?.boundingBoxHeightPx)
     }
+
+    @Test
+    fun ankiCardService_resolvesFieldByNameAndDeckDisplayNameFromImmutableDeckId() {
+        var currentDeckDisplayName = "JP::Mining Vocab"
+        val fakeGateway = object : AnkiAccountGateway {
+            override val accountId: String = "test-profile-1"
+            override fun isAvailable(): Boolean = true
+            override fun getDeckName(deckId: Long): String? =
+                if (deckId == 777001L) currentDeckDisplayName else null
+            override fun getDeckIdForNote(noteId: Long): Long? = 777001L
+            override fun getModelList(): Map<Long, String> = mapOf(555001L to "JP Vocab Note")
+            override fun getModelFieldNames(modelId: Long): List<String>? =
+                if (modelId == 555001L) listOf("ID", "Expression", "Reading", "Meaning") else null
+            override fun findNotesByModel(modelId: Long, query: String): List<AnkiRawNote> =
+                if (modelId == 555001L && query == "証拠") {
+                    listOf(
+                        AnkiRawNote(
+                            noteId = 888001L,
+                            modelId = 555001L,
+                            fields = listOf("42", "<b>証[しょう]拠[こ]</b>", "しょうこ", "evidence; proof"),
+                        ),
+                    )
+                } else {
+                    emptyList()
+                }
+        }
+
+        val binding = AnkiDeckBinding(
+            bindingId = "test-jp-vocab",
+            accountId = "test-profile-1",
+            languageTag = LanguageTag.JAPANESE,
+            itemType = ItemType.WORD,
+            deckId = 777001L,
+            fallbackDeckName = "Fallback Deck",
+            modelId = 555001L,
+            fieldMap = mapOf(
+                SemanticField.EXPRESSION to FieldSelector.ByName("Expression", fallbackIndex = 0),
+                SemanticField.READING to FieldSelector.ByName("Reading", fallbackIndex = 2),
+                SemanticField.MEANING to FieldSelector.ByName("Meaning", fallbackIndex = 3),
+            ),
+        )
+
+        val service = AnkiCardService(
+            gateway = fakeGateway,
+            bindings = listOf(binding),
+            enableDynamicModelDiscovery = false,
+        )
+
+        val match = service.findMatch(
+            languageTag = LanguageTag.JAPANESE,
+            itemType = ItemType.WORD,
+            expression = "証拠",
+            reading = "しょうこ",
+        )
+        assertNotNull(match)
+        assertEquals("test-profile-1", match?.accountId)
+        assertEquals(777001L, match?.deckId)
+        assertEquals("JP::Mining Vocab", match?.deckName)
+        assertEquals(888001L, match?.noteId)
+
+        // Simulate renaming the deck in Anki without changing deckId
+        currentDeckDisplayName = "Japanese::Core::Vocab"
+        val updatedName = service.resolveDeckDisplayName(
+            accountId = match?.accountId,
+            deckId = match?.deckId,
+            cachedDeckName = match?.deckName,
+        )
+        assertEquals("Japanese::Core::Vocab", updatedName)
+    }
 }

@@ -15,6 +15,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityWordGrammarDetailBinding
     private lateinit var miningRepository: MiningRepository
+    private lateinit var ankiCardService: AnkiCardService
     private lateinit var photosAdapter: PhotoThumbnailAdapter
     private val ioExecutor = Executors.newSingleThreadExecutor()
 
@@ -43,6 +44,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         expression = intent.getStringExtra(EXTRA_EXPRESSION).orEmpty()
 
         miningRepository = MiningRepository(this)
+        ankiCardService = AnkiCardService(AnkiDroidAccountGateway(this))
         photosAdapter = PhotoThumbnailAdapter(horizontalStrip = true) { photo ->
             startActivity(
                 PhotoDetailActivity.newIntent(
@@ -77,12 +79,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         binding.ankiCardActionButton.setOnClickListener {
             val detail = currentDetail
             if (detail?.ankiNoteId != null) {
-                // Navigate to lookup view pre-filled with the expression to view the existing card
-                val lookupIntent = Intent(this, MainActivity::class.java).apply {
-                    putExtra(MainActivity.EXTRA_INITIAL_QUERY, expression)
-                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                }
-                startActivity(lookupIntent)
+                ankiCardService.openExistingCard(this, detail)
             } else {
                 Toast.makeText(this, R.string.card_creation_pending_toast, Toast.LENGTH_SHORT).show()
             }
@@ -141,7 +138,45 @@ class WordGrammarDetailActivity : AppCompatActivity() {
 
     private fun loadDetail() {
         ioExecutor.execute {
-            val detail = miningRepository.getItemDetail(languageTag, itemType, expression)
+            var detail = miningRepository.getItemDetail(languageTag, itemType, expression)
+            if (detail != null) {
+                if (detail.ankiNoteId == null) {
+                    val match = ankiCardService.findMatch(
+                        languageTag = detail.languageTag,
+                        itemType = detail.itemType,
+                        expression = detail.expression,
+                        reading = detail.kana,
+                    )
+                    if (match != null) {
+                        miningRepository.updateExtractedItemAnkiMatch(
+                            languageTag = detail.languageTag,
+                            itemType = detail.itemType,
+                            expression = detail.expression,
+                            match = match,
+                        )
+                        detail = detail.copy(
+                            ankiAccountId = match.accountId,
+                            deckId = match.deckId,
+                            deckName = match.deckName,
+                            ankiNoteId = match.noteId,
+                        )
+                    }
+                } else if (detail.deckId != null && detail.deckId > 0L) {
+                    val liveDeckName = ankiCardService.resolveDeckDisplayName(
+                        accountId = detail.ankiAccountId,
+                        deckId = detail.deckId,
+                        cachedDeckName = detail.deckName,
+                    )
+                    if (liveDeckName != null && liveDeckName != detail.deckName) {
+                        miningRepository.updateCachedDeckName(
+                            accountId = detail.ankiAccountId,
+                            deckId = detail.deckId,
+                            deckName = liveDeckName,
+                        )
+                        detail = detail.copy(deckName = liveDeckName)
+                    }
+                }
+            }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 currentDetail = detail

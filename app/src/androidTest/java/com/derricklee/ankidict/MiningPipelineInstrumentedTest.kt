@@ -66,6 +66,40 @@ class MiningPipelineInstrumentedTest {
             wordAnalyzer = KuromojiWordAnalyzer(),
             grammarAnalyzer = JlptGrammarAnalyzer(),
             dictionaryProviders = listOf(dictProvider),
+            ankiMatchLookup = AnkiCardService(
+                gateway = object : AnkiAccountGateway {
+                    override val accountId: String = "ankidroid-test"
+                    override fun isAvailable(): Boolean = true
+                    override fun getDeckName(deckId: Long): String? =
+                        if (deckId == 5001L) "🇯🇵 JP Vocab" else null
+                    override fun getDeckIdForNote(noteId: Long): Long? = 5001L
+                    override fun getModelList(): Map<Long, String> = mapOf(6001L to "JP Vocab")
+                    override fun getModelFieldNames(modelId: Long): List<String>? =
+                        listOf("Expression", "Reading", "Meaning")
+                    override fun findNotesByModel(modelId: Long, query: String): List<AnkiRawNote> =
+                        if (modelId == 6001L && query == "証拠") {
+                            listOf(AnkiRawNote(noteId = 7001L, modelId = 6001L, fields = listOf("証拠", "しょうこ", "evidence")))
+                        } else {
+                            emptyList()
+                        }
+                },
+                bindings = listOf(
+                    AnkiDeckBinding(
+                        bindingId = "test-jp-vocab",
+                        accountId = "ankidroid-test",
+                        languageTag = LanguageTag.JAPANESE,
+                        itemType = ItemType.WORD,
+                        deckId = 5001L,
+                        fallbackDeckName = "JP Vocab",
+                        modelId = 6001L,
+                        fieldMap = mapOf(
+                            SemanticField.EXPRESSION to FieldSelector.ByName("Expression"),
+                            SemanticField.READING to FieldSelector.ByName("Reading"),
+                        ),
+                    ),
+                ),
+                enableDynamicModelDiscovery = false,
+            ),
         )
 
         val runner = MiningPipelineRunner(
@@ -116,6 +150,7 @@ class MiningPipelineInstrumentedTest {
         assertEquals(2, shoukoRows.first().occurrenceCount)
         assertEquals("N2", shoukoRows.first().levelBadge)
         assertEquals(1420, shoukoRows.first().corpusRank)
+        assertEquals("🇯🇵 JP Vocab", shoukoRows.first().deckName)
 
         val shoukoDetail = miningRepository.getItemDetail(
             languageTag = LanguageTag.JAPANESE,
@@ -126,6 +161,9 @@ class MiningPipelineInstrumentedTest {
         assertEquals("証拠", shoukoDetail?.kanji)
         assertEquals("しょうこ", shoukoDetail?.kana)
         assertTrue(shoukoDetail?.meaning?.contains("evidence") == true)
+        assertEquals(5001L, shoukoDetail?.deckId)
+        assertEquals("🇯🇵 JP Vocab", shoukoDetail?.deckName)
+        assertEquals(7001L, shoukoDetail?.ankiNoteId)
         assertEquals(2, shoukoDetail?.sentences?.size)
 
         // Verify grammar patterns ("しかない" and "というわけだ") were extracted and enriched
