@@ -1,6 +1,6 @@
 package com.derricklee.ankidict
 
-import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,22 +11,25 @@ import android.os.Looper
 import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.PopupWindow
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityMainBinding
 import com.derricklee.ankidict.databinding.ItemSettingsToggleBinding
 import com.derricklee.ankidict.databinding.PopupSettingsBinding
-
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val PERMISSION_REQUEST_CODE = 1
 private const val SEARCH_DEBOUNCE_MS = 250L
 private const val READ_WRITE_PERMISSION = "com.ichi2.anki.permission.READ_WRITE_DATABASE"
+private const val PREVIEW_ROW_LIMIT = 3
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,12 +38,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var searchService: SearchService
     private lateinit var syncService: HanziWordSyncService
     private lateinit var settingsRepository: SettingsRepository
+    private lateinit var miningRepository: MiningRepository
     private lateinit var adapter: SearchResultAdapter
+
+    private lateinit var recentPhotosAdapter: PhotoThumbnailAdapter
+    private lateinit var recentWordsAdapter: ExtractedOccurrenceAdapter
+    private lateinit var recentGrammarAdapter: ExtractedOccurrenceAdapter
 
     private val searchHandler = Handler(Looper.getMainLooper())
     private var pendingSearch: Runnable? = null
     private val searchExecutor = Executors.newSingleThreadExecutor()
     private val syncExecutor = Executors.newSingleThreadExecutor()
+    private val miningExecutor = Executors.newSingleThreadExecutor()
     private val searchGeneration = AtomicInteger(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,6 +64,7 @@ class MainActivity : AppCompatActivity() {
             repository, dictionaryRepository, IdsRepository(this), HskRepository(this), ShinjitaiRepository(this),
         )
         settingsRepository = SettingsRepository(this)
+        miningRepository = MiningRepository(this)
         adapter = SearchResultAdapter(AudioRepository(this))
 
         binding.resultsList.layoutManager = LinearLayoutManager(this)
@@ -71,6 +81,8 @@ class MainActivity : AppCompatActivity() {
         binding.settingsButton.setOnClickListener { showSettingsMenu() }
         binding.syncButton.setOnClickListener { runSync() }
 
+        setupBottomNavAndMiningTab()
+
         if (settingsRepository.isFloatingBubbleEnabled() && Settings.canDrawOverlays(this)) {
             FloatingBubbleService.startOrStop(this, true)
             if (!AnkiAccessibilityService.isServiceEnabled(this)) {
@@ -80,6 +92,143 @@ class MainActivity : AppCompatActivity() {
         }
 
         checkAccessAndMaybeSearch()
+        handleInitialQueryIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleInitialQueryIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (binding.mineContainer.visibility == View.VISIBLE) {
+            refreshMiningDashboard()
+        }
+    }
+
+    private fun handleInitialQueryIntent(intent: Intent?) {
+        val initialQuery = intent?.getStringExtra(EXTRA_INITIAL_QUERY)?.takeIf { it.isNotBlank() } ?: return
+        intent.removeExtra(EXTRA_INITIAL_QUERY)
+        binding.bottomNav.selectedItemId = R.id.nav_lookup
+        binding.searchBox.setText(initialQuery)
+        binding.searchBox.setSelection(initialQuery.length)
+    }
+
+    private fun setupBottomNavAndMiningTab() {
+        recentPhotosAdapter = PhotoThumbnailAdapter(horizontalStrip = false) { photo ->
+            startActivity(
+                PhotoDetailActivity.newIntent(
+                    context = this,
+                    mediaStoreId = photo.mediaStoreId,
+                    contentUri = photo.contentUri,
+                    dateAdded = photo.dateAdded,
+                ),
+            )
+        }
+        binding.recentPhotosRecyclerView.layoutManager = GridLayoutManager(this, PREVIEW_ROW_LIMIT)
+        binding.recentPhotosRecyclerView.adapter = recentPhotosAdapter
+
+        recentWordsAdapter = ExtractedOccurrenceAdapter { row ->
+            openFullListAndDetail(row)
+        }
+        binding.recentWordsRecyclerView.layoutManager = LinearLayoutManager(this)
+        binding.recentWordsRecyclerView.adapter = recentWordsAdapter
+
+        recentGrammarAdapter = ExtractedOccurrenceAdapter { row ->
+            openFullListAndDetail(row)
+        }
+        binding.recentGrammarRecyclerView.layoutManager = LinearLayoutManager(this)
+        binding.recentGrammarRecyclerView.adapter = recentGrammarAdapter
+
+        binding.seeAllPhotosButton.setOnClickListener {
+            startActivity(Intent(this, PhotoLibraryActivity::class.java))
+        }
+        binding.seeAllWordsButton.setOnClickListener {
+            startActivity(ExtractedListActivity.newIntent(this, ItemType.WORD))
+        }
+        binding.seeAllGrammarButton.setOnClickListener {
+            startActivity(ExtractedListActivity.newIntent(this, ItemType.GRAMMAR))
+        }
+
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_lookup -> {
+                    binding.lookupContainer.visibility = View.VISIBLE
+                    binding.mineContainer.visibility = View.GONE
+                    true
+                }
+                R.id.nav_mine -> {
+                    hideKeyboard()
+                    binding.lookupContainer.visibility = View.GONE
+                    binding.mineContainer.visibility = View.VISIBLE
+                    refreshMiningDashboard()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun openFullListAndDetail(row: ExtractedOccurrenceRow) {
+        val listIntent = ExtractedListActivity.newIntent(
+            context = this,
+            itemType = row.itemType,
+            languageTag = row.languageTag,
+        )
+        val detailIntent = WordGrammarDetailActivity.newIntent(
+            context = this,
+            occurrenceId = row.occurrenceId,
+            languageTag = row.languageTag,
+            itemType = row.itemType,
+            expression = row.expression,
+        )
+        startActivities(arrayOf(listIntent, detailIntent))
+    }
+
+    private fun refreshMiningDashboard() {
+        miningExecutor.execute {
+            val recentPhotos = miningRepository.getRecentPhotos(limit = PREVIEW_ROW_LIMIT)
+            val recentWords = miningRepository.getActiveOccurrences(
+                OccurrenceQuery(
+                    languageTag = LanguageTag.JAPANESE,
+                    itemType = ItemType.WORD,
+                    sortOrder = OccurrenceSortOrder.NEWEST_FIRST,
+                    limit = PREVIEW_ROW_LIMIT,
+                ),
+            )
+            val recentGrammar = miningRepository.getActiveOccurrences(
+                OccurrenceQuery(
+                    languageTag = LanguageTag.JAPANESE,
+                    itemType = ItemType.GRAMMAR,
+                    sortOrder = OccurrenceSortOrder.NEWEST_FIRST,
+                    limit = PREVIEW_ROW_LIMIT,
+                ),
+            )
+
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                recentPhotosAdapter.submitList(recentPhotos)
+                binding.emptyRecentPhotosText.visibility =
+                    if (recentPhotos.isEmpty()) View.VISIBLE else View.GONE
+
+                recentWordsAdapter.submitList(recentWords)
+                binding.emptyRecentWordsText.visibility =
+                    if (recentWords.isEmpty()) View.VISIBLE else View.GONE
+
+                recentGrammarAdapter.submitList(recentGrammar)
+                binding.emptyRecentGrammarText.visibility =
+                    if (recentGrammar.isEmpty()) View.VISIBLE else View.GONE
+            }
+        }
+    }
+
+    private fun hideKeyboard() {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
+        currentFocus?.windowToken?.let { token ->
+            imm.hideSoftInputFromWindow(token, 0)
+        }
     }
 
     private fun runSync() {
@@ -154,6 +303,7 @@ class MainActivity : AppCompatActivity() {
         pendingSearch?.let { searchHandler.removeCallbacks(it) }
         searchExecutor.shutdownNow()
         syncExecutor.shutdown()
+        miningExecutor.shutdownNow()
         adapter.stopAudio()
         super.onDestroy()
     }
@@ -219,10 +369,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun showStatus(message: String) {
         binding.statusText.text = message
-        binding.statusText.visibility = android.view.View.VISIBLE
+        binding.statusText.visibility = View.VISIBLE
     }
 
     private fun hideStatus() {
-        binding.statusText.visibility = android.view.View.GONE
+        binding.statusText.visibility = View.GONE
+    }
+
+    companion object {
+        const val EXTRA_INITIAL_QUERY = "extra_initial_query"
     }
 }
