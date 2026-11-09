@@ -109,6 +109,43 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
             limit = null,
         )
 
+    /** Returns the [limit] most recently scraped KEEP photos for [languageTag]. */
+    fun getRecentKeepPhotosByTag(languageTag: LanguageTag, limit: Int): List<ScrapedPhoto> =
+        queryScrapedPhotos(
+            selection = "status = ? AND language_tag = ?",
+            selectionArgs = arrayOf(PhotoStatus.KEEP.name, languageTag.name),
+            orderBy = "date_added DESC, media_store_id DESC",
+            limit = limit.toString(),
+        )
+
+    /** Returns all `media_store_id`s currently recorded in `scraped_photos` regardless of status. */
+    fun getAllProcessedMediaStoreIds(): Set<Long> {
+        val ids = HashSet<Long>()
+        readableDatabase.rawQuery(
+            "SELECT media_store_id FROM scraped_photos",
+            emptyArray(),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                ids.add(cursor.getLong(0))
+            }
+        }
+        return ids
+    }
+
+    /** Returns true if a canonical `extracted_items` row already exists for `(languageTag, itemType, expression)`. */
+    fun hasExtractedItem(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+    ): Boolean {
+        readableDatabase.rawQuery(
+            "SELECT 1 FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ? LIMIT 1",
+            arrayOf(languageTag.name, itemType.name, expression),
+        ).use { cursor ->
+            return cursor.moveToFirst()
+        }
+    }
+
     /**
      * Queries the device camera roll from [MediaStore.Images.Media.EXTERNAL_CONTENT_URI] ordered
      * newest first, excluding any photo the user explicitly marked as [PhotoStatus.DELETED] in

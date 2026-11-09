@@ -54,7 +54,18 @@ class DictionaryRepository(context: Context) {
         }
     }
 
-    private fun lookupJapaneseWords(query: String): List<DictionaryEntry.JapaneseWord> {
+    /** Returns `(jlpt, freq)` from KANJIDIC2 for a single [character], or null if not found. */
+    fun lookupKanjiFreqAndJlpt(character: String): Pair<Int?, Int?>? {
+        db.rawQuery(
+            "SELECT jlpt, freq FROM kanji WHERE character = ?",
+            arrayOf(character),
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) return null
+            return cursor.getIntOrNull(0) to cursor.getIntOrNull(1)
+        }
+    }
+
+    fun lookupJapaneseWords(query: String): List<DictionaryEntry.JapaneseWord> {
         val results = mutableListOf<DictionaryEntry.JapaneseWord>()
         db.rawQuery(
             "SELECT headword, reading, glosses, is_common FROM words " +

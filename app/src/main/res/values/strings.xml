@@ -63,4 +63,9 @@
     <string name="occurrence_marked_seen_toast">既読にしました</string>
     <string name="item_hidden_toast">非表示にしました</string>
     <string name="occurrence_deleted_toast">削除しました</string>
+    <string name="btn_scan_photos">スキャン</string>
+    <string name="scan_in_progress">スキャン中…</string>
+    <string name="scan_no_new_photos">未スキャンの写真はありません</string>
+    <string name="scan_complete_toast">%1$d枚をスキャン（%2$d枚保存・%3$d件抽出）</string>
+    <string name="scan_failed_toast">スキャンに失敗しました: %1$s</string>
 </resources>

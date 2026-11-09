@@ -1,5 +1,6 @@
 package com.derricklee.ankidict
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -27,6 +28,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val PERMISSION_REQUEST_CODE = 1
+private const val MEDIA_PERMISSION_REQUEST_CODE = 2
 private const val SEARCH_DEBOUNCE_MS = 250L
 private const val READ_WRITE_PERMISSION = "com.ichi2.anki.permission.READ_WRITE_DATABASE"
 private const val PREVIEW_ROW_LIMIT = 3
@@ -39,6 +41,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var syncService: HanziWordSyncService
     private lateinit var settingsRepository: SettingsRepository
     private lateinit var miningRepository: MiningRepository
+    private lateinit var miningPipelineRunner: MiningPipelineRunner
     private lateinit var adapter: SearchResultAdapter
 
     private lateinit var recentPhotosAdapter: PhotoThumbnailAdapter
@@ -50,6 +53,7 @@ class MainActivity : AppCompatActivity() {
     private val searchExecutor = Executors.newSingleThreadExecutor()
     private val syncExecutor = Executors.newSingleThreadExecutor()
     private val miningExecutor = Executors.newSingleThreadExecutor()
+    private val scanExecutor = Executors.newSingleThreadExecutor()
     private val searchGeneration = AtomicInteger(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,12 +63,21 @@ class MainActivity : AppCompatActivity() {
 
         repository = AnkiRepository(this)
         val dictionaryRepository = DictionaryRepository(this)
+        val hskRepository = HskRepository(this)
+        val shinjitaiRepository = ShinjitaiRepository(this)
         searchService = SearchService(repository, dictionaryRepository)
         syncService = HanziWordSyncService(
-            repository, dictionaryRepository, IdsRepository(this), HskRepository(this), ShinjitaiRepository(this),
+            repository, dictionaryRepository, IdsRepository(this), hskRepository, shinjitaiRepository,
         )
         settingsRepository = SettingsRepository(this)
         miningRepository = MiningRepository(this)
+        miningPipelineRunner = MiningPipelineRunner.createDefault(
+            context = this,
+            miningRepository = miningRepository,
+            dictionaryRepository = dictionaryRepository,
+            shinjitaiRepository = shinjitaiRepository,
+            hskRepository = hskRepository,
+        )
         adapter = SearchResultAdapter(AudioRepository(this))
 
         binding.resultsList.layoutManager = LinearLayoutManager(this)
@@ -142,6 +155,9 @@ class MainActivity : AppCompatActivity() {
         binding.recentGrammarRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.recentGrammarRecyclerView.adapter = recentGrammarAdapter
 
+        binding.scanButton.setOnClickListener {
+            runPhotoScan()
+        }
         binding.seeAllPhotosButton.setOnClickListener {
             startActivity(Intent(this, PhotoLibraryActivity::class.java))
         }
@@ -299,11 +315,59 @@ class MainActivity : AppCompatActivity() {
             .showAsDropDown(binding.settingsButton)
     }
 
+    private fun runPhotoScan() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(Manifest.permission.READ_MEDIA_IMAGES),
+                MEDIA_PERMISSION_REQUEST_CODE,
+            )
+            return
+        }
+
+        binding.scanButton.isEnabled = false
+        binding.scanButton.setText(R.string.scan_in_progress)
+
+        scanExecutor.execute {
+            val outcome = runCatching { miningPipelineRunner.runScanBatch() }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                binding.scanButton.isEnabled = true
+                binding.scanButton.setText(R.string.btn_scan_photos)
+                outcome.fold(
+                    onSuccess = { summary ->
+                        refreshMiningDashboard()
+                        val msg = if (summary.scannedCount == 0) {
+                            getString(R.string.scan_no_new_photos)
+                        } else {
+                            getString(
+                                R.string.scan_complete_toast,
+                                summary.scannedCount,
+                                summary.keptCount,
+                                summary.newOccurrencesCount,
+                            )
+                        }
+                        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(
+                            this,
+                            getString(R.string.scan_failed_toast, error.message ?: "unknown"),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    },
+                )
+            }
+        }
+    }
+
     override fun onDestroy() {
         pendingSearch?.let { searchHandler.removeCallbacks(it) }
         searchExecutor.shutdownNow()
         syncExecutor.shutdown()
         miningExecutor.shutdownNow()
+        scanExecutor.shutdownNow()
         adapter.stopAudio()
         super.onDestroy()
     }
@@ -346,6 +410,10 @@ class MainActivity : AppCompatActivity() {
                 scheduleSearch(binding.searchBox.text?.toString().orEmpty())
             } else {
                 showStatus(getString(R.string.status_permission_denied))
+            }
+        } else if (requestCode == MEDIA_PERMISSION_REQUEST_CODE) {
+            if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+                runPhotoScan()
             }
         }
     }
