@@ -23,6 +23,26 @@ acceptance criteria covering data recovery, safe reprocessing, extraction qualit
 correction UX, card creation, and lifecycle reliability. The roadmap complements
 [the original photo-mining design](docs/saikutsu-photo-mining-plan.md).
 
+## Corpus data & recovery
+
+Photo mining writes to `mining.db`, the app's private database on the device: scraped
+photos + extracted text, learned words/grammar with visibility states, and per-sentence
+review decisions (seen/deleted/user-edited). **This database is the only copy of that
+work**, and Android deletes it on uninstall — an instrumented test once wiped it.
+
+- **In-app recovery:** Settings (top-right) → *Export corpus backup (bundle)* saves a
+  self-verifying bundle (database snapshot + hashes + row counts, plus readable source
+  photos when MediaStore allows) to any location you pick — a cloud folder, Downloads,
+  USB-OTG drive. *Restore corpus from bundle* validates a bundle completely before
+  touching anything, keeps the previous database as `mining.db.pre-restore`, and relaunches
+  on the restored data. Invalid or tampered bundles are refused without damage.
+- **On the PC:** `scripts/backup_bundle.py` (export/verify/restore/diff) reads and writes the
+  same bundles — use `diff` to prove a restore matches the source row-for-row.
+  Full workflow + demonstration logs: [docs/recovery.md](docs/recovery.md).
+- **Dev-machine guard:** `scripts/backup_mining_db.py` auto-snapshots the device database
+  into gitignored `backups/` before any gradle-initiated instrumented test/uninstall; those
+  snapshots are a dev convenience, not your off-device copy — export a bundle for that.
+
 ## Requirements
 
 - AnkiDroid installed, with the two note types above present in your collection (their model
