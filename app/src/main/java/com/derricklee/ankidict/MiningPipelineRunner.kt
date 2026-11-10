@@ -301,27 +301,30 @@ class MiningPipelineRunner(
         amendedText: String,
         reprocessWords: Boolean,
     ): Int {
-        miningRepository.updatePhotoExtractedText(mediaStoreId, amendedText)
-        if (!reprocessWords) return 0
-
-        miningRepository.deleteOccurrencesForPhoto(mediaStoreId)
-        val photo = miningRepository.getPhoto(mediaStoreId) ?: return 0
-        val effectiveTag = if (photo.languageTag == LanguageTag.NA) {
+        val originalPhoto = miningRepository.getPhoto(mediaStoreId) ?: return 0
+        val effectiveTag = if (originalPhoto.languageTag == LanguageTag.NA) {
             LanguageTag.JAPANESE
         } else {
-            photo.languageTag
+            originalPhoto.languageTag
         }
-        val config = pipelineConfigs[effectiveTag] ?: pipelineConfigs[LanguageTag.JAPANESE] ?: return 0
+        val config = pipelineConfigs[effectiveTag] ?: pipelineConfigs[LanguageTag.JAPANESE]
+        val sentences = parsePhotoText(config, amendedText)
+        val originalCounts = parsePhotoText(config, originalPhoto.extractedText).groupingBy { it }.eachCount()
+        // Count increases detect edits that become identical to another sentence on this photo.
+        // Persist those flags even on text-only saves, before any occurrence rebuild can erase them.
+        val changedSentences = if (originalPhoto.extractedText != amendedText) {
+            sentences.groupingBy { it }.eachCount()
+                .filter { (sentence, count) -> count > (originalCounts[sentence] ?: 0) }.keys
+        } else {
+            emptySet()
+        }
+        miningRepository.updatePhotoExtractedText(mediaStoreId, amendedText)
+        miningRepository.markSentencesModifiedByUser(mediaStoreId, changedSentences)
+        if (!reprocessWords || config == null) return 0
 
-        val syntheticBlocks = amendedText
-            .lines()
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .map { line -> OcrBlock(text = line, lines = listOf(OcrLine(text = line))) }
-        val doc = OcrDocument(fullText = amendedText, blocks = syntheticBlocks)
-        val sentences = config.sentenceParser.parseSentences(doc).ifEmpty {
-            amendedText.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        }
+        val previousSentenceFlags = miningRepository.getSentenceModificationFlags(mediaStoreId)
+        val photo = miningRepository.getPhoto(mediaStoreId) ?: return 0
+        miningRepository.deleteOccurrencesForPhoto(mediaStoreId)
 
         val baseTimestamp = System.currentTimeMillis() / 1000L
         var created = 0
@@ -331,6 +334,7 @@ class MiningPipelineRunner(
                 photoId = mediaStoreId,
                 sentence = sentence,
                 timestamp = baseTimestamp + idx,
+                modifiedByUserFlag = previousSentenceFlags[sentence] ?: photo.modifiedByUserFlag,
             )
         }
         return created
@@ -349,6 +353,8 @@ class MiningPipelineRunner(
     ): Int {
         val trimmedNew = newSentence.trim()
         miningRepository.updateSentenceText(photoId, oldSentence, trimmedNew)
+        val sentenceModified = oldSentence != trimmedNew ||
+            miningRepository.getSentenceModificationFlags(photoId)[trimmedNew] == true
         if (!reprocessWords) return 0
 
         miningRepository.deleteOccurrencesForSentence(photoId, oldSentence)
@@ -368,7 +374,15 @@ class MiningPipelineRunner(
             photoId = photoId,
             sentence = trimmedNew,
             timestamp = System.currentTimeMillis() / 1000L,
+            modifiedByUserFlag = sentenceModified,
         )
+    }
+
+    private fun parsePhotoText(config: PipelineConfig?, text: String): List<String> {
+        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val blocks = lines.map { line -> OcrBlock(text = line, lines = listOf(OcrLine(text = line))) }
+        return config?.sentenceParser?.parseSentences(OcrDocument(fullText = text, blocks = blocks))
+            ?.takeIf { it.isNotEmpty() } ?: lines
     }
 
     private fun extractAndInsertSentenceOccurrences(
@@ -376,6 +390,7 @@ class MiningPipelineRunner(
         photoId: Long,
         sentence: String,
         timestamp: Long,
+        modifiedByUserFlag: Boolean = false,
     ): Int {
         val tag = config.tag
         var count = 0
@@ -391,6 +406,7 @@ class MiningPipelineRunner(
                 photoId = photoId,
                 sentence = sentence,
                 createdAt = timestamp,
+                modifiedByUserFlag = modifiedByUserFlag,
             )
             count++
         }
@@ -407,6 +423,7 @@ class MiningPipelineRunner(
                 photoId = photoId,
                 sentence = sentence,
                 createdAt = timestamp,
+                modifiedByUserFlag = modifiedByUserFlag,
             )
             count++
         }

@@ -30,7 +30,8 @@ class MiningRepository(
                 extracted_text TEXT NOT NULL,
                 ocr_blocks_json TEXT,
                 status TEXT NOT NULL,
-                duplicate_of_photo_id INTEGER
+                duplicate_of_photo_id INTEGER,
+                modified_by_user_flag INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent(),
         )
@@ -73,7 +74,8 @@ class MiningRepository(
                 photo_id INTEGER NOT NULL,
                 sentence TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
-                state TEXT NOT NULL
+                state TEXT NOT NULL,
+                modified_by_user_flag INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent(),
         )
@@ -98,6 +100,11 @@ class MiningRepository(
             }
             db.execSQL("UPDATE extracted_items SET visibility_state = 'HIDDEN' WHERE is_hidden != 0")
             cleanPureKanaKanjiBackfill(db)
+        }
+        if (oldVersion < 3) {
+            // Prior versions did not track edit provenance; do not guess which legacy rows were edited.
+            db.execSQL("ALTER TABLE scraped_photos ADD COLUMN modified_by_user_flag INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE item_occurrences ADD COLUMN modified_by_user_flag INTEGER NOT NULL DEFAULT 0")
         }
     }
 
@@ -208,7 +215,7 @@ class MiningRepository(
         val dbByMediaId = mutableMapOf<Long, ScrapedPhoto>()
         readableDatabase.rawQuery(
             "SELECT media_store_id, content_uri, date_added, language_tag, extracted_text, " +
-                "ocr_blocks_json, status, duplicate_of_photo_id FROM scraped_photos",
+                "ocr_blocks_json, status, duplicate_of_photo_id, modified_by_user_flag FROM scraped_photos",
             emptyArray(),
         ).use { cursor ->
             while (cursor.moveToNext()) {
@@ -298,6 +305,7 @@ class MiningRepository(
         }.getOrNull()
     }
 
+    /** Preserves edit provenance. Automated callers must check the flag before replacing user text. */
     fun upsertPhoto(photo: ScrapedPhoto) {
         val values = ContentValues().apply {
             put("media_store_id", photo.mediaStoreId)
@@ -313,10 +321,22 @@ class MiningRepository(
                 putNull("duplicate_of_photo_id")
             }
         }
-        writableDatabase.insertWithOnConflict("scraped_photos", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val previouslyModified = db.rawQuery(
+                "SELECT modified_by_user_flag FROM scraped_photos WHERE media_store_id = ?",
+                arrayOf(photo.mediaStoreId.toString()),
+            ).use { cursor -> cursor.moveToFirst() && cursor.getInt(0) != 0 }
+            values.put("modified_by_user_flag", photo.modifiedByUserFlag || previouslyModified)
+            db.insertWithOnConflict("scraped_photos", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
-    /** Updates the extracted text on an existing scraped photo without deleting occurrences. */
+    /** User-edit write path: marks actual text changes without clearing prior edit provenance. */
     fun updatePhotoExtractedText(mediaStoreId: Long, amendedText: String) {
         val existing = getPhoto(mediaStoreId)
         if (existing != null) {
@@ -330,10 +350,34 @@ class MiningRepository(
                 existing.copy(
                     languageTag = tag,
                     extractedText = amendedText,
+                    modifiedByUserFlag = existing.modifiedByUserFlag || existing.extractedText != amendedText,
                     status = status,
                 ),
             )
         }
+    }
+
+    /** Marks existing sentence objects changed through the whole-photo text editor. */
+    fun markSentencesModifiedByUser(photoId: Long, sentences: Set<String>) {
+        val values = ContentValues().apply { put("modified_by_user_flag", true) }
+        for (sentence in sentences) {
+            writableDatabase.update(
+                "item_occurrences", values, "photo_id = ? AND sentence = ?",
+                arrayOf(photoId.toString(), sentence),
+            )
+        }
+    }
+
+    /** Sentence provenance is shared by every word/grammar occurrence of the same photo text. */
+    fun getSentenceModificationFlags(photoId: Long): Map<String, Boolean> {
+        val flags = mutableMapOf<String, Boolean>()
+        readableDatabase.rawQuery(
+            "SELECT sentence, MAX(modified_by_user_flag) FROM item_occurrences WHERE photo_id = ? GROUP BY sentence",
+            arrayOf(photoId.toString()),
+        ).use { cursor ->
+            while (cursor.moveToNext()) flags[cursor.getString(0)] = cursor.getInt(1) != 0
+        }
+        return flags
     }
 
     /** Hard-deletes all `item_occurrences` rows belonging to [photoId] before reprocessing its text. */
@@ -345,26 +389,29 @@ class MiningRepository(
         )
     }
 
-    /** Updates a specific sentence text across occurrences and inside the photo's `extracted_text`. */
+    /** User-edit write path: updates and flags the sentence across occurrences and in its photo text. */
     fun updateSentenceText(photoId: Long, oldSentence: String, newSentence: String) {
+        if (oldSentence == newSentence) return
         val db = writableDatabase
         db.beginTransaction()
         try {
             val occValues = ContentValues().apply {
                 put("sentence", newSentence)
+                put("modified_by_user_flag", true)
             }
             db.update(
                 "item_occurrences",
                 occValues,
-                "photo_id = ? AND sentence = ?",
-                arrayOf(photoId.toString(), oldSentence),
+                "photo_id = ? AND (sentence = ? OR sentence = ?)",
+                arrayOf(photoId.toString(), oldSentence, newSentence),
             )
 
             val photo = getPhoto(photoId)
-            if (photo != null && photo.extractedText.contains(oldSentence)) {
+            if (photo != null && oldSentence.isNotEmpty() && photo.extractedText.contains(oldSentence)) {
                 val updatedPhotoText = photo.extractedText.replace(oldSentence, newSentence)
                 val photoValues = ContentValues().apply {
                     put("extracted_text", updatedPhotoText)
+                    put("modified_by_user_flag", true)
                 }
                 db.update(
                     "scraped_photos",
@@ -404,6 +451,7 @@ class MiningRepository(
                 put("extracted_text", "")
                 putNull("ocr_blocks_json")
                 put("status", PhotoStatus.DELETED.name)
+                put("modified_by_user_flag", getPhoto(mediaStoreId)?.modifiedByUserFlag == true)
                 putNull("duplicate_of_photo_id")
             }
             db.insertWithOnConflict("scraped_photos", null, values, SQLiteDatabase.CONFLICT_REPLACE)
@@ -603,7 +651,8 @@ class MiningRepository(
             """
             SELECT DISTINCT
                 p.media_store_id, p.content_uri, p.date_added, p.language_tag,
-                p.extracted_text, p.ocr_blocks_json, p.status, p.duplicate_of_photo_id
+                p.extracted_text, p.ocr_blocks_json, p.status, p.duplicate_of_photo_id,
+                p.modified_by_user_flag
             FROM item_occurrences o
             JOIN scraped_photos p ON o.photo_id = p.media_store_id
             WHERE o.language_tag = ?
@@ -624,7 +673,7 @@ class MiningRepository(
         val matchedSentences = mutableListOf<MatchedSentence>()
         db.rawQuery(
             """
-            SELECT o.id, o.photo_id, o.sentence
+            SELECT o.id, o.photo_id, o.sentence, o.modified_by_user_flag
             FROM item_occurrences o
             JOIN scraped_photos p ON o.photo_id = p.media_store_id
             WHERE o.language_tag = ?
@@ -647,6 +696,7 @@ class MiningRepository(
                             occurrenceId = occId,
                             photoId = photoId,
                             sentence = sentence,
+                            modifiedByUserFlag = c.getInt(3) != 0,
                         ),
                     )
                 }
@@ -865,6 +915,7 @@ class MiningRepository(
         photoId: Long,
         sentence: String,
         createdAt: Long = System.currentTimeMillis() / 1000L,
+        modifiedByUserFlag: Boolean = false,
     ): Long {
         val isHidden = readableDatabase.rawQuery(
             "SELECT is_hidden, visibility_state FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
@@ -879,6 +930,10 @@ class MiningRepository(
             }
         }
 
+        val sentenceModified = modifiedByUserFlag || readableDatabase.rawQuery(
+            "SELECT 1 FROM item_occurrences WHERE photo_id = ? AND sentence = ? AND modified_by_user_flag = 1 LIMIT 1",
+            arrayOf(photoId.toString(), sentence),
+        ).use { it.moveToFirst() }
         val initialState = if (isHidden) OccurrenceState.SEEN else OccurrenceState.UNSEEN
         val values = ContentValues().apply {
             put("language_tag", languageTag.name)
@@ -888,6 +943,7 @@ class MiningRepository(
             put("sentence", sentence)
             put("created_at", createdAt)
             put("state", initialState.name)
+            put("modified_by_user_flag", sentenceModified)
         }
         return writableDatabase.insert("item_occurrences", null, values)
     }
@@ -910,6 +966,7 @@ class MiningRepository(
                 "ocr_blocks_json",
                 "status",
                 "duplicate_of_photo_id",
+                "modified_by_user_flag",
             ),
             selection,
             selectionArgs,
@@ -935,6 +992,7 @@ class MiningRepository(
             ocrBlocksJson = getStringOrNull(5),
             status = runCatching { PhotoStatus.valueOf(getString(6)) }.getOrDefault(PhotoStatus.IGNORED),
             duplicateOfPhotoId = getLongOrNull(7),
+            modifiedByUserFlag = getInt(8) != 0,
         )
 
     private fun Cursor.getStringOrNull(index: Int): String? =
@@ -948,6 +1006,6 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 2
+        private const val DB_VERSION = 3
     }
 }

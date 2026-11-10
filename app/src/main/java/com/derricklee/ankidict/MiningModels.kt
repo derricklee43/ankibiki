@@ -73,6 +73,8 @@ data class ScrapedPhoto(
     val ocrBlocksJson: String? = null,
     val status: PhotoStatus,
     val duplicateOfPhotoId: Long? = null,
+    /** Sticky provenance: a confirmed user save changed this text. Not an overwrite policy by itself. */
+    val modifiedByUserFlag: Boolean = false,
 )
 
 data class ExtractedOccurrenceRow(
@@ -93,6 +95,8 @@ data class MatchedSentence(
     val occurrenceId: Long,
     val photoId: Long,
     val sentence: String,
+    /** Sticky provenance: a confirmed user save changed this text. Not an overwrite policy by itself. */
+    val modifiedByUserFlag: Boolean = false,
 )
 
 data class ExtractedItemDetail(
