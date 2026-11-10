@@ -47,6 +47,11 @@
             android:exported="false" />
 
         <activity
+            android:name=".TextEditorActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
+
+        <activity
             android:name=".ProcessTextActivity"
             android:label="@string/app_name"
             android:theme="@style/Theme.AnkiDict.Dialog"

@@ -6,7 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
@@ -29,6 +29,26 @@ class PhotoDetailActivity : AppCompatActivity() {
     private var currentIndex: Int = 0
     private var fallbackContentUri: String = ""
     private var fallbackDateAdded: Long = 0L
+
+    // Snapshot of the text/uri currently shown, and the photo the editor was
+    // launched for (swiping or returning can move currentIndex while editing).
+    private var lastLoadedText: String = ""
+    private var lastLoadedPhotoUri: String = ""
+    private var pendingEditMediaId: Long = -1L
+
+    private val textEditorLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val amendedText = result.data?.getStringExtra(TextEditorActivity.RESULT_TEXT)
+                ?: return@registerForActivityResult
+            val reprocessWords = result.data
+                ?.getBooleanExtra(TextEditorActivity.RESULT_REPROCESS_WORDS, true) ?: true
+            if (pendingEditMediaId >= 0L) {
+                saveAmendedPhotoText(pendingEditMediaId, amendedText, reprocessWords)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -99,10 +119,17 @@ class PhotoDetailActivity : AppCompatActivity() {
             }
         }
 
-        binding.saveTextButton.setOnClickListener {
+        binding.editTextButton.setOnClickListener {
             val mediaId = currentMediaStoreId() ?: return@setOnClickListener
-            val amendedText = binding.extractedTextEdit.text?.toString().orEmpty().trim()
-            promptSaveAndReprocess(mediaId, amendedText)
+            pendingEditMediaId = mediaId
+            textEditorLauncher.launch(
+                TextEditorActivity.newPhotoTextIntent(
+                    context = this,
+                    extractedText = lastLoadedText,
+                    contentUri = lastLoadedPhotoUri,
+                    confirmTitle = getString(R.string.reprocess_dialog_title),
+                ),
+            )
         }
 
         binding.deletePhotoButton.setOnClickListener {
@@ -140,29 +167,19 @@ class PhotoDetailActivity : AppCompatActivity() {
         ioExecutor.execute {
             val photo = miningRepository.getPhoto(mediaId)
             val text = photo?.extractedText.orEmpty()
+            val resolvedUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
             runOnUiThread {
                 if (isFinishing || isDestroyed || currentIndex != position) return@runOnUiThread
-                binding.extractedTextEdit.setText(text)
+                lastLoadedText = text
+                lastLoadedPhotoUri = resolvedUri
+                binding.extractedTextDisplay.text =
+                    text.ifBlank { getString(R.string.no_extracted_text) }
             }
         }
     }
 
-    private fun promptSaveAndReprocess(mediaId: Long, amendedText: String) {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.reprocess_dialog_title)
-            .setMessage(R.string.reprocess_dialog_message)
-            .setPositiveButton(R.string.btn_reprocess_and_save) { _, _ ->
-                saveAmendedPhotoText(mediaId, amendedText, reprocessWords = true)
-            }
-            .setNeutralButton(R.string.btn_save_text_only) { _, _ ->
-                saveAmendedPhotoText(mediaId, amendedText, reprocessWords = false)
-            }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
-    }
-
     private fun saveAmendedPhotoText(mediaId: Long, amendedText: String, reprocessWords: Boolean) {
-        binding.saveTextButton.isEnabled = false
+        binding.editTextButton.isEnabled = false
         ioExecutor.execute {
             miningPipelineRunner.reprocessPhotoText(
                 mediaStoreId = mediaId,
@@ -171,7 +188,10 @@ class PhotoDetailActivity : AppCompatActivity() {
             )
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                binding.saveTextButton.isEnabled = true
+                binding.editTextButton.isEnabled = true
+                lastLoadedText = amendedText
+                binding.extractedTextDisplay.text =
+                    amendedText.ifBlank { getString(R.string.no_extracted_text) }
                 val msgRes = if (reprocessWords) {
                     R.string.text_saved_and_reprocessed_toast
                 } else {

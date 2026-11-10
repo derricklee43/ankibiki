@@ -3,16 +3,13 @@ package com.derricklee.ankidict
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityWordGrammarDetailBinding
+import com.derricklee.ankidict.databinding.ItemMatchedSentenceBinding
 import java.util.concurrent.Executors
 
 class WordGrammarDetailActivity : AppCompatActivity() {
@@ -39,6 +36,25 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     private var isMeaningRevealed = false
     private var currentDetail: ExtractedItemDetail? = null
     private var currentKanjiTrees: List<DecompositionNode> = emptyList()
+
+    // The sentence whose pencil button opened the editor (editor result dispatch).
+    private var pendingAmend: MatchedSentence? = null
+
+    private val textEditorLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val matched = pendingAmend
+            pendingAmend = null
+            val newSentence = result.data?.getStringExtra(TextEditorActivity.RESULT_TEXT)
+                ?: return@registerForActivityResult
+            val reprocessWords = result.data
+                ?.getBooleanExtra(TextEditorActivity.RESULT_REPROCESS_WORDS, true) ?: true
+            if (matched != null) {
+                applyAmendedSentence(matched, newSentence, reprocessWords)
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -257,7 +273,6 @@ class WordGrammarDetailActivity : AppCompatActivity() {
 
     private fun populateMatchedSentences(detail: ExtractedItemDetail) {
         binding.sentencesContainer.removeAllViews()
-        val density = resources.displayMetrics.density
         val items: List<MatchedSentence> = if (detail.matchedSentences.isNotEmpty()) {
             detail.matchedSentences
         } else {
@@ -265,52 +280,21 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         }
 
         for (matched in items) {
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
+            val row = ItemMatchedSentenceBinding.inflate(layoutInflater, binding.sentencesContainer, false)
+            row.sentenceText.text = "• ${matched.sentence}"
+            // Sentences are read-only here; the pencil opens the text editor view.
+            row.editSentenceButton.setOnClickListener {
+                pendingAmend = matched
+                textEditorLauncher.launch(
+                    TextEditorActivity.newSentenceIntent(
+                        context = this,
+                        sentence = matched.sentence,
+                        confirmTitle = getString(R.string.amend_sentence_dialog_title),
+                    ),
+                )
             }
-            val tv = TextView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                text = "• ${matched.sentence}"
-                textSize = 15f
-            }
-            val editBadge = TextView(this).apply {
-                text = getString(R.string.btn_edit_sentence)
-                textSize = 12f
-                setPadding((8 * density).toInt(), (2 * density).toInt(), (4 * density).toInt(), (2 * density).toInt())
-                setTextColor(0xFF1976D2.toInt())
-                setOnClickListener { promptAmendSentence(matched) }
-            }
-            tv.setOnClickListener { promptAmendSentence(matched) }
-            row.addView(tv)
-            row.addView(editBadge)
-            binding.sentencesContainer.addView(row)
+            binding.sentencesContainer.addView(row.root)
         }
-    }
-
-    private fun promptAmendSentence(matched: MatchedSentence) {
-        val density = resources.displayMetrics.density
-        val input = EditText(this).apply {
-            setText(matched.sentence)
-            setSelection(text.length)
-            val pad = (16 * density).toInt()
-            setPadding(pad, pad, pad, pad)
-        }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.amend_sentence_dialog_title)
-            .setMessage(R.string.reprocess_dialog_message)
-            .setView(input)
-            .setPositiveButton(R.string.btn_reprocess_and_save) { _, _ ->
-                val newText = input.text?.toString().orEmpty().trim()
-                applyAmendedSentence(matched, newText, reprocessWords = true)
-            }
-            .setNeutralButton(R.string.btn_save_text_only) { _, _ ->
-                val newText = input.text?.toString().orEmpty().trim()
-                applyAmendedSentence(matched, newText, reprocessWords = false)
-            }
-            .setNegativeButton(R.string.btn_cancel, null)
-            .show()
     }
 
     private fun applyAmendedSentence(
