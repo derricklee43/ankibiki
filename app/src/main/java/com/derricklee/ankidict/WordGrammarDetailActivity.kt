@@ -335,6 +335,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             if (currentKanjiTrees.isNotEmpty()) {
                 binding.kanjiValueText.visibility = View.GONE
                 binding.kanjiDecompositionTree.visibility = View.VISIBLE
+                binding.kanjiDecompositionTree.textSelectable = true
                 binding.kanjiDecompositionTree.renderTrees(currentKanjiTrees) { clickedChar ->
                     startActivity(MainActivity.newLookupIntent(this, clickedChar))
                 }

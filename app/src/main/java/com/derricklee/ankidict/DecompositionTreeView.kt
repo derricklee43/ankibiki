@@ -16,6 +16,9 @@ class DecompositionTreeView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : LinearLayout(context, attrs, defStyleAttr) {
 
+    /** Opt in on detail screens without changing dictionary lookup interactions elsewhere. */
+    var textSelectable: Boolean = false
+
     init {
         orientation = VERTICAL
     }
@@ -67,6 +70,7 @@ class DecompositionTreeView @JvmOverloads constructor(
                 typeface = Typeface.MONOSPACE
                 textSize = 14f
                 setTextColor(Color.parseColor("#888888"))
+                if (textSelectable) setTextIsSelectable(true)
             }
             row.addView(connectorView)
         }
@@ -96,6 +100,7 @@ class DecompositionTreeView @JvmOverloads constructor(
                     onCharacterClick(node.character)
                 }
             }
+            if (textSelectable) setTextIsSelectable(true)
         }
         row.addView(charLinkView)
 
@@ -109,6 +114,7 @@ class DecompositionTreeView @JvmOverloads constructor(
                         onCharacterClick(node.character)
                     }
                 }
+                if (textSelectable) setTextIsSelectable(true)
             }
             row.addView(meaningView)
         }

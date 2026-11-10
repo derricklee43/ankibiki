@@ -24,6 +24,7 @@
             android:src="@drawable/ic_arrow_back" />
 
         <TextView
+            android:textIsSelectable="true"
             android:id="@+id/photoCounterText"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -64,6 +65,7 @@
             android:orientation="horizontal">
 
             <TextView
+                android:textIsSelectable="true"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -90,6 +92,7 @@
             android:fillViewport="true">
 
             <TextView
+                android:textIsSelectable="true"
                 android:id="@+id/extractedTextDisplay"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

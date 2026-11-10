@@ -9,6 +9,7 @@
     android:paddingBottom="4dp">
 
     <TextView
+        android:textIsSelectable="true"
         android:id="@+id/sentenceText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
