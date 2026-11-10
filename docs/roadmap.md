@@ -36,6 +36,12 @@ This roadmap complements those designs rather than replacing them.
 
 ### Recovery
 
+In progress: the verifiable bundle format, restore/diff tooling, documented
+workflow, and an isolated-database restore demonstration are in
+[docs/recovery.md](recovery.md) (`scripts/backup_bundle.py`). Remaining: the
+in-app export/restore UI, photo bytes staged from the device, and the
+fresh-install photo re-link helper.
+
 - [ ] Provide an accessible corpus export and restore workflow.
 - [ ] Support an independent, off-device copy rather than relying exclusively on
       the gitignored, machine-local development backups.
