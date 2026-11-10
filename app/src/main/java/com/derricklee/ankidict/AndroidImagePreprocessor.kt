@@ -46,7 +46,7 @@ class AndroidImagePreprocessor(context: Context) : ImagePreprocessor {
 
         var sampleSize = 1
         val targetLongEdge = config.maxLongEdgePx.coerceAtLeast(256)
-        while (max(rawWidth / sampleSize, rawHeight / sampleSize) > targetLongEdge * 2) {
+        while (max(rawWidth / sampleSize, rawHeight / sampleSize).toLong() > targetLongEdge.toLong() * 2L) {
             sampleSize *= 2
         }
 

@@ -51,6 +51,7 @@ class FloatingBubbleService : Service() {
         val character: String,
         val meaning: String,
         val story: String,
+        val decompositionTree: DecompositionNode? = null,
     )
 
     private lateinit var windowManager: WindowManager
@@ -368,30 +369,45 @@ class FloatingBubbleService : Service() {
         }
 
         val repository = AnkiRepository(this)
-        if (!repository.isAnkiDroidAvailable()) {
-            showStatus(binding, getString(R.string.status_ankidroid_missing))
-            return
-        }
-        if (ContextCompat.checkSelfPermission(this, READ_WRITE_PERMISSION) != PackageManager.PERMISSION_GRANTED) {
-            showStatus(binding, getString(R.string.status_permission_denied))
-            return
-        }
+        val canReadAnki = repository.isAnkiDroidAvailable() &&
+            ContextCompat.checkSelfPermission(this, READ_WRITE_PERMISSION) == PackageManager.PERMISSION_GRANTED
 
         binding.popupStatusText.visibility = View.GONE
         binding.kanjiPopupList.visibility = View.VISIBLE
 
+        val dictRepo = DictionaryRepository(this)
+        val idsRepo = IdsRepository(this)
+        val heisigRepo = HeisigRadicalRepository(
+            idsRepository = idsRepo,
+            dictionaryRepository = dictRepo,
+            ankiRepository = if (canReadAnki) repository else null,
+        )
+
         lookupExecutor.execute {
             val items = characters.map { ch ->
-                val card = repository.findNoteByCharacter(ch, NIHONGO_SHARK_KANJI_MODEL_ID)?.toCard()
+                val card = if (canReadAnki) {
+                    repository.findNoteByCharacter(ch, NIHONGO_SHARK_KANJI_MODEL_ID)?.toCard()
+                } else {
+                    null
+                }
+                val radicalEntry = heisigRepo.lookupRadical(ch)
+                val resolvedMeaning = card?.meaning?.takeIf { it.isNotBlank() }
+                    ?: radicalEntry?.heisigKeyword?.takeIf { it.isNotBlank() }
+                    ?: getString(R.string.process_text_not_in_deck)
+                val resolvedStory = card?.mnemonic?.takeIf { it.isNotBlank() }
+                    ?: radicalEntry?.radicalMeaning.orEmpty()
+                val tree = heisigRepo.buildDecompositionTree(ch)
                 KanjiPopupItem(
                     character = ch,
-                    meaning = card?.meaning?.takeIf { it.isNotBlank() }
-                        ?: getString(R.string.process_text_not_in_deck),
-                    story = card?.mnemonic.orEmpty(),
+                    meaning = resolvedMeaning,
+                    story = resolvedStory,
+                    decompositionTree = tree,
                 )
             }
             binding.root.post {
-                binding.kanjiPopupList.adapter = KanjiPopupAdapter(items)
+                binding.kanjiPopupList.adapter = KanjiPopupAdapter(items) { clickedChar ->
+                    populatePopup(binding, clickedChar, maxHeightPx)
+                }
                 binding.kanjiPopupList.post {
                     if (binding.root.height > maxHeightPx) {
                         val lp = binding.root.layoutParams
@@ -424,12 +440,14 @@ class FloatingBubbleService : Service() {
     private fun dpToPx(dp: Int): Int =
         (dp * resources.displayMetrics.density).toInt()
 
-    private class KanjiPopupAdapter(private val items: List<KanjiPopupItem>) :
-        RecyclerView.Adapter<KanjiPopupAdapter.ViewHolder>() {
+    private class KanjiPopupAdapter(
+        private val items: List<KanjiPopupItem>,
+        private val onCharacterLinkClick: (String) -> Unit,
+    ) : RecyclerView.Adapter<KanjiPopupAdapter.ViewHolder>() {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
             val binding = ItemProcessTextKanjiBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-            return ViewHolder(binding)
+            return ViewHolder(binding, onCharacterLinkClick)
         }
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
@@ -438,8 +456,10 @@ class FloatingBubbleService : Service() {
 
         override fun getItemCount(): Int = items.size
 
-        class ViewHolder(private val binding: ItemProcessTextKanjiBinding) :
-            RecyclerView.ViewHolder(binding.root) {
+        class ViewHolder(
+            private val binding: ItemProcessTextKanjiBinding,
+            private val onCharacterLinkClick: (String) -> Unit,
+        ) : RecyclerView.ViewHolder(binding.root) {
 
             fun bind(item: KanjiPopupItem) {
                 binding.kanjiCharText.text = item.character
@@ -449,6 +469,13 @@ class FloatingBubbleService : Service() {
                 } else {
                     binding.kanjiStoryText.visibility = View.VISIBLE
                     binding.kanjiStoryText.text = item.story
+                }
+                val tree = item.decompositionTree
+                if (tree != null && tree.children.isNotEmpty()) {
+                    binding.kanjiDecompositionTree.visibility = View.VISIBLE
+                    binding.kanjiDecompositionTree.renderTrees(listOf(tree), onCharacterLinkClick)
+                } else {
+                    binding.kanjiDecompositionTree.visibility = View.GONE
                 }
             }
         }

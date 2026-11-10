@@ -5,8 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 data class ImagePreprocessConfig(
-    val maxLongEdgePx: Int = 1600,
-    val jpegQuality: Int = 85,
+    val maxLongEdgePx: Int = Int.MAX_VALUE,
+    val jpegQuality: Int = 95,
     val autoRotateExif: Boolean = true,
 )
 

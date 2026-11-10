@@ -10,6 +10,16 @@ sealed class DictionaryEntry {
         val grade: Int?,
         val jlpt: Int?,
         val radicals: List<String>,
+        val decompositionTree: DecompositionNode? = null,
+    ) : DictionaryEntry()
+
+    data class Radical(
+        val character: String,
+        val heisigKeyword: String,
+        val radicalMeaning: String,
+        val strokeCount: Int?,
+        val variants: List<String>,
+        val decompositionTree: DecompositionNode? = null,
     ) : DictionaryEntry()
 
     data class JapaneseWord(

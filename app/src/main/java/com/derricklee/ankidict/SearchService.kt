@@ -11,6 +11,7 @@ package com.derricklee.ankidict
 class SearchService(
     private val ankiRepository: AnkiRepository,
     private val dictionaryRepository: DictionaryRepository,
+    private val radicalRepository: HeisigRadicalRepository? = null,
 ) {
 
     fun search(query: String, enabledSources: Set<SearchSource>): List<SearchResult> {
@@ -27,8 +28,33 @@ class SearchService(
 
         val perQuery = queries.map { q ->
             val tiered = ankiRepository.searchTiered(q, enabledModelIds)
-            val dictHits = dictionaryRepository.lookupExact(q, enabledSources)
-            Triple(tiered.exact, dictHits, tiered.rest)
+            val rawDictHits = dictionaryRepository.lookupExact(q, enabledSources).map { entry ->
+                if (entry is DictionaryEntry.Kanji && radicalRepository != null) {
+                    entry.copy(decompositionTree = radicalRepository.buildDecompositionTree(entry.character))
+                } else {
+                    entry
+                }
+            }
+            val radicalHits = if (q.codePointCount(0, q.length) == 1 && SearchSource.DICT_RADICALS in enabledSources && radicalRepository != null) {
+                val rad = radicalRepository.lookupRadical(q)
+                if (rad != null) {
+                    listOf(
+                        DictionaryEntry.Radical(
+                            character = rad.character,
+                            heisigKeyword = rad.heisigKeyword,
+                            radicalMeaning = rad.radicalMeaning,
+                            strokeCount = rad.strokeCount,
+                            variants = rad.variants,
+                            decompositionTree = radicalRepository.buildDecompositionTree(rad.character),
+                        ),
+                    )
+                } else {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+            Triple(tiered.exact, radicalHits + rawDictHits, tiered.rest)
         }
 
         val priority = perQuery.flatMap { (exact, dictHits, _) ->

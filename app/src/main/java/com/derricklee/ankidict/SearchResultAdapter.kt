@@ -52,7 +52,10 @@ private val NOTE_LAYOUTS: Map<Long, NoteLayout> = mapOf(
 private const val VIEW_TYPE_ANKI_CARD = 0
 private const val VIEW_TYPE_DICTIONARY_ENTRY = 1
 
-class SearchResultAdapter(private val audioRepository: AudioRepository) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+class SearchResultAdapter(
+    private val audioRepository: AudioRepository,
+    private val onCharacterLinkClick: (String) -> Unit = {},
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private var results: List<SearchResult> = emptyList()
     private val expandedNoteIds = mutableSetOf<Long>()
@@ -102,7 +105,7 @@ class SearchResultAdapter(private val audioRepository: AudioRepository) : Recycl
         when (viewType) {
             VIEW_TYPE_DICTIONARY_ENTRY -> {
                 val binding = ItemDictionaryEntryBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-                DictionaryViewHolder(binding)
+                DictionaryViewHolder(binding, onCharacterLinkClick)
             }
             else -> {
                 val binding = ItemNoteBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -119,18 +122,22 @@ class SearchResultAdapter(private val audioRepository: AudioRepository) : Recycl
 
     override fun getItemCount(): Int = results.size
 
-    class DictionaryViewHolder(private val binding: ItemDictionaryEntryBinding) :
-        RecyclerView.ViewHolder(binding.root) {
+    class DictionaryViewHolder(
+        private val binding: ItemDictionaryEntryBinding,
+        private val onCharacterLinkClick: (String) -> Unit,
+    ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(entry: DictionaryEntry) {
             when (entry) {
                 is DictionaryEntry.Kanji -> bindKanji(entry)
+                is DictionaryEntry.Radical -> bindRadical(entry)
                 is DictionaryEntry.JapaneseWord -> bindJapaneseWord(entry)
                 is DictionaryEntry.ChineseWord -> bindChineseWord(entry)
             }
         }
 
         private fun bindKanji(entry: DictionaryEntry.Kanji) {
+            binding.dictTagText.setText(R.string.dictionary_tag)
             binding.dictHeadwordText.text = entry.character
             val reading = listOfNotNull(
                 entry.onYomi.takeIf { it.isNotEmpty() }?.joinToString("、"),
@@ -145,21 +152,48 @@ class SearchResultAdapter(private val audioRepository: AudioRepository) : Recycl
                 entry.radicals.takeIf { it.isNotEmpty() }?.let { "radicals: ${it.joinToString("、")}" },
             )
             binding.dictDetailText.text = detailParts.joinToString("  ·  ")
+            bindDecompositionTree(entry.decompositionTree)
+        }
+
+        private fun bindRadical(entry: DictionaryEntry.Radical) {
+            binding.dictTagText.setText(R.string.radical_dictionary_tag)
+            binding.dictHeadwordText.text = entry.character
+            binding.dictReadingText.text = "Heisig: ${entry.heisigKeyword}"
+            binding.dictMeaningText.text = entry.radicalMeaning
+            val detailParts = listOfNotNull(
+                entry.strokeCount?.let { "$it strokes" },
+                entry.variants.takeIf { it.isNotEmpty() }?.let { "variants: ${it.joinToString("、")}" },
+            )
+            binding.dictDetailText.text = detailParts.joinToString("  ·  ")
+            bindDecompositionTree(entry.decompositionTree)
         }
 
         private fun bindJapaneseWord(entry: DictionaryEntry.JapaneseWord) {
+            binding.dictTagText.setText(R.string.dictionary_tag)
             binding.dictHeadwordText.text = entry.headword
             binding.dictReadingText.text = entry.reading
             binding.dictMeaningText.text = entry.glosses
             binding.dictDetailText.text = if (entry.isCommon) "common word" else ""
+            bindDecompositionTree(null)
         }
 
         private fun bindChineseWord(entry: DictionaryEntry.ChineseWord) {
+            binding.dictTagText.setText(R.string.dictionary_tag)
             binding.dictHeadwordText.text = entry.simplified
             binding.dictReadingText.text = entry.pinyin
             binding.dictMeaningText.text = entry.definitions
             binding.dictDetailText.text =
                 if (entry.traditional != entry.simplified) "traditional: ${entry.traditional}" else ""
+            bindDecompositionTree(null)
+        }
+
+        private fun bindDecompositionTree(tree: DecompositionNode?) {
+            if (tree != null && tree.children.isNotEmpty()) {
+                binding.dictDecompositionTree.visibility = View.VISIBLE
+                binding.dictDecompositionTree.renderTrees(listOf(tree), onCharacterLinkClick)
+            } else {
+                binding.dictDecompositionTree.visibility = View.GONE
+            }
         }
     }
 

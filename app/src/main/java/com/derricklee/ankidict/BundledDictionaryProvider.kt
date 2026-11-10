@@ -14,10 +14,16 @@ class BundledDictionaryProvider(
         itemType: ItemType,
         readingHint: String?,
     ): DictionaryMetadata? {
+        val expressionHasKanji = expression.any { MlKitImageTagger.isCjkIdeograph(it) }
         if (itemType == ItemType.GRAMMAR) {
             val grammar = JlptGrammarAnalyzer.lookupGrammarEntry(expression) ?: return null
+            val kanjiValue = if (expressionHasKanji && grammar.kanji.any { MlKitImageTagger.isCjkIdeograph(it) }) {
+                grammar.kanji
+            } else {
+                ""
+            }
             return DictionaryMetadata(
-                kanji = grammar.kanji,
+                kanji = kanjiValue,
                 kana = grammar.kana,
                 meaning = grammar.meaning,
                 levelBadge = grammar.levelBadge,
@@ -36,21 +42,29 @@ class BundledDictionaryProvider(
         expression: String,
         readingHint: String?,
     ): DictionaryMetadata {
+        val expressionHasKanji = expression.any { MlKitImageTagger.isCjkIdeograph(it) }
         val dictRepo = dictionaryRepository
         val words = dictRepo?.lookupJapaneseWords(expression).orEmpty()
 
         val bestWord = words.firstOrNull { it.headword == expression && (readingHint == null || it.reading == readingHint) }
             ?: words.firstOrNull { it.headword == expression }
+            ?: words.firstOrNull { it.reading == expression }
             ?: words.firstOrNull()
 
         if (bestWord != null) {
             val (levelBadge, corpusRank) = resolveJapaneseLevelAndRank(
-                headword = bestWord.headword,
+                headword = if (expressionHasKanji) bestWord.headword else expression,
                 isCommon = bestWord.isCommon,
                 dictRepo = dictRepo,
             )
+            // If the extracted word is pure kana, never backfill Kanji!
+            val resolvedKanji = if (expressionHasKanji && bestWord.headword.any { MlKitImageTagger.isCjkIdeograph(it) }) {
+                bestWord.headword
+            } else {
+                ""
+            }
             return DictionaryMetadata(
-                kanji = bestWord.headword,
+                kanji = resolvedKanji,
                 kana = bestWord.reading.ifBlank { readingHint ?: expression },
                 meaning = bestWord.glosses,
                 levelBadge = levelBadge,
@@ -58,7 +72,7 @@ class BundledDictionaryProvider(
             )
         }
 
-        if (expression.length == 1 && dictRepo != null) {
+        if (expression.length == 1 && expressionHasKanji && dictRepo != null) {
             val kanjiEntry = dictRepo
                 .lookupExact(expression, setOf(SearchSource.DICT_KANJI))
                 .filterIsInstance<DictionaryEntry.Kanji>()
@@ -86,7 +100,7 @@ class BundledDictionaryProvider(
             dictRepo = dictRepo,
         )
         return DictionaryMetadata(
-            kanji = expression,
+            kanji = if (expressionHasKanji) expression else "",
             kana = readingHint ?: expression,
             meaning = "—",
             levelBadge = fallbackLevel,

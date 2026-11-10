@@ -24,6 +24,24 @@ enum class OccurrenceState {
     DELETED,
 }
 
+enum class ItemVisibility {
+    ACTIVE,
+    HIDDEN,
+    ARCHIVED,
+}
+
+enum class SortField {
+    OCCURRENCE_COUNT,
+    DATE_ADDED,
+    CORPUS_RANK,
+}
+
+enum class SortDirection {
+    OFF,
+    DESC,
+    ASC,
+}
+
 enum class OccurrenceSortOrder {
     NEWEST_FIRST,
     OCCURRENCE_COUNT_DESC,
@@ -40,6 +58,8 @@ data class OccurrenceQuery(
     val languageTag: LanguageTag = LanguageTag.JAPANESE,
     val itemType: ItemType,
     val sortOrder: OccurrenceSortOrder = OccurrenceSortOrder.NEWEST_FIRST,
+    val sortCriteria: List<Pair<SortField, SortDirection>> = emptyList(),
+    val visibilities: Set<ItemVisibility> = setOf(ItemVisibility.ACTIVE),
     val filters: Set<OccurrenceFilter> = emptySet(),
     val limit: Int? = null,
 )
@@ -69,6 +89,12 @@ data class ExtractedOccurrenceRow(
     fun formatFrequencyColumn(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }
 
+data class MatchedSentence(
+    val occurrenceId: Long,
+    val photoId: Long,
+    val sentence: String,
+)
+
 data class ExtractedItemDetail(
     val languageTag: LanguageTag,
     val itemType: ItemType,
@@ -83,9 +109,11 @@ data class ExtractedItemDetail(
     val deckName: String?,
     val ankiNoteId: Long?,
     val isHidden: Boolean,
+    val visibility: ItemVisibility = if (isHidden) ItemVisibility.HIDDEN else ItemVisibility.ACTIVE,
     val occurrenceCount: Int,
     val photos: List<ScrapedPhoto>,
     val sentences: List<String>,
+    val matchedSentences: List<MatchedSentence> = emptyList(),
 ) {
     fun formatFrequencyLine(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }

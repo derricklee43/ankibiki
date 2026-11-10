@@ -3,9 +3,13 @@ package com.derricklee.ankidict
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityWordGrammarDetailBinding
@@ -15,7 +19,13 @@ class WordGrammarDetailActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityWordGrammarDetailBinding
     private lateinit var miningRepository: MiningRepository
+    private lateinit var dictionaryRepository: DictionaryRepository
+    private lateinit var shinjitaiRepository: ShinjitaiRepository
+    private lateinit var hskRepository: HskRepository
+    private lateinit var idsRepository: IdsRepository
+    private lateinit var heisigRadicalRepository: HeisigRadicalRepository
     private lateinit var ankiCardService: AnkiCardService
+    private lateinit var miningPipelineRunner: MiningPipelineRunner
     private lateinit var photosAdapter: PhotoThumbnailAdapter
     private val ioExecutor = Executors.newSingleThreadExecutor()
 
@@ -28,6 +38,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     private var isKanaRevealed = false
     private var isMeaningRevealed = false
     private var currentDetail: ExtractedItemDetail? = null
+    private var currentKanjiTrees: List<DecompositionNode> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,14 +55,34 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         expression = intent.getStringExtra(EXTRA_EXPRESSION).orEmpty()
 
         miningRepository = MiningRepository(this)
+        dictionaryRepository = DictionaryRepository(this)
+        shinjitaiRepository = ShinjitaiRepository(this)
+        hskRepository = HskRepository(this)
+        idsRepository = IdsRepository(this)
+        heisigRadicalRepository = HeisigRadicalRepository(
+            idsRepository = idsRepository,
+            dictionaryRepository = dictionaryRepository,
+            ankiRepository = AnkiRepository(this),
+        )
         ankiCardService = AnkiCardService(AnkiDroidAccountGateway(this))
+        miningPipelineRunner = MiningPipelineRunner.createDefault(
+            context = this,
+            miningRepository = miningRepository,
+            dictionaryRepository = dictionaryRepository,
+            shinjitaiRepository = shinjitaiRepository,
+            hskRepository = hskRepository,
+            ankiMatchLookup = ankiCardService,
+        )
+
         photosAdapter = PhotoThumbnailAdapter(horizontalStrip = true) { photo ->
+            val allPhotoIds = currentDetail?.photos?.map { it.mediaStoreId }?.toLongArray()
             startActivity(
                 PhotoDetailActivity.newIntent(
                     context = this,
                     mediaStoreId = photo.mediaStoreId,
                     contentUri = photo.contentUri,
                     dateAdded = photo.dateAdded,
+                    photoIds = allPhotoIds,
                 ),
             )
         }
@@ -63,17 +94,17 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         binding.backButton.setOnClickListener { finish() }
         binding.targetExpressionText.text = expression
 
-        binding.kanjiRevealRow.setOnClickListener {
-            isKanjiRevealed = !isKanjiRevealed
-            updateRevealTexts()
+        binding.kanjiRevealButton.setOnClickListener {
+            isKanjiRevealed = true
+            updateRevealViews()
         }
-        binding.kanaRevealRow.setOnClickListener {
-            isKanaRevealed = !isKanaRevealed
-            updateRevealTexts()
+        binding.kanaRevealButton.setOnClickListener {
+            isKanaRevealed = true
+            updateRevealViews()
         }
-        binding.meaningRevealRow.setOnClickListener {
-            isMeaningRevealed = !isMeaningRevealed
-            updateRevealTexts()
+        binding.meaningRevealButton.setOnClickListener {
+            isMeaningRevealed = true
+            updateRevealViews()
         }
 
         binding.ankiCardActionButton.setOnClickListener {
@@ -111,6 +142,18 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             }
         }
 
+        binding.archiveItemButton.setOnClickListener {
+            setActionButtonsEnabled(false)
+            ioExecutor.execute {
+                miningRepository.archiveItem(languageTag, itemType, expression)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    Toast.makeText(this, R.string.item_archived_toast, Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+            }
+        }
+
         binding.deleteOccurrenceButton.setOnClickListener {
             setActionButtonsEnabled(false)
             ioExecutor.execute {
@@ -139,7 +182,12 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     private fun loadDetail() {
         ioExecutor.execute {
             var detail = miningRepository.getItemDetail(languageTag, itemType, expression)
+            var kanjiTrees: List<DecompositionNode> = emptyList()
             if (detail != null) {
+                val kanjiSource = detail.kanji
+                if (kanjiSource.isNotBlank()) {
+                    kanjiTrees = heisigRadicalRepository.buildWordDecompositionTrees(kanjiSource)
+                }
                 if (detail.ankiNoteId == null) {
                     val match = ankiCardService.findMatch(
                         languageTag = detail.languageTag,
@@ -180,6 +228,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 currentDetail = detail
+                currentKanjiTrees = kanjiTrees
                 if (detail == null) {
                     finish()
                     return@runOnUiThread
@@ -190,7 +239,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                     if (detail.photos.isEmpty()) View.GONE else View.VISIBLE
 
                 binding.targetExpressionText.text = detail.expression
-                updateRevealTexts()
+                updateRevealViews()
 
                 binding.corpusFrequencyText.text =
                     getString(R.string.label_corpus_frequency, detail.formatFrequencyLine())
@@ -201,35 +250,144 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                     getString(R.string.btn_create_card)
                 }
 
-                binding.sentencesContainer.removeAllViews()
-                val density = resources.displayMetrics.density
-                for (sentence in detail.sentences) {
-                    val tv = TextView(this).apply {
-                        text = "• $sentence"
-                        textSize = 15f
-                        setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
-                        setTextIsSelectable(true)
-                    }
-                    binding.sentencesContainer.addView(tv)
-                }
+                populateMatchedSentences(detail)
             }
         }
     }
 
-    private fun updateRevealTexts() {
+    private fun populateMatchedSentences(detail: ExtractedItemDetail) {
+        binding.sentencesContainer.removeAllViews()
+        val density = resources.displayMetrics.density
+        val items: List<MatchedSentence> = if (detail.matchedSentences.isNotEmpty()) {
+            detail.matchedSentences
+        } else {
+            detail.sentences.map { s -> MatchedSentence(occurrenceId = -1L, photoId = -1L, sentence = s) }
+        }
+
+        for (matched in items) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
+            }
+            val tv = TextView(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                text = "• ${matched.sentence}"
+                textSize = 15f
+            }
+            val editBadge = TextView(this).apply {
+                text = getString(R.string.btn_edit_sentence)
+                textSize = 12f
+                setPadding((8 * density).toInt(), (2 * density).toInt(), (4 * density).toInt(), (2 * density).toInt())
+                setTextColor(0xFF1976D2.toInt())
+                setOnClickListener { promptAmendSentence(matched) }
+            }
+            tv.setOnClickListener { promptAmendSentence(matched) }
+            row.addView(tv)
+            row.addView(editBadge)
+            binding.sentencesContainer.addView(row)
+        }
+    }
+
+    private fun promptAmendSentence(matched: MatchedSentence) {
+        val density = resources.displayMetrics.density
+        val input = EditText(this).apply {
+            setText(matched.sentence)
+            setSelection(text.length)
+            val pad = (16 * density).toInt()
+            setPadding(pad, pad, pad, pad)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.amend_sentence_dialog_title)
+            .setMessage(R.string.reprocess_dialog_message)
+            .setView(input)
+            .setPositiveButton(R.string.btn_reprocess_and_save) { _, _ ->
+                val newText = input.text?.toString().orEmpty().trim()
+                applyAmendedSentence(matched, newText, reprocessWords = true)
+            }
+            .setNeutralButton(R.string.btn_save_text_only) { _, _ ->
+                val newText = input.text?.toString().orEmpty().trim()
+                applyAmendedSentence(matched, newText, reprocessWords = false)
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    private fun applyAmendedSentence(
+        matched: MatchedSentence,
+        newSentence: String,
+        reprocessWords: Boolean,
+    ) {
+        val photoId = if (matched.photoId >= 0L) {
+            matched.photoId
+        } else {
+            currentDetail?.photos?.firstOrNull()?.mediaStoreId ?: return
+        }
+        ioExecutor.execute {
+            miningPipelineRunner.reprocessAmendedSentence(
+                photoId = photoId,
+                oldSentence = matched.sentence,
+                newSentence = newSentence,
+                reprocessWords = reprocessWords,
+            )
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val msgRes = if (reprocessWords) {
+                    R.string.text_saved_and_reprocessed_toast
+                } else {
+                    R.string.text_saved_toast
+                }
+                Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
+                loadDetail()
+            }
+        }
+    }
+
+    private fun updateRevealViews() {
         val detail = currentDetail
-        val tapToReveal = getString(R.string.tap_to_reveal_jp)
-        binding.kanjiValueText.text =
-            if (isKanjiRevealed) detail?.kanji?.ifBlank { "—" } ?: "—" else tapToReveal
-        binding.kanaValueText.text =
-            if (isKanaRevealed) detail?.kana?.ifBlank { "—" } ?: "—" else tapToReveal
-        binding.meaningValueText.text =
-            if (isMeaningRevealed) detail?.meaning?.ifBlank { "—" } ?: "—" else tapToReveal
+
+        if (isKanjiRevealed) {
+            binding.kanjiRevealButton.visibility = View.GONE
+            if (currentKanjiTrees.isNotEmpty()) {
+                binding.kanjiValueText.visibility = View.GONE
+                binding.kanjiDecompositionTree.visibility = View.VISIBLE
+                binding.kanjiDecompositionTree.renderTrees(currentKanjiTrees) { clickedChar ->
+                    startActivity(MainActivity.newLookupIntent(this, clickedChar))
+                }
+            } else {
+                binding.kanjiDecompositionTree.visibility = View.GONE
+                binding.kanjiValueText.visibility = View.VISIBLE
+                binding.kanjiValueText.text = detail?.kanji?.ifBlank { "—" } ?: "—"
+            }
+        } else {
+            binding.kanjiRevealButton.visibility = View.VISIBLE
+            binding.kanjiValueText.visibility = View.GONE
+            binding.kanjiDecompositionTree.visibility = View.GONE
+        }
+
+        if (isKanaRevealed) {
+            binding.kanaRevealButton.visibility = View.GONE
+            binding.kanaValueText.visibility = View.VISIBLE
+            binding.kanaValueText.text = detail?.kana?.ifBlank { "—" } ?: "—"
+        } else {
+            binding.kanaRevealButton.visibility = View.VISIBLE
+            binding.kanaValueText.visibility = View.GONE
+        }
+
+        if (isMeaningRevealed) {
+            binding.meaningRevealButton.visibility = View.GONE
+            binding.meaningValueText.visibility = View.VISIBLE
+            binding.meaningValueText.text = detail?.meaning?.ifBlank { "—" } ?: "—"
+        } else {
+            binding.meaningRevealButton.visibility = View.VISIBLE
+            binding.meaningValueText.visibility = View.GONE
+        }
     }
 
     private fun setActionButtonsEnabled(enabled: Boolean) {
         binding.markSeenButton.isEnabled = enabled
         binding.hideItemButton.isEnabled = enabled
+        binding.archiveItemButton.isEnabled = enabled
         binding.deleteOccurrenceButton.isEnabled = enabled
     }
 

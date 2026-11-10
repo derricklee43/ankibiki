@@ -26,25 +26,22 @@ class MiningPipelineInstrumentedTest {
     @Before
     fun setUp() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        miningRepository = MiningRepository(context)
+        context.deleteDatabase(TEST_DB_NAME)
+        miningRepository = MiningRepository(context, dbName = TEST_DB_NAME)
         dictionaryRepository = DictionaryRepository(context)
         hskRepository = HskRepository(context)
         shinjitaiRepository = ShinjitaiRepository(context)
-        clearTestRows()
     }
 
     @After
     fun tearDown() {
-        clearTestRows()
+        miningRepository.close()
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        context.deleteDatabase(TEST_DB_NAME)
     }
 
-    private fun clearTestRows() {
-        val db = miningRepository.writableDatabase
-        db.execSQL("DELETE FROM item_occurrences WHERE photo_id IN (900001, 900002, 900003)")
-        db.execSQL("DELETE FROM scraped_photos WHERE media_store_id IN (900001, 900002, 900003)")
-        db.execSQL(
-            "DELETE FROM extracted_items WHERE expression NOT IN (SELECT DISTINCT expression FROM item_occurrences)",
-        )
+    companion object {
+        private const val TEST_DB_NAME = "mining_test.db"
     }
 
     @Test
@@ -166,43 +163,80 @@ class MiningPipelineInstrumentedTest {
         assertEquals(7001L, shoukoDetail?.ankiNoteId)
         assertEquals(2, shoukoDetail?.sentences?.size)
 
-        // Verify grammar patterns ("しかない" and "というわけだ") were extracted and enriched
-        val activeGrammar = miningRepository.getActiveOccurrences(
+        // Verify grammar patterns ("しかない" and "というわけだ") were extracted and enriched,
+        // and that pure-kana expressions do NOT backfill kanji!
+        val shikanaiDetail = miningRepository.getItemDetail(
+            languageTag = LanguageTag.JAPANESE,
+            itemType = ItemType.GRAMMAR,
+            expression = "しかない",
+        )
+        assertNotNull(shikanaiDetail)
+        assertEquals("", shikanaiDetail?.kanji)
+
+        // Verify Archive vs Hidden visibility partitioning and Occurrence Count sorting
+        miningRepository.archiveItem(LanguageTag.JAPANESE, ItemType.WORD, "法廷")
+        val afterArchiveActive = miningRepository.getActiveOccurrences(
             OccurrenceQuery(
                 languageTag = LanguageTag.JAPANESE,
-                itemType = ItemType.GRAMMAR,
+                itemType = ItemType.WORD,
+                sortCriteria = listOf(SortField.OCCURRENCE_COUNT to SortDirection.DESC),
+                visibilities = setOf(ItemVisibility.ACTIVE),
             ),
         )
-        val grammarExpressions = activeGrammar.map { it.expression }.toSet()
-        assertTrue(grammarExpressions.contains("しかない"))
-        assertTrue(grammarExpressions.contains("というわけだ"))
+        assertTrue(afterArchiveActive.none { it.expression == "法廷" })
+        val testWordsSorted = afterArchiveActive.filter { it.expression in setOf("証拠", "足りる", "突きつける") }
+        assertEquals("証拠", testWordsSorted.first().expression)
 
-        // 2. Process Photo 2 (retake/duplicate of Photo 1)
-        val doc2 = OcrDocument(
-            fullText = "しかし決定的な証拠がまだ足りない。\nこの証拠品を法廷で突きつけるしかない！\nそれが真実というわけだ。",
-            blocks = emptyList(),
+        val archivedOnly = miningRepository.getActiveOccurrences(
+            OccurrenceQuery(
+                languageTag = LanguageTag.JAPANESE,
+                itemType = ItemType.WORD,
+                visibilities = setOf(ItemVisibility.ARCHIVED),
+            ),
         )
-        val candidate2 = PhotoCandidate(
-            mediaStoreId = 900002L,
-            contentUri = "content://media/external/images/media/900002",
-            dateAdded = 1700000105L,
+        assertTrue(archivedOnly.any { it.expression == "法廷" })
+
+        // Verify amending a sentence with reprocessWords = true removes old occurrences from that sentence
+        // and extracts/enriches the newly amended words
+        val reprocessedCount = runner.reprocessAmendedSentence(
+            photoId = 900001L,
+            oldSentence = "しかし決定的な証拠がまだ足りない。",
+            newSentence = "しかし完璧なアリバイがまだ足りない。",
+            reprocessWords = true,
         )
-        val outcome2 = runner.processOcrDocument(candidate2, jpConfig, doc2)
-        assertEquals(PhotoStatus.DUPLICATE, outcome2.status)
-        assertEquals(0, outcome2.occurrencesCreated)
-
-        val storedDupPhoto = miningRepository.getPhoto(900002L)
-        assertNotNull(storedDupPhoto)
-        assertEquals(PhotoStatus.DUPLICATE, storedDupPhoto?.status)
-        assertEquals(900001L, storedDupPhoto?.duplicateOfPhotoId)
-
-        // Verify duplicate photo did NOT increment occurrence count of 証拠
-        val afterDupDetail = miningRepository.getItemDetail(
+        assertTrue(reprocessedCount >= 2)
+        val shoukoAfterAmend = miningRepository.getItemDetail(
             languageTag = LanguageTag.JAPANESE,
             itemType = ItemType.WORD,
             expression = "証拠",
         )
-        assertEquals(2, afterDupDetail?.occurrenceCount)
+        // 証拠 was in 2 sentences originally; after amending the first sentence to アリバイ, 証拠 has 1 occurrence left!
+        assertEquals(1, shoukoAfterAmend?.occurrenceCount)
+    }
+
+    @Test
+    fun heisigRadicalRepository_resolvesPrimitiveKeywordsAndBuildsDecompositionTree() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val idsRepo = IdsRepository(context)
+        val heisigRepo = HeisigRadicalRepository(
+            idsRepository = idsRepo,
+            dictionaryRepository = dictionaryRepository,
+            ankiRepository = null,
+        )
+        val gouRadical = heisigRepo.lookupRadical("冓")
+        assertNotNull(gouRadical)
+        assertTrue(gouRadical?.heisigKeyword?.contains("framework") == true)
+
+        val tree = heisigRepo.buildDecompositionTree("構")
+        assertNotNull(tree)
+        assertEquals("構", tree?.character)
+        val childChars = tree?.children?.map { it.character }.orEmpty()
+        assertTrue(childChars.contains("木"))
+        assertTrue(childChars.contains("冓"))
+
+        val gouNode = tree?.children?.firstOrNull { it.character == "冓" }
+        assertTrue(gouNode?.meaning?.contains("framework") == true)
+        assertTrue(gouNode?.children?.isNotEmpty() == true)
     }
 
     @Test

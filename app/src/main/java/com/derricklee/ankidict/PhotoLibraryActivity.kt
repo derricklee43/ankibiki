@@ -19,6 +19,7 @@ class PhotoLibraryActivity : AppCompatActivity() {
     private lateinit var miningRepository: MiningRepository
     private lateinit var adapter: PhotoThumbnailAdapter
     private val ioExecutor = Executors.newSingleThreadExecutor()
+    private var currentPhotos: List<ScrapedPhoto> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,12 +28,14 @@ class PhotoLibraryActivity : AppCompatActivity() {
 
         miningRepository = MiningRepository(this)
         adapter = PhotoThumbnailAdapter(horizontalStrip = false) { photo ->
+            val allIds = currentPhotos.map { it.mediaStoreId }.toLongArray()
             startActivity(
                 PhotoDetailActivity.newIntent(
                     context = this,
                     mediaStoreId = photo.mediaStoreId,
                     contentUri = photo.contentUri,
                     dateAdded = photo.dateAdded,
+                    photoIds = allIds,
                 ),
             )
         }
@@ -93,6 +96,7 @@ class PhotoLibraryActivity : AppCompatActivity() {
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                currentPhotos = photos
                 adapter.submitList(photos)
                 binding.emptyPhotosText.visibility = if (photos.isEmpty()) View.VISIBLE else View.GONE
             }

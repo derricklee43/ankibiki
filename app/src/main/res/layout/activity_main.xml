@@ -113,17 +113,12 @@
                         android:textSize="16sp"
                         android:textStyle="bold" />
 
-                    <TextView
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/scanButton"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:background="?attr/selectableItemBackground"
-                        android:paddingHorizontal="10dp"
-                        android:paddingVertical="4dp"
-                        android:text="@string/btn_scan_photos"
-                        android:textColor="@color/tag_japanese_blue"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:text="@string/btn_scan_photos" />
 
                 </LinearLayout>
 
@@ -151,18 +146,13 @@
 
                 </FrameLayout>
 
-                <TextView
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/seeAllPhotosButton"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="end"
-                    android:background="?attr/selectableItemBackground"
-                    android:paddingHorizontal="8dp"
-                    android:paddingVertical="4dp"
-                    android:text="@string/see_all"
-                    android:textColor="@color/tag_japanese_blue"
-                    android:textSize="13sp"
-                    android:textStyle="bold" />
+                    android:text="@string/see_all" />
 
             </LinearLayout>
 
@@ -252,18 +242,13 @@
                         android:textSize="13sp"
                         android:visibility="gone" />
 
-                    <TextView
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/seeAllWordsButton"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="end"
-                        android:background="?attr/selectableItemBackground"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="4dp"
-                        android:text="@string/see_all"
-                        android:textColor="@color/tag_japanese_blue"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:text="@string/see_all" />
 
                     <View
                         android:layout_width="match_parent"
@@ -336,18 +321,13 @@
                         android:textSize="13sp"
                         android:visibility="gone" />
 
-                    <TextView
+                    <com.google.android.material.button.MaterialButton
                         android:id="@+id/seeAllGrammarButton"
+                        style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="end"
-                        android:background="?attr/selectableItemBackground"
-                        android:paddingHorizontal="8dp"
-                        android:paddingVertical="4dp"
-                        android:text="@string/see_all"
-                        android:textColor="@color/tag_japanese_blue"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
+                        android:text="@string/see_all" />
 
                 </LinearLayout>
 
@@ -361,7 +341,8 @@
         android:id="@+id/bottomNav"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:theme="@style/Theme.MaterialComponents.DayNight"
+        app:itemIconTint="@color/bottom_nav_item_tint"
+        app:itemTextColor="@color/bottom_nav_item_tint"
         app:menu="@menu/menu_bottom_nav" />
 
 </LinearLayout>

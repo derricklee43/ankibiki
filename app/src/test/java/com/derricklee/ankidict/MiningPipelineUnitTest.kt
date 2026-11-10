@@ -222,4 +222,12 @@ class MiningPipelineUnitTest {
         )
         assertEquals("Japanese::Core::Vocab", updatedName)
     }
+
+    @Test
+    fun imagePreprocessConfig_defaultsToFullResolutionWithoutPreDownscaling() {
+        val config = ImagePreprocessConfig()
+        assertEquals(Int.MAX_VALUE, config.maxLongEdgePx)
+        assertEquals(95, config.jpegQuality)
+        assertTrue(config.autoRotateExif)
+    }
 }

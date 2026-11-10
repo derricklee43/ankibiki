@@ -22,19 +22,33 @@
             android:padding="8dp"
             android:src="@drawable/ic_arrow_back" />
 
+        <TextView
+            android:id="@+id/photoCounterText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:textColor="?android:attr/textColorSecondary"
+            android:textSize="14sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/refreshThumbnailButton"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_refresh_thumbnail" />
+
     </LinearLayout>
 
-    <!-- Top Half: Photo -->
-    <ImageView
-        android:id="@+id/photoView"
+    <!-- Top Half: Swipeable & Pinch-Zoomable Photo Pager -->
+    <androidx.viewpager2.widget.ViewPager2
+        android:id="@+id/photoPager"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:background="#11000000"
-        android:contentDescription="@null"
-        android:scaleType="fitCenter" />
+        android:background="#11000000" />
 
-    <!-- Bottom Half: Extracted Text + Trash Can -->
+    <!-- Bottom Half: Editable Extracted Text + Save + Trash Can -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -42,25 +56,47 @@
         android:orientation="vertical"
         android:paddingTop="12dp">
 
-        <TextView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/extracted_text_title"
-            android:textSize="15sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/extracted_text_title"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/saveTextButton"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/btn_save_text" />
+
+        </LinearLayout>
 
         <ScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_marginTop="8dp"
-            android:layout_weight="1">
+            android:layout_weight="1"
+            android:fillViewport="true">
 
-            <TextView
-                android:id="@+id/extractedTextView"
+            <EditText
+                android:id="@+id/extractedTextEdit"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                android:gravity="top|start"
+                android:hint="@string/no_extracted_text"
+                android:importantForAutofill="no"
+                android:inputType="textMultiLine|textNoSuggestions"
                 android:lineSpacingExtra="4dp"
-                android:textIsSelectable="true"
+                android:padding="4dp"
                 android:textSize="15sp" />
 
         </ScrollView>

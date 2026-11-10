@@ -4,7 +4,8 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="true"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:paddingHorizontal="20dp"
+    android:paddingVertical="12dp">
 
     <!-- Top Back Button -->
     <LinearLayout
@@ -32,11 +33,14 @@
         android:fillViewport="true">
 
         <LinearLayout
+            android:id="@+id/detailContentContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="4dp"
             android:orientation="vertical">
 
-            <!-- 1. Horizontally Scrollable Photo Strip (No "See All" button) -->
+            <!-- 1. Horizontally Scrollable Photo Strip -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/matchingPhotosStrip"
                 android:layout_width="match_parent"
@@ -52,30 +56,51 @@
                 android:textSize="26sp"
                 android:textStyle="bold" />
 
-            <!-- 3. Three Tap-to-Reveal Rows: Kanji, Kana, Meaning -->
+            <!-- 3. Three Reveal Rows with compact 表示 Buttons: Kanji (Decomposition Tree), Kana, Meaning -->
             <LinearLayout
                 android:id="@+id/kanjiRevealRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:background="?attr/selectableItemBackground"
-                android:gravity="center_vertical"
+                android:gravity="top"
                 android:orientation="horizontal"
-                android:paddingVertical="8dp">
+                android:paddingVertical="6dp">
 
                 <TextView
                     android:layout_width="64dp"
                     android:layout_height="wrap_content"
+                    android:paddingTop="4dp"
                     android:text="@string/label_kanji"
                     android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/kanjiValueText"
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/tap_to_reveal_jp"
-                    android:textSize="15sp" />
+                    android:orientation="vertical">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/kanjiRevealButton"
+                        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/btn_reveal" />
+
+                    <TextView
+                        android:id="@+id/kanjiValueText"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:paddingTop="4dp"
+                        android:textSize="15sp"
+                        android:visibility="gone" />
+
+                    <com.derricklee.ankidict.DecompositionTreeView
+                        android:id="@+id/kanjiDecompositionTree"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:visibility="gone" />
+
+                </LinearLayout>
 
             </LinearLayout>
 
@@ -83,10 +108,9 @@
                 android:id="@+id/kanaRevealRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingVertical="8dp">
+                android:paddingVertical="6dp">
 
                 <TextView
                     android:layout_width="64dp"
@@ -94,13 +118,20 @@
                     android:text="@string/label_kana"
                     android:textStyle="bold" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/kanaRevealButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/btn_reveal" />
+
                 <TextView
                     android:id="@+id/kanaValueText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/tap_to_reveal_jp"
-                    android:textSize="15sp" />
+                    android:textSize="15sp"
+                    android:visibility="gone" />
 
             </LinearLayout>
 
@@ -108,10 +139,9 @@
                 android:id="@+id/meaningRevealRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="?attr/selectableItemBackground"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingVertical="8dp">
+                android:paddingVertical="6dp">
 
                 <TextView
                     android:layout_width="64dp"
@@ -119,13 +149,20 @@
                     android:text="@string/label_meaning"
                     android:textStyle="bold" />
 
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/meaningRevealButton"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/btn_reveal" />
+
                 <TextView
                     android:id="@+id/meaningValueText"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/tap_to_reveal_jp"
-                    android:textSize="15sp" />
+                    android:textSize="15sp"
+                    android:visibility="gone" />
 
             </LinearLayout>
 
@@ -138,7 +175,7 @@
                 android:textSize="14sp"
                 android:textStyle="bold" />
 
-            <!-- 5. Original Japanese Sentences (No English translation) -->
+            <!-- 5. Original Japanese Sentences (Tap any sentence to amend) -->
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -158,7 +195,7 @@
 
     </ScrollView>
 
-    <!-- 6. Bottom Action Buttons: Create/See Anki Card, Mark as Seen, Hide, Delete -->
+    <!-- 6. Bottom Action Buttons: Create/See Anki Card, Mark as Seen, Hide, Archive, Delete -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -183,6 +220,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:paddingHorizontal="4dp"
                 android:text="@string/btn_mark_seen" />
 
             <Button
@@ -191,7 +229,17 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:paddingHorizontal="4dp"
                 android:text="@string/btn_hide" />
+
+            <Button
+                android:id="@+id/archiveItemButton"
+                style="?attr/buttonBarButtonStyle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:paddingHorizontal="4dp"
+                android:text="@string/btn_archive" />
 
             <Button
                 android:id="@+id/deleteOccurrenceButton"
@@ -199,6 +247,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
+                android:paddingHorizontal="4dp"
                 android:text="@string/btn_delete"
                 android:textColor="#D32F2F" />
 

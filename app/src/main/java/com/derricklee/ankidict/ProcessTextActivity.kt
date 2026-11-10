@@ -20,7 +20,7 @@ private const val READ_WRITE_PERMISSION = "com.ichi2.anki.permission.READ_WRITE_
 /**
  * Floating popup launched from Android's text-selection toolbar (ACTION_PROCESS_TEXT) in any
  * external app. Extracts each distinct CJK character from the highlighted text and shows its
- * Kanji meaning and story from the NihongoShark Kanji deck without leaving the current app.
+ * Kanji/Radical meaning, story, and interactive decomposition tree without leaving the current app.
  */
 class ProcessTextActivity : AppCompatActivity() {
 
@@ -28,9 +28,14 @@ class ProcessTextActivity : AppCompatActivity() {
         val character: String,
         val meaning: String,
         val story: String,
+        val decompositionTree: DecompositionNode? = null,
     )
 
     private lateinit var binding: ActivityProcessTextBinding
+    private lateinit var repository: AnkiRepository
+    private lateinit var dictionaryRepository: DictionaryRepository
+    private lateinit var idsRepository: IdsRepository
+    private lateinit var heisigRadicalRepository: HeisigRadicalRepository
     private val lookupExecutor = Executors.newSingleThreadExecutor()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,6 +45,15 @@ class ProcessTextActivity : AppCompatActivity() {
 
         binding.closeButton.setOnClickListener { finish() }
         binding.kanjiPopupList.layoutManager = LinearLayoutManager(this)
+
+        repository = AnkiRepository(this)
+        dictionaryRepository = DictionaryRepository(this)
+        idsRepository = IdsRepository(this)
+        heisigRadicalRepository = HeisigRadicalRepository(
+            idsRepository = idsRepository,
+            dictionaryRepository = dictionaryRepository,
+            ankiRepository = repository,
+        )
 
         val selectedText = (
             intent?.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
@@ -53,29 +67,37 @@ class ProcessTextActivity : AppCompatActivity() {
             return
         }
 
-        val repository = AnkiRepository(this)
-        if (!repository.isAnkiDroidAvailable()) {
-            showStatus(getString(R.string.status_ankidroid_missing))
-            return
-        }
-        if (!hasReadWritePermission()) {
-            showStatus(getString(R.string.status_permission_denied))
-            return
-        }
+        loadCharactersIntoPopup(characters)
+    }
 
+    private fun loadCharactersIntoPopup(characters: List<String>) {
+        val canReadAnki = repository.isAnkiDroidAvailable() && hasReadWritePermission()
         lookupExecutor.execute {
             val items = characters.map { ch ->
-                val card = repository.findNoteByCharacter(ch, NIHONGO_SHARK_KANJI_MODEL_ID)?.toCard()
+                val card = if (canReadAnki) {
+                    repository.findNoteByCharacter(ch, NIHONGO_SHARK_KANJI_MODEL_ID)?.toCard()
+                } else {
+                    null
+                }
+                val radicalEntry = heisigRadicalRepository.lookupRadical(ch)
+                val resolvedMeaning = card?.meaning?.takeIf { it.isNotBlank() }
+                    ?: radicalEntry?.heisigKeyword?.takeIf { it.isNotBlank() }
+                    ?: getString(R.string.process_text_not_in_deck)
+                val resolvedStory = card?.mnemonic?.takeIf { it.isNotBlank() }
+                    ?: radicalEntry?.radicalMeaning.orEmpty()
+                val tree = heisigRadicalRepository.buildDecompositionTree(ch)
                 KanjiPopupItem(
                     character = ch,
-                    meaning = card?.meaning?.takeIf { it.isNotBlank() }
-                        ?: getString(R.string.process_text_not_in_deck),
-                    story = card?.mnemonic.orEmpty(),
+                    meaning = resolvedMeaning,
+                    story = resolvedStory,
+                    decompositionTree = tree,
                 )
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                binding.kanjiPopupList.adapter = KanjiPopupAdapter(items)
+                binding.kanjiPopupList.adapter = KanjiPopupAdapter(items) { clickedChar ->
+                    loadCharactersIntoPopup(listOf(clickedChar))
+                }
             }
         }
     }
@@ -97,12 +119,14 @@ class ProcessTextActivity : AppCompatActivity() {
         binding.kanjiPopupList.visibility = View.GONE
     }
 
-    private class KanjiPopupAdapter(private val items: List<KanjiPopupItem>) :
-        RecyclerView.Adapter<KanjiPopupAdapter.ViewHolder>() {
+    private class KanjiPopupAdapter(
+        private val items: List<KanjiPopupItem>,
+        private val onCharacterLinkClick: (String) -> Unit,
+    ) : RecyclerView.Adapter<KanjiPopupAdapter.ViewHolder>() {
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
             val binding = ItemProcessTextKanjiBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-            return ViewHolder(binding)
+            return ViewHolder(binding, onCharacterLinkClick)
         }
 
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
@@ -111,8 +135,10 @@ class ProcessTextActivity : AppCompatActivity() {
 
         override fun getItemCount(): Int = items.size
 
-        class ViewHolder(private val binding: ItemProcessTextKanjiBinding) :
-            RecyclerView.ViewHolder(binding.root) {
+        class ViewHolder(
+            private val binding: ItemProcessTextKanjiBinding,
+            private val onCharacterLinkClick: (String) -> Unit,
+        ) : RecyclerView.ViewHolder(binding.root) {
 
             fun bind(item: KanjiPopupItem) {
                 binding.kanjiCharText.text = item.character
@@ -122,6 +148,13 @@ class ProcessTextActivity : AppCompatActivity() {
                 } else {
                     binding.kanjiStoryText.visibility = View.VISIBLE
                     binding.kanjiStoryText.text = item.story
+                }
+                val tree = item.decompositionTree
+                if (tree != null && tree.children.isNotEmpty()) {
+                    binding.kanjiDecompositionTree.visibility = View.VISIBLE
+                    binding.kanjiDecompositionTree.renderTrees(listOf(tree), onCharacterLinkClick)
+                } else {
+                    binding.kanjiDecompositionTree.visibility = View.GONE
                 }
             }
         }

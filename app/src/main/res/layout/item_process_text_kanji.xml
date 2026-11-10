@@ -44,4 +44,11 @@
         android:textColor="#333333"
         android:textIsSelectable="true" />
 
+    <com.derricklee.ankidict.DecompositionTreeView
+        android:id="@+id/kanjiDecompositionTree"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:visibility="gone" />
+
 </LinearLayout>

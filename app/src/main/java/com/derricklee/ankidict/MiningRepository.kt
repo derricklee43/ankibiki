@@ -8,9 +8,12 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.provider.MediaStore
 
-class MiningRepository(context: Context) : SQLiteOpenHelper(
+class MiningRepository(
+    context: Context,
+    dbName: String = DB_NAME,
+) : SQLiteOpenHelper(
     context.applicationContext,
-    DB_NAME,
+    dbName,
     null,
     DB_VERSION,
 ) {
@@ -54,6 +57,7 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
                 deck_name TEXT,
                 anki_note_id INTEGER,
                 is_hidden INTEGER NOT NULL DEFAULT 0,
+                visibility_state TEXT NOT NULL DEFAULT 'ACTIVE',
                 PRIMARY KEY (language_tag, item_type, expression)
             )
             """.trimIndent(),
@@ -88,7 +92,42 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // v1 schema
+        if (oldVersion < 2) {
+            runCatching {
+                db.execSQL("ALTER TABLE extracted_items ADD COLUMN visibility_state TEXT NOT NULL DEFAULT 'ACTIVE'")
+            }
+            db.execSQL("UPDATE extracted_items SET visibility_state = 'HIDDEN' WHERE is_hidden != 0")
+            cleanPureKanaKanjiBackfill(db)
+        }
+    }
+
+    private fun cleanPureKanaKanjiBackfill(db: SQLiteDatabase) {
+        val toClear = mutableListOf<Triple<String, String, String>>()
+        db.rawQuery(
+            "SELECT language_tag, item_type, expression, kanji FROM extracted_items WHERE kanji != ''",
+            emptyArray(),
+        ).use { c ->
+            while (c.moveToNext()) {
+                val lang = c.getString(0)
+                val type = c.getString(1)
+                val expr = c.getString(2)
+                val kanji = c.getString(3)
+                if (!expr.any { MlKitImageTagger.isCjkIdeograph(it) } ||
+                    !kanji.any { MlKitImageTagger.isCjkIdeograph(it) }
+                ) {
+                    toClear.add(Triple(lang, type, expr))
+                }
+            }
+        }
+        for ((lang, type, expr) in toClear) {
+            val values = ContentValues().apply { put("kanji", "") }
+            db.update(
+                "extracted_items",
+                values,
+                "language_tag = ? AND item_type = ? AND expression = ?",
+                arrayOf(lang, type, expr),
+            )
+        }
     }
 
     /** Returns the [limit] most recently added scraped photos with status KEEP. */
@@ -277,6 +316,78 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
         writableDatabase.insertWithOnConflict("scraped_photos", null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
+    /** Updates the extracted text on an existing scraped photo without deleting occurrences. */
+    fun updatePhotoExtractedText(mediaStoreId: Long, amendedText: String) {
+        val existing = getPhoto(mediaStoreId)
+        if (existing != null) {
+            val tag = if (existing.languageTag == LanguageTag.NA && amendedText.isNotBlank()) {
+                LanguageTag.JAPANESE
+            } else {
+                existing.languageTag
+            }
+            val status = if (amendedText.isNotBlank()) PhotoStatus.KEEP else existing.status
+            upsertPhoto(
+                existing.copy(
+                    languageTag = tag,
+                    extractedText = amendedText,
+                    status = status,
+                ),
+            )
+        }
+    }
+
+    /** Hard-deletes all `item_occurrences` rows belonging to [photoId] before reprocessing its text. */
+    fun deleteOccurrencesForPhoto(photoId: Long) {
+        writableDatabase.delete(
+            "item_occurrences",
+            "photo_id = ?",
+            arrayOf(photoId.toString()),
+        )
+    }
+
+    /** Updates a specific sentence text across occurrences and inside the photo's `extracted_text`. */
+    fun updateSentenceText(photoId: Long, oldSentence: String, newSentence: String) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val occValues = ContentValues().apply {
+                put("sentence", newSentence)
+            }
+            db.update(
+                "item_occurrences",
+                occValues,
+                "photo_id = ? AND sentence = ?",
+                arrayOf(photoId.toString(), oldSentence),
+            )
+
+            val photo = getPhoto(photoId)
+            if (photo != null && photo.extractedText.contains(oldSentence)) {
+                val updatedPhotoText = photo.extractedText.replace(oldSentence, newSentence)
+                val photoValues = ContentValues().apply {
+                    put("extracted_text", updatedPhotoText)
+                }
+                db.update(
+                    "scraped_photos",
+                    photoValues,
+                    "media_store_id = ?",
+                    arrayOf(photoId.toString()),
+                )
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Hard-deletes all `item_occurrences` rows matching `(photoId, sentence)` before re-extracting an amended sentence. */
+    fun deleteOccurrencesForSentence(photoId: Long, sentence: String) {
+        writableDatabase.delete(
+            "item_occurrences",
+            "photo_id = ? AND sentence = ?",
+            arrayOf(photoId.toString(), sentence),
+        )
+    }
+
     /**
      * Marks a photo as [PhotoStatus.DELETED] in AnkiBiki (so it is hidden and ignored by future
      * scans without deleting the file from device storage) and unlinks any occurrences from it.
@@ -313,23 +424,33 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
     }
 
     /**
-     * Returns active (`UNSEEN`) occurrences matching [query]. Each sentence occurrence is its own
+     * Returns occurrences matching [query]. Each sentence occurrence is its own
      * row, while `occurrenceCount` reflects the total non-deleted occurrences of that canonical item.
      */
     fun getActiveOccurrences(query: OccurrenceQuery): List<ExtractedOccurrenceRow> {
+        val activeVisibilities = query.visibilities.ifEmpty { setOf(ItemVisibility.ACTIVE) }
         val whereClauses = mutableListOf(
             "o.language_tag = ?",
             "o.item_type = ?",
-            "o.state = ?",
-            "i.is_hidden = 0",
             "p.status = ?",
         )
         val args = mutableListOf(
             query.languageTag.name,
             query.itemType.name,
-            OccurrenceState.UNSEEN.name,
             PhotoStatus.KEEP.name,
         )
+
+        val visibilitySubclauses = mutableListOf<String>()
+        if (ItemVisibility.ACTIVE in activeVisibilities) {
+            visibilitySubclauses.add("(i.visibility_state = 'ACTIVE' AND i.is_hidden = 0 AND o.state = 'UNSEEN')")
+        }
+        if (ItemVisibility.HIDDEN in activeVisibilities) {
+            visibilitySubclauses.add("((i.visibility_state = 'HIDDEN' OR (i.visibility_state = 'ACTIVE' AND i.is_hidden != 0)) AND o.state IN ('UNSEEN', 'SEEN'))")
+        }
+        if (ItemVisibility.ARCHIVED in activeVisibilities) {
+            visibilitySubclauses.add("(i.visibility_state = 'ARCHIVED' AND o.state IN ('UNSEEN', 'SEEN'))")
+        }
+        whereClauses.add("(${visibilitySubclauses.joinToString(" OR ")})")
 
         if (OccurrenceFilter.HAS_ANKI_CARD in query.filters) {
             whereClauses.add("i.anki_note_id IS NOT NULL")
@@ -338,13 +459,32 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
             whereClauses.add("i.anki_note_id IS NULL")
         }
 
-        val orderBySql = when (query.sortOrder) {
-            OccurrenceSortOrder.NEWEST_FIRST -> "o.created_at DESC, o.id DESC"
-            OccurrenceSortOrder.OCCURRENCE_COUNT_DESC -> "occurrence_count DESC, o.created_at DESC, o.id DESC"
-            OccurrenceSortOrder.CORPUS_RANK_ASC ->
-                "(i.corpus_rank IS NULL) ASC, i.corpus_rank ASC, o.created_at DESC, o.id DESC"
-            OccurrenceSortOrder.LEVEL_ASC ->
-                "(i.level_badge IS NULL) ASC, i.level_badge ASC, o.created_at DESC, o.id DESC"
+        val activeSortCriteria = query.sortCriteria.filter { it.second != SortDirection.OFF }
+        val orderBySql = if (activeSortCriteria.isNotEmpty()) {
+            val parts = mutableListOf<String>()
+            for ((field, dir) in activeSortCriteria) {
+                val sqlDir = if (dir == SortDirection.ASC) "ASC" else "DESC"
+                when (field) {
+                    SortField.OCCURRENCE_COUNT -> parts.add("occurrence_count $sqlDir")
+                    SortField.DATE_ADDED -> parts.add("o.created_at $sqlDir")
+                    SortField.CORPUS_RANK -> {
+                        parts.add("(i.corpus_rank IS NULL) ASC")
+                        parts.add("i.corpus_rank $sqlDir")
+                    }
+                }
+            }
+            parts.add("o.created_at DESC")
+            parts.add("o.id DESC")
+            parts.joinToString(", ")
+        } else {
+            when (query.sortOrder) {
+                OccurrenceSortOrder.NEWEST_FIRST -> "o.created_at DESC, o.id DESC"
+                OccurrenceSortOrder.OCCURRENCE_COUNT_DESC -> "occurrence_count DESC, o.created_at DESC, o.id DESC"
+                OccurrenceSortOrder.CORPUS_RANK_ASC ->
+                    "(i.corpus_rank IS NULL) ASC, i.corpus_rank ASC, o.created_at DESC, o.id DESC"
+                OccurrenceSortOrder.LEVEL_ASC ->
+                    "(i.level_badge IS NULL) ASC, i.level_badge ASC, o.created_at DESC, o.id DESC"
+            }
         }
 
         val limitClause = query.limit?.let { " LIMIT $it" }.orEmpty()
@@ -414,7 +554,7 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
         val itemCursor = db.rawQuery(
             """
             SELECT kanji, kana, meaning, level_badge, corpus_rank,
-                   anki_account_id, deck_id, deck_name, anki_note_id, is_hidden
+                   anki_account_id, deck_id, deck_name, anki_note_id, is_hidden, visibility_state
             FROM extracted_items
             WHERE language_tag = ? AND item_type = ? AND expression = ?
             """.trimIndent(),
@@ -431,10 +571,18 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
         val deckName: String?
         val ankiNoteId: Long?
         val isHidden: Boolean
+        val visibility: ItemVisibility
 
         itemCursor.use { c ->
             if (!c.moveToFirst()) return null
-            kanji = c.getString(0)
+            val rawKanji = c.getString(0)
+            kanji = if (expression.any { MlKitImageTagger.isCjkIdeograph(it) } &&
+                rawKanji.any { MlKitImageTagger.isCjkIdeograph(it) }
+            ) {
+                rawKanji
+            } else {
+                ""
+            }
             kana = c.getString(1)
             meaning = c.getString(2)
             levelBadge = c.getStringOrNull(3)
@@ -444,6 +592,10 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
             deckName = c.getStringOrNull(7)
             ankiNoteId = c.getLongOrNull(8)
             isHidden = c.getInt(9) != 0
+            val rawVis = c.getStringOrNull(10)
+            visibility = runCatching {
+                if (rawVis != null) ItemVisibility.valueOf(rawVis) else null
+            }.getOrNull() ?: if (isHidden) ItemVisibility.HIDDEN else ItemVisibility.ACTIVE
         }
 
         val photos = mutableListOf<ScrapedPhoto>()
@@ -469,9 +621,10 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
         }
 
         val sentences = mutableListOf<String>()
+        val matchedSentences = mutableListOf<MatchedSentence>()
         db.rawQuery(
             """
-            SELECT o.sentence
+            SELECT o.id, o.photo_id, o.sentence
             FROM item_occurrences o
             JOIN scraped_photos p ON o.photo_id = p.media_store_id
             WHERE o.language_tag = ?
@@ -484,9 +637,18 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
             arrayOf(languageTag.name, itemType.name, expression),
         ).use { c ->
             while (c.moveToNext()) {
-                val sentence = c.getString(0).trim()
+                val occId = c.getLong(0)
+                val photoId = c.getLong(1)
+                val sentence = c.getString(2).trim()
                 if (sentence.isNotEmpty()) {
                     sentences.add(sentence)
+                    matchedSentences.add(
+                        MatchedSentence(
+                            occurrenceId = occId,
+                            photoId = photoId,
+                            sentence = sentence,
+                        ),
+                    )
                 }
             }
         }
@@ -504,10 +666,12 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
             deckId = deckId,
             deckName = deckName,
             ankiNoteId = ankiNoteId,
-            isHidden = isHidden,
+            isHidden = isHidden || visibility != ItemVisibility.ACTIVE,
+            visibility = visibility,
             occurrenceCount = sentences.size,
             photos = photos,
             sentences = sentences,
+            matchedSentences = matchedSentences,
         )
     }
 
@@ -528,15 +692,24 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
     }
 
     /**
-     * Hides the canonical item (`非表示`) so current occurrences leave the active queue and all
-     * future occurrences automatically skip the active queue.
+     * Updates the visibility partition of a canonical item:
+     * - [ItemVisibility.ACTIVE]: normal active review item
+     * - [ItemVisibility.HIDDEN]: recognized/known word (`非表示`)
+     * - [ItemVisibility.ARCHIVED]: clutter, OCR noise, or proper noun (`アーカイブ`)
      */
-    fun hideItem(languageTag: LanguageTag, itemType: ItemType, expression: String) {
+    fun setItemVisibility(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+        visibility: ItemVisibility,
+    ) {
         val db = writableDatabase
         db.beginTransaction()
         try {
+            val isHiddenFlag = if (visibility == ItemVisibility.ACTIVE) 0 else 1
             val itemValues = ContentValues().apply {
-                put("is_hidden", 1)
+                put("is_hidden", isHiddenFlag)
+                put("visibility_state", visibility.name)
             }
             db.update(
                 "extracted_items",
@@ -545,19 +718,47 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
                 arrayOf(languageTag.name, itemType.name, expression),
             )
 
-            val occValues = ContentValues().apply {
-                put("state", OccurrenceState.SEEN.name)
+            if (visibility != ItemVisibility.ACTIVE) {
+                val occValues = ContentValues().apply {
+                    put("state", OccurrenceState.SEEN.name)
+                }
+                db.update(
+                    "item_occurrences",
+                    occValues,
+                    "language_tag = ? AND item_type = ? AND expression = ? AND state = ?",
+                    arrayOf(languageTag.name, itemType.name, expression, OccurrenceState.UNSEEN.name),
+                )
+            } else {
+                val occValues = ContentValues().apply {
+                    put("state", OccurrenceState.UNSEEN.name)
+                }
+                db.update(
+                    "item_occurrences",
+                    occValues,
+                    "language_tag = ? AND item_type = ? AND expression = ? AND state = ?",
+                    arrayOf(languageTag.name, itemType.name, expression, OccurrenceState.SEEN.name),
+                )
             }
-            db.update(
-                "item_occurrences",
-                occValues,
-                "language_tag = ? AND item_type = ? AND expression = ? AND state = ?",
-                arrayOf(languageTag.name, itemType.name, expression, OccurrenceState.UNSEEN.name),
-            )
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
         }
+    }
+
+    /**
+     * Hides the canonical item (`非表示` — recognized word) so current occurrences leave the active
+     * queue and all future occurrences automatically skip the active queue.
+     */
+    fun hideItem(languageTag: LanguageTag, itemType: ItemType, expression: String) {
+        setItemVisibility(languageTag, itemType, expression, ItemVisibility.HIDDEN)
+    }
+
+    /**
+     * Archives the canonical item (`アーカイブ` — clutter, proper nouns) so it is hidden from almost
+     * all views unless the user explicitly filters for archived items.
+     */
+    fun archiveItem(languageTag: LanguageTag, itemType: ItemType, expression: String) {
+        setItemVisibility(languageTag, itemType, expression, ItemVisibility.ARCHIVED)
     }
 
     /**
@@ -590,12 +791,20 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
         deckName: String? = null,
         ankiNoteId: Long? = null,
         isHidden: Boolean = false,
+        visibility: ItemVisibility = if (isHidden) ItemVisibility.HIDDEN else ItemVisibility.ACTIVE,
     ) {
+        val sanitizedKanji = if (expression.any { MlKitImageTagger.isCjkIdeograph(it) } &&
+            kanji.any { MlKitImageTagger.isCjkIdeograph(it) }
+        ) {
+            kanji
+        } else {
+            ""
+        }
         val values = ContentValues().apply {
             put("language_tag", languageTag.name)
             put("item_type", itemType.name)
             put("expression", expression)
-            put("kanji", kanji)
+            put("kanji", sanitizedKanji)
             put("kana", kana)
             put("meaning", meaning)
             put("level_badge", levelBadge)
@@ -604,7 +813,8 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
             if (deckId != null) put("deck_id", deckId) else putNull("deck_id")
             put("deck_name", deckName)
             if (ankiNoteId != null) put("anki_note_id", ankiNoteId) else putNull("anki_note_id")
-            put("is_hidden", if (isHidden) 1 else 0)
+            put("is_hidden", if (isHidden || visibility != ItemVisibility.ACTIVE) 1 else 0)
+            put("visibility_state", visibility.name)
         }
         writableDatabase.insertWithOnConflict("extracted_items", null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
@@ -657,10 +867,16 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
         createdAt: Long = System.currentTimeMillis() / 1000L,
     ): Long {
         val isHidden = readableDatabase.rawQuery(
-            "SELECT is_hidden FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
+            "SELECT is_hidden, visibility_state FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
             arrayOf(languageTag.name, itemType.name, expression),
         ).use { c ->
-            if (c.moveToFirst()) c.getInt(0) != 0 else false
+            if (c.moveToFirst()) {
+                val hiddenFlag = c.getInt(0) != 0
+                val vis = c.getStringOrNull(1)
+                hiddenFlag || (vis != null && vis != ItemVisibility.ACTIVE.name)
+            } else {
+                false
+            }
         }
 
         val initialState = if (isHidden) OccurrenceState.SEEN else OccurrenceState.UNSEEN
@@ -732,6 +948,6 @@ class MiningRepository(context: Context) : SQLiteOpenHelper(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
     }
 }

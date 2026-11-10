@@ -7,6 +7,7 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityExtractedListBinding
+import com.google.android.material.chip.Chip
 import java.util.concurrent.Executors
 
 class ExtractedListActivity : AppCompatActivity() {
@@ -18,7 +19,17 @@ class ExtractedListActivity : AppCompatActivity() {
 
     private var itemType: ItemType = ItemType.WORD
     private var languageTag: LanguageTag = LanguageTag.JAPANESE
-    private var sortOrder: OccurrenceSortOrder = OccurrenceSortOrder.NEWEST_FIRST
+
+    // Tri-state togglable sort directions (DESC -> ASC -> OFF)
+    // Default: sort by occurrence count descending first, then date descending.
+    private var countSortDir: SortDirection = SortDirection.DESC
+    private var dateSortDir: SortDirection = SortDirection.DESC
+    private var rankSortDir: SortDirection = SortDirection.OFF
+    private val sortPriorityOrder = mutableListOf(
+        SortField.OCCURRENCE_COUNT,
+        SortField.DATE_ADDED,
+        SortField.CORPUS_RANK,
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +68,8 @@ class ExtractedListActivity : AppCompatActivity() {
         binding.occurrencesRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.occurrencesRecyclerView.adapter = adapter
         binding.backButton.setOnClickListener { finish() }
+
+        setupSortAndFilterChips()
     }
 
     override fun onResume() {
@@ -69,11 +82,95 @@ class ExtractedListActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    private fun setupSortAndFilterChips() {
+        updateSortChipAppearance()
+
+        binding.sortCountChip.setOnClickListener {
+            countSortDir = cycleDirection(countSortDir, defaultFirst = SortDirection.DESC)
+            promoteFieldPriority(SortField.OCCURRENCE_COUNT, countSortDir)
+            updateSortChipAppearance()
+            loadOccurrences()
+        }
+
+        binding.sortDateChip.setOnClickListener {
+            dateSortDir = cycleDirection(dateSortDir, defaultFirst = SortDirection.DESC)
+            promoteFieldPriority(SortField.DATE_ADDED, dateSortDir)
+            updateSortChipAppearance()
+            loadOccurrences()
+        }
+
+        binding.sortRankChip.setOnClickListener {
+            rankSortDir = cycleDirection(rankSortDir, defaultFirst = SortDirection.ASC)
+            promoteFieldPriority(SortField.CORPUS_RANK, rankSortDir)
+            updateSortChipAppearance()
+            loadOccurrences()
+        }
+
+        binding.filterActiveChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
+        binding.filterHiddenChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
+        binding.filterArchiveChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
+    }
+
+    private fun cycleDirection(current: SortDirection, defaultFirst: SortDirection): SortDirection {
+        val second = if (defaultFirst == SortDirection.DESC) SortDirection.ASC else SortDirection.DESC
+        return when (current) {
+            SortDirection.OFF -> defaultFirst
+            defaultFirst -> second
+            else -> SortDirection.OFF
+        }
+    }
+
+    private fun promoteFieldPriority(field: SortField, dir: SortDirection) {
+        if (dir != SortDirection.OFF) {
+            sortPriorityOrder.remove(field)
+            sortPriorityOrder.add(0, field)
+        }
+    }
+
+    private fun updateSortChipAppearance() {
+        styleSortChip(binding.sortCountChip, getString(R.string.sort_count), countSortDir)
+        styleSortChip(binding.sortDateChip, getString(R.string.sort_date), dateSortDir)
+        styleSortChip(binding.sortRankChip, getString(R.string.sort_rank), rankSortDir)
+    }
+
+    private fun styleSortChip(chip: Chip, baseLabel: String, dir: SortDirection) {
+        chip.text = when (dir) {
+            SortDirection.DESC -> "$baseLabel ↓"
+            SortDirection.ASC -> "$baseLabel ↑"
+            SortDirection.OFF -> baseLabel
+        }
+        chip.alpha = if (dir == SortDirection.OFF) 0.55f else 1.0f
+    }
+
+    private fun buildCurrentVisibilities(): Set<ItemVisibility> {
+        val vis = mutableSetOf<ItemVisibility>()
+        if (binding.filterActiveChip.isChecked) vis.add(ItemVisibility.ACTIVE)
+        if (binding.filterHiddenChip.isChecked) vis.add(ItemVisibility.HIDDEN)
+        if (binding.filterArchiveChip.isChecked) vis.add(ItemVisibility.ARCHIVED)
+        if (vis.isEmpty()) {
+            vis.add(ItemVisibility.ACTIVE)
+        }
+        return vis
+    }
+
+    private fun buildCurrentSortCriteria(): List<Pair<SortField, SortDirection>> {
+        return sortPriorityOrder.map { field ->
+            val dir = when (field) {
+                SortField.OCCURRENCE_COUNT -> countSortDir
+                SortField.DATE_ADDED -> dateSortDir
+                SortField.CORPUS_RANK -> rankSortDir
+            }
+            field to dir
+        }
+    }
+
     private fun loadOccurrences() {
         val query = OccurrenceQuery(
             languageTag = languageTag,
             itemType = itemType,
-            sortOrder = sortOrder,
+            sortOrder = OccurrenceSortOrder.OCCURRENCE_COUNT_DESC,
+            sortCriteria = buildCurrentSortCriteria(),
+            visibilities = buildCurrentVisibilities(),
             limit = null,
         )
         ioExecutor.execute {

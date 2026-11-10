@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.AnkiDict" parent="Theme.AppCompat.DayNight.NoActionBar" />
+    <style name="Theme.AnkiDict" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/tag_japanese_blue</item>
+        <item name="colorPrimaryVariant">@color/tag_japanese_blue</item>
+        <item name="colorSecondary">@color/tag_japanese_blue</item>
+    </style>
 
-    <style name="Theme.AnkiDict.Dialog" parent="Theme.AppCompat.DayNight.Dialog.MinWidth">
+    <style name="Theme.AnkiDict.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog.MinWidth">
+        <item name="colorPrimary">@color/tag_japanese_blue</item>
+        <item name="colorSecondary">@color/tag_japanese_blue</item>
         <item name="windowNoTitle">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowCloseOnTouchOutside">true</item>

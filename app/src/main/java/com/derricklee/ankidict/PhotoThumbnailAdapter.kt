@@ -54,7 +54,7 @@ class PhotoThumbnailAdapter(
             boundMediaId = photo.mediaStoreId
             binding.root.setOnClickListener { onPhotoClick(photo) }
 
-            val cached = thumbnailCache.get(photo.mediaStoreId)
+            val cached = PhotoThumbnailCache.getMemoryCached(photo.mediaStoreId)
             if (cached != null) {
                 binding.thumbnailImage.setImageBitmap(cached)
                 return
@@ -63,17 +63,11 @@ class PhotoThumbnailAdapter(
             binding.thumbnailImage.setImageDrawable(null)
             val appContext = binding.root.context.applicationContext
             thumbnailExecutor.execute {
-                val bmp = runCatching {
-                    appContext.contentResolver.loadThumbnail(
-                        Uri.parse(photo.contentUri),
-                        Size(360, 360),
-                        null,
-                    )
-                }.getOrNull()
-
-                if (bmp != null) {
-                    thumbnailCache.put(photo.mediaStoreId, bmp)
-                }
+                val bmp = PhotoThumbnailCache.loadOrGenerateThumbnail(
+                    appContext,
+                    photo.mediaStoreId,
+                    photo.contentUri,
+                )
 
                 mainHandler.post {
                     if (boundMediaId == photo.mediaStoreId) {
@@ -86,6 +80,5 @@ class PhotoThumbnailAdapter(
 
     companion object {
         private val thumbnailExecutor = Executors.newFixedThreadPool(3)
-        private val thumbnailCache = object : LruCache<Long, Bitmap>(60) {}
     }
 }

@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var recentPhotosAdapter: PhotoThumbnailAdapter
     private lateinit var recentWordsAdapter: ExtractedOccurrenceAdapter
     private lateinit var recentGrammarAdapter: ExtractedOccurrenceAdapter
+    private var currentRecentPhotos: List<ScrapedPhoto> = emptyList()
 
     private val searchHandler = Handler(Looper.getMainLooper())
     private var pendingSearch: Runnable? = null
@@ -65,9 +66,15 @@ class MainActivity : AppCompatActivity() {
         val dictionaryRepository = DictionaryRepository(this)
         val hskRepository = HskRepository(this)
         val shinjitaiRepository = ShinjitaiRepository(this)
-        searchService = SearchService(repository, dictionaryRepository)
+        val idsRepository = IdsRepository(this)
+        val heisigRadicalRepository = HeisigRadicalRepository(
+            idsRepository = idsRepository,
+            dictionaryRepository = dictionaryRepository,
+            ankiRepository = repository,
+        )
+        searchService = SearchService(repository, dictionaryRepository, heisigRadicalRepository)
         syncService = HanziWordSyncService(
-            repository, dictionaryRepository, IdsRepository(this), hskRepository, shinjitaiRepository,
+            repository, dictionaryRepository, idsRepository, hskRepository, shinjitaiRepository,
         )
         settingsRepository = SettingsRepository(this)
         miningRepository = MiningRepository(this)
@@ -78,7 +85,11 @@ class MainActivity : AppCompatActivity() {
             shinjitaiRepository = shinjitaiRepository,
             hskRepository = hskRepository,
         )
-        adapter = SearchResultAdapter(AudioRepository(this))
+        adapter = SearchResultAdapter(AudioRepository(this)) { clickedChar ->
+            binding.bottomNav.selectedItemId = R.id.nav_lookup
+            binding.searchBox.setText(clickedChar)
+            binding.searchBox.setSelection(clickedChar.length)
+        }
 
         binding.resultsList.layoutManager = LinearLayoutManager(this)
         binding.resultsList.adapter = adapter
@@ -114,6 +125,18 @@ class MainActivity : AppCompatActivity() {
         handleInitialQueryIntent(intent)
     }
 
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        if (binding.bottomNav.selectedItemId == R.id.nav_mine) {
+            binding.lookupContainer.visibility = View.GONE
+            binding.mineContainer.visibility = View.VISIBLE
+            refreshMiningDashboard()
+        } else {
+            binding.lookupContainer.visibility = View.VISIBLE
+            binding.mineContainer.visibility = View.GONE
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (binding.mineContainer.visibility == View.VISIBLE) {
@@ -131,12 +154,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupBottomNavAndMiningTab() {
         recentPhotosAdapter = PhotoThumbnailAdapter(horizontalStrip = false) { photo ->
+            val allIds = currentRecentPhotos.map { it.mediaStoreId }.toLongArray()
             startActivity(
                 PhotoDetailActivity.newIntent(
                     context = this,
                     mediaStoreId = photo.mediaStoreId,
                     contentUri = photo.contentUri,
                     dateAdded = photo.dateAdded,
+                    photoIds = allIds,
                 ),
             )
         }
@@ -185,6 +210,7 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
         }
+        binding.bottomNav.selectedItemId = R.id.nav_lookup
     }
 
     private fun openFullListAndDetail(row: ExtractedOccurrenceRow) {
@@ -225,6 +251,7 @@ class MainActivity : AppCompatActivity() {
 
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                currentRecentPhotos = recentPhotos
                 recentPhotosAdapter.submitList(recentPhotos)
                 binding.emptyRecentPhotosText.visibility =
                     if (recentPhotos.isEmpty()) View.VISIBLE else View.GONE
@@ -446,5 +473,11 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_INITIAL_QUERY = "extra_initial_query"
+
+        fun newLookupIntent(context: Context, query: String): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                putExtra(EXTRA_INITIAL_QUERY, query)
+                addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            }
     }
 }
