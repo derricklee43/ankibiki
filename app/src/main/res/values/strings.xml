@@ -111,5 +111,9 @@
     <string name="recovery_restore_go">Restore</string>
     <string name="recovery_cancel">Cancel</string>
     <string name="recovery_dismiss">OK</string>
+    <string name="reprocess_photo_toast">Saved · sentences kept %1$d · new %2$d · removed %3$d</string>
+    <string name="reprocess_photo_removed_note">\nTriage history of removed sentences was discarded.</string>
+    <string name="reprocess_sentence_toast">Saved · candidates kept %1$d · new %2$d · dropped %3$d</string>
+    <string name="reprocess_sentence_merged_note">\nMerged %1$d duplicate(s) with the existing identical sentence, keeping the most-reviewed state.</string>
     <string name="recovery_restart_manually">Restored. Close and reopen AnkiBiki to load the recovered corpus.</string>
 </resources>

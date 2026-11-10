@@ -308,7 +308,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             currentDetail?.photos?.firstOrNull()?.mediaStoreId ?: return
         }
         ioExecutor.execute {
-            miningPipelineRunner.reprocessAmendedSentence(
+            val summary = miningPipelineRunner.reprocessAmendedSentence(
                 photoId = photoId,
                 oldSentence = matched.sentence,
                 newSentence = newSentence,
@@ -316,12 +316,17 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             )
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                val msgRes = if (reprocessWords) {
-                    R.string.text_saved_and_reprocessed_toast
+                // Communicate reconciliation outcome (roadmap §1 safe reprocessing).
+                val message = if (summary.wordsReprocessed) {
+                    getString(R.string.reprocess_sentence_toast,
+                        summary.keptCandidates, summary.addedCandidates, summary.removedCandidates) +
+                        if (summary.mergedDuplicates > 0)
+                            getString(R.string.reprocess_sentence_merged_note, summary.mergedDuplicates)
+                        else ""
                 } else {
-                    R.string.text_saved_toast
+                    getString(R.string.text_saved_toast)
                 }
-                Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 loadDetail()
             }
         }

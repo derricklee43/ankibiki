@@ -342,73 +342,106 @@ class MiningPipelineRunner(
     }
 
     /**
-     * Saves amended text for [mediaStoreId]. When [reprocessWords] is true, removes all previous
-     * occurrences from this photo and re-extracts + re-enriches words and grammar from [amendedText].
+     * Saves amended text for [mediaStoreId]. When [reprocessWords] is true, reconciles word and
+     * grammar occurrences at SENTENCE granularity instead of rebuilding everything: sentences that
+     * survived the edit keep their existing rows (review/deletion triage and user-edit flags
+     * included — nothing resurrects silently), removed sentences drop their rows, and only added
+     * sentences get fresh extraction. Analysis runs before any write and every mutation shares one
+     * transaction, so an injected failure leaves the previous corpus exactly intact (docs/roadmap.md §1).
      */
     fun reprocessPhotoText(
         mediaStoreId: Long,
         amendedText: String,
         reprocessWords: Boolean,
-    ): Int {
-        val originalPhoto = miningRepository.getPhoto(mediaStoreId) ?: return 0
+    ): PhotoTextReprocessSummary {
+        val originalPhoto = miningRepository.getPhoto(mediaStoreId)
+            ?: return PhotoTextReprocessSummary(textSaved = false, keptSentences = 0)
         val effectiveTag = if (originalPhoto.languageTag == LanguageTag.NA) {
             LanguageTag.JAPANESE
         } else {
             originalPhoto.languageTag
         }
         val config = pipelineConfigs[effectiveTag] ?: pipelineConfigs[LanguageTag.JAPANESE]
-        val sentences = parsePhotoText(config, amendedText)
-        val originalCounts = parsePhotoText(config, originalPhoto.extractedText).groupingBy { it }.eachCount()
+        val newSentences = parsePhotoText(config, amendedText)
+        val oldSentences = parsePhotoText(config, originalPhoto.extractedText)
+        val originalCounts = oldSentences.groupingBy { it }.eachCount()
         // Count increases detect edits that become identical to another sentence on this photo.
-        // Persist those flags even on text-only saves, before any occurrence rebuild can erase them.
         val changedSentences = if (originalPhoto.extractedText != amendedText) {
-            sentences.groupingBy { it }.eachCount()
+            newSentences.groupingBy { it }.eachCount()
                 .filter { (sentence, count) -> count > (originalCounts[sentence] ?: 0) }.keys
         } else {
             emptySet()
         }
-        miningRepository.updatePhotoExtractedText(mediaStoreId, amendedText)
-        miningRepository.markSentencesModifiedByUser(mediaStoreId, changedSentences)
-        if (!reprocessWords || config == null) return 0
+        val oldSet = oldSentences.toSet()
+        val newSet = newSentences.toSet()
+        val keptSentences = newSet.count { it in oldSet }
+        val removedSentences = (oldSet - newSet).toList()
+        val addedSentences = (newSet - oldSet).toList()
 
-        val previousSentenceFlags = miningRepository.getSentenceModificationFlags(mediaStoreId)
-        val photo = miningRepository.getPhoto(mediaStoreId) ?: return 0
-        miningRepository.deleteOccurrencesForPhoto(mediaStoreId)
-
-        val baseTimestamp = System.currentTimeMillis() / 1000L
-        var created = 0
-        for ((idx, sentence) in sentences.withIndex()) {
-            created += extractAndInsertSentenceOccurrences(
-                config = config,
-                photoId = mediaStoreId,
-                sentence = sentence,
-                timestamp = baseTimestamp + idx,
-                modifiedByUserFlag = previousSentenceFlags[sentence] ?: photo.modifiedByUserFlag,
-            )
+        // Extraction may throw; do it BEFORE any write so a failure changes nothing at all.
+        val shouldReprocess = reprocessWords && config != null
+        val addedPlans = if (shouldReprocess) {
+            addedSentences.map { sentence ->
+                sentence to analyzeCandidates(config!!, sentence)
+            }
+        } else {
+            emptyList()
         }
-        return created
+
+        miningRepository.inTransaction {
+            miningRepository.updatePhotoExtractedText(mediaStoreId, amendedText)
+            miningRepository.markSentencesModifiedByUser(mediaStoreId, changedSentences)
+            if (shouldReprocess) {
+                for (sentence in removedSentences) {
+                    miningRepository.deleteOccurrencesForSentence(mediaStoreId, sentence)
+                }
+                val baseTimestamp = System.currentTimeMillis() / 1000L
+                val photoModified = originalPhoto.modifiedByUserFlag || amendedText != originalPhoto.extractedText
+                for ((index, pair) in addedPlans.withIndex()) {
+                    val (sentence, candidates) = pair
+                    insertCandidates(
+                        config = config!!,
+                        photoId = mediaStoreId,
+                        sentence = sentence,
+                        candidates = candidates,
+                        timestamp = baseTimestamp + index,
+                        modifiedByUserFlag = photoModified || sentence in changedSentences,
+                    )
+                }
+            }
+        }
+        return PhotoTextReprocessSummary(
+            textSaved = true,
+            wordsReprocessed = shouldReprocess,
+            keptSentences = keptSentences,
+            addedSentences = if (shouldReprocess) addedSentences.size else 0,
+            removedSentences = if (shouldReprocess) removedSentences.size else 0,
+        )
     }
 
     /**
-     * Saves an amended sentence for [photoId]. When [reprocessWords] is true, removes all occurrences
-     * previously generated by [oldSentence] on [photoId] and re-extracts + re-enriches words and
-     * grammar from [newSentence].
+     * Saves an amended sentence for [photoId]. Renames existing occurrences (preserving their
+     * review state), then reconciles at CANDIDATE granularity: words/grammar still produced by
+     * the new sentence keep their rows and triage, candidates no longer produced are dropped,
+     * and only genuinely new candidates are extracted fresh (UNSEEN). Duplicate rows created when
+     * an edit lands on a sentence that already existed on the photo merge to the most-triaged one.
+     * Analysis runs before the transaction; injected failures leave the corpus intact.
      */
     fun reprocessAmendedSentence(
         photoId: Long,
         oldSentence: String,
         newSentence: String,
         reprocessWords: Boolean,
-    ): Int {
+    ): SentenceReprocessSummary {
         val trimmedNew = newSentence.trim()
-        miningRepository.updateSentenceText(photoId, oldSentence, trimmedNew)
+        val preFlags = miningRepository.getSentenceModificationFlags(photoId)
         val sentenceModified = oldSentence != trimmedNew ||
-            miningRepository.getSentenceModificationFlags(photoId)[trimmedNew] == true
-        if (!reprocessWords) return 0
-
-        miningRepository.deleteOccurrencesForSentence(photoId, oldSentence)
-        miningRepository.deleteOccurrencesForSentence(photoId, trimmedNew)
-        if (trimmedNew.isEmpty()) return 0
+            preFlags[trimmedNew] == true || preFlags[oldSentence] == true
+        if (!reprocessWords) {
+            miningRepository.updateSentenceText(photoId, oldSentence, trimmedNew)
+            return SentenceReprocessSummary(textSaved = true, wordsReprocessed = false,
+                keptCandidates = 0, addedCandidates = 0, removedCandidates = 0)
+        }
 
         val photo = miningRepository.getPhoto(photoId)
         val effectiveTag = if (photo == null || photo.languageTag == LanguageTag.NA) {
@@ -416,59 +449,106 @@ class MiningPipelineRunner(
         } else {
             photo.languageTag
         }
-        val config = pipelineConfigs[effectiveTag] ?: pipelineConfigs[LanguageTag.JAPANESE] ?: return 0
+        val config = pipelineConfigs[effectiveTag] ?: pipelineConfigs[LanguageTag.JAPANESE]
+            ?: return SentenceReprocessSummary(textSaved = false, wordsReprocessed = false,
+                keptCandidates = 0, addedCandidates = 0, removedCandidates = 0).also {
+                miningRepository.updateSentenceText(photoId, oldSentence, trimmedNew)
+            }
 
-        return extractAndInsertSentenceOccurrences(
-            config = config,
-            photoId = photoId,
-            sentence = trimmedNew,
-            timestamp = System.currentTimeMillis() / 1000L,
-            modifiedByUserFlag = sentenceModified,
+        // Extraction before writes: a throwing analyzer changes nothing.
+        val candidates = analyzeCandidates(config, trimmedNew)
+        val keepKeys = candidates.map { candidateKey(it) }.toSet()
+
+        val tx = miningRepository.inTransaction {
+            miningRepository.updateSentenceText(photoId, oldSentence, trimmedNew)
+            var kept = 0
+            var removed = 0
+            var merged = 0
+            val seenKeys = mutableSetOf<String>()
+            // Most-triaged first: DELETED > SEEN > UNSEEN, then newest — so merges keep the
+            // strongest review decision instead of resurrecting a weaker one.
+            val rows = miningRepository.occurrenceRowsForSentence(photoId, trimmedNew)
+                .sortedWith(
+                    compareByDescending<MiningRepository.OccurrenceRow> { stateRank(it.state) }
+                        .thenByDescending { it.createdAt }
+                        .thenByDescending { it.id },
+                )
+            for (row in rows) {
+                val key = row.itemType + "\u0000" + row.expression
+                when {
+                    key !in keepKeys -> {
+                        miningRepository.deleteOccurrenceById(row.id)
+                        removed++
+                    }
+                    !seenKeys.add(key) -> {
+                        // Collision merge (rows were newest-first): keep the most-triaged row.
+                        miningRepository.deleteOccurrenceById(row.id)
+                        merged++
+                    }
+                    else -> kept++
+                }
+            }
+            val missing = candidates.filter { candidateKey(it) !in seenKeys }
+            val added = insertCandidates(
+                config = config,
+                photoId = photoId,
+                sentence = trimmedNew,
+                candidates = missing,
+                timestamp = System.currentTimeMillis() / 1000L,
+                modifiedByUserFlag = sentenceModified,
+            )
+            ReprocessCounters(kept, added, removed, merged)
+        }
+        return SentenceReprocessSummary(
+            textSaved = true,
+            wordsReprocessed = true,
+            keptCandidates = tx.kept,
+            addedCandidates = tx.added,
+            removedCandidates = tx.removed,
+            mergedDuplicates = tx.merged,
         )
     }
 
-    private fun parsePhotoText(config: PipelineConfig?, text: String): List<String> {
-        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        val blocks = lines.map { line -> OcrBlock(text = line, lines = listOf(OcrLine(text = line))) }
-        return config?.sentenceParser?.parseSentences(OcrDocument(fullText = text, blocks = blocks))
-            ?.takeIf { it.isNotEmpty() } ?: lines
+    /** In-transaction counters (inTransaction returns the block result). */
+    private data class ReprocessCounters(val kept: Int, val added: Int, val removed: Int, val merged: Int)
+
+    private fun candidateKey(candidate: Pair<ItemType, NormalizedCandidate>): String =
+        candidate.first.name + "\u0000" + candidate.second.expression
+
+    private fun stateRank(state: String): Int = when (state) {
+        OccurrenceState.DELETED.name -> 2
+        OccurrenceState.SEEN.name -> 1
+        else -> 0
     }
 
-    private fun extractAndInsertSentenceOccurrences(
+    /** Words + grammar produced for a sentence, before any database mutation (may throw). */
+    private fun analyzeCandidates(
+        config: PipelineConfig,
+        sentence: String,
+    ): List<Pair<ItemType, NormalizedCandidate>> =
+        config.wordAnalyzer.extractWords(sentence)
+            .distinctBy { it.expression }
+            .map { ItemType.WORD to it } +
+            config.grammarAnalyzer.extractGrammar(sentence)
+                .distinctBy { it.expression }
+                .map { ItemType.GRAMMAR to it }
+
+    /** Registers canonical items and inserts occurrence rows for [candidates]. */
+    private fun insertCandidates(
         config: PipelineConfig,
         photoId: Long,
         sentence: String,
+        candidates: List<Pair<ItemType, NormalizedCandidate>>,
         timestamp: Long,
-        modifiedByUserFlag: Boolean = false,
+        modifiedByUserFlag: Boolean,
     ): Int {
-        val tag = config.tag
         var count = 0
-        val wordsInSentence = config.wordAnalyzer
-            .extractWords(sentence)
-            .distinctBy { it.expression }
-        for (word in wordsInSentence) {
-            ensureCanonicalItemExists(config, ItemType.WORD, word)
+        for ((itemType, candidate) in candidates) {
+            ensureCanonicalItemExists(config, itemType, candidate)
             miningRepository.insertOccurrence(
-                languageTag = tag,
-                itemType = ItemType.WORD,
-                expression = word.expression,
-                photoId = photoId,
-                sentence = sentence,
-                createdAt = timestamp,
-                modifiedByUserFlag = modifiedByUserFlag,
-            )
-            count++
-        }
-
-        val grammarInSentence = config.grammarAnalyzer
-            .extractGrammar(sentence)
-            .distinctBy { it.expression }
-        for (grammar in grammarInSentence) {
-            ensureCanonicalItemExists(config, ItemType.GRAMMAR, grammar)
-            miningRepository.insertOccurrence(
-                languageTag = tag,
-                itemType = ItemType.GRAMMAR,
-                expression = grammar.expression,
+                languageTag = config.tag,
+                itemType = itemType,
+                expression = candidate.expression,
                 photoId = photoId,
                 sentence = sentence,
                 createdAt = timestamp,
@@ -477,6 +557,13 @@ class MiningPipelineRunner(
             count++
         }
         return count
+    }
+
+    private fun parsePhotoText(config: PipelineConfig?, text: String): List<String> {
+        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        val blocks = lines.map { line -> OcrBlock(text = line, lines = listOf(OcrLine(text = line))) }
+        return config?.sentenceParser?.parseSentences(OcrDocument(fullText = text, blocks = blocks))
+            ?.takeIf { it.isNotEmpty() } ?: lines
     }
 
     companion object {
@@ -553,3 +640,22 @@ class MiningPipelineRunner(
         }
     }
 }
+
+/** Photo-text save outcome; sentence-granularity counts (docs/roadmap.md §1 safe reprocessing). */
+data class PhotoTextReprocessSummary(
+    val textSaved: Boolean,
+    val wordsReprocessed: Boolean = false,
+    val keptSentences: Int = 0,
+    val addedSentences: Int = 0,
+    val removedSentences: Int = 0,
+)
+
+/** Single-sentence save outcome; candidate-granularity counts. */
+data class SentenceReprocessSummary(
+    val textSaved: Boolean,
+    val wordsReprocessed: Boolean = false,
+    val keptCandidates: Int = 0,
+    val addedCandidates: Int = 0,
+    val removedCandidates: Int = 0,
+    val mergedDuplicates: Int = 0,
+)

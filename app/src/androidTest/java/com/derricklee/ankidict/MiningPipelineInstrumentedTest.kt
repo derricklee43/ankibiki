@@ -198,13 +198,16 @@ class MiningPipelineInstrumentedTest {
 
         // Verify amending a sentence with reprocessWords = true removes old occurrences from that sentence
         // and extracts/enriches the newly amended words
-        val reprocessedCount = runner.reprocessAmendedSentence(
+        val reprocess = runner.reprocessAmendedSentence(
             photoId = 900001L,
             oldSentence = "しかし決定的な証拠がまだ足りない。",
             newSentence = "しかし完璧なアリバイがまだ足りない。",
             reprocessWords = true,
         )
-        assertTrue(reprocessedCount >= 2)
+        // Reconciliation: shared candidates preserved, new ones extracted, stale ones dropped.
+        assertTrue("kept: ${reprocess.keptCandidates}", reprocess.keptCandidates >= 1)
+        assertTrue("added: ${reprocess.addedCandidates}", reprocess.addedCandidates >= 1)
+        assertTrue("removed: ${reprocess.removedCandidates}", reprocess.removedCandidates >= 1)
         val shoukoAfterAmend = miningRepository.getItemDetail(
             languageTag = LanguageTag.JAPANESE,
             itemType = ItemType.WORD,

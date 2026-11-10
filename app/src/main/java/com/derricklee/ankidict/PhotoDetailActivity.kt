@@ -299,7 +299,7 @@ class PhotoDetailActivity : AppCompatActivity() {
         updateActionAvailability()
         ioExecutor.execute {
             try {
-                miningPipelineRunner.reprocessPhotoText(
+                val summary = miningPipelineRunner.reprocessPhotoText(
                     mediaStoreId = mediaId,
                     amendedText = amendedText,
                     reprocessWords = reprocessWords,
@@ -309,12 +309,15 @@ class PhotoDetailActivity : AppCompatActivity() {
                     operationInProgress = false
                     if (currentMediaStoreId() == mediaId) updateCounterAndLoadExtractedText(currentIndex)
                     updateActionAvailability()
-                    val msgRes = if (reprocessWords) {
-                        R.string.text_saved_and_reprocessed_toast
+                    // Communicate what reconciliation did to triage history (roadmap §1).
+                    val message = if (summary.wordsReprocessed) {
+                        getString(R.string.reprocess_photo_toast,
+                            summary.keptSentences, summary.addedSentences, summary.removedSentences) +
+                            if (summary.removedSentences > 0) getString(R.string.reprocess_photo_removed_note) else ""
                     } else {
-                        R.string.text_saved_toast
+                        getString(R.string.text_saved_toast)
                     }
-                    Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 }
             } catch (error: Exception) {
                 reportOperationFailure(error, mediaId)

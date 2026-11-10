@@ -442,6 +442,50 @@ class MiningRepository(
     }
 
     /**
+     * Runs [block] inside one explicit transaction on the writable connection. Nested
+     * repository writes on the same thread join it (Android ref-counts transactions per
+     * thread), so editor-driven rebuilds commit all-or-nothing like the rescan path.
+     */
+    internal fun <R> inTransaction(block: () -> R): R {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val result = block()
+            db.setTransactionSuccessful()
+            return result
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    internal data class OccurrenceRow(
+        val id: Long,
+        val itemType: String,
+        val expression: String,
+        val state: String,
+        val createdAt: Long,
+    )
+
+    /** Rows for one `(photo, sentence)` pair, newest first — the unit of reprocessing reconciliation. */
+    internal fun occurrenceRowsForSentence(photoId: Long, sentence: String): List<OccurrenceRow> =
+        readableDatabase.query(
+            "item_occurrences",
+            arrayOf("id", "item_type", "expression", "state", "created_at"),
+            "photo_id = ? AND sentence = ?",
+            arrayOf(photoId.toString(), sentence),
+            null, null, "created_at DESC, id DESC",
+        ).use { c ->
+            buildList {
+                while (c.moveToNext()) {
+                    add(OccurrenceRow(c.getLong(0), c.getString(1), c.getString(2), c.getString(3), c.getLong(4)))
+                }
+            }
+        }
+
+    internal fun deleteOccurrenceById(id: Long): Int =
+        writableDatabase.delete("item_occurrences", "id = ?", arrayOf(id.toString()))
+
+    /**
      * Marks a photo as [PhotoStatus.DELETED] in AnkiBiki (so it is hidden and ignored by future
      * scans without deleting the file from device storage) and unlinks any occurrences from it.
      */
