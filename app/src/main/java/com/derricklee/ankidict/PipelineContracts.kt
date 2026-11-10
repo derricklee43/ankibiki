@@ -37,9 +37,13 @@ data class OcrLine(
     val boundingBoxHeightPx: Int? = null,
 )
 
+/** Image-space bounds retained so reading-flow decisions do not depend on OCR block grouping. */
+data class OcrBounds(val left: Int, val top: Int, val right: Int, val bottom: Int)
+
 data class OcrBlock(
     val text: String,
     val lines: List<OcrLine>,
+    val bounds: OcrBounds? = null,
 )
 
 data class OcrDocument(
@@ -53,6 +57,9 @@ data class OcrDocument(
         for (block in blocks) {
             val blockObj = JSONObject()
             blockObj.put("text", block.text)
+            block.bounds?.let { bounds ->
+                blockObj.put("bounds", JSONArray(listOf(bounds.left, bounds.top, bounds.right, bounds.bottom)))
+            }
             val linesArr = JSONArray()
             for (line in block.lines) {
                 val lineObj = JSONObject()
@@ -96,7 +103,13 @@ data class OcrDocument(
                             ),
                         )
                     }
-                    blocks.add(OcrBlock(text = blockText, lines = lines))
+                    val box = blockObj.optJSONArray("bounds")
+                    val bounds = if (box != null && box.length() == 4) {
+                        OcrBounds(box.getInt(0), box.getInt(1), box.getInt(2), box.getInt(3))
+                    } else {
+                        null
+                    }
+                    blocks.add(OcrBlock(text = blockText, lines = lines, bounds = bounds))
                 }
                 OcrDocument(fullText = fullText, blocks = blocks)
             }.getOrNull()

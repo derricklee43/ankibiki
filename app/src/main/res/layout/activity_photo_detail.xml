@@ -35,10 +35,10 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/refreshThumbnailButton"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/btn_refresh_thumbnail" />
+            android:text="@string/btn_rescan_photo" />
 
     </LinearLayout>
 
@@ -117,7 +117,7 @@
                 android:contentDescription="@string/delete_photo"
                 android:padding="10dp"
                 android:src="@drawable/ic_delete"
-                android:tint="#D32F2F" />
+                android:tint="?attr/colorError" />
 
         </LinearLayout>
 

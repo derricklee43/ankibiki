@@ -357,6 +357,12 @@ class MiningRepository(
         }
     }
 
+    /** Only a successful, explicitly authorized image rescan may clear photo edit protection. */
+    internal fun clearPhotoUserModificationFlag(mediaStoreId: Long) {
+        val values = ContentValues().apply { put("modified_by_user_flag", false) }
+        writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
+    }
+
     /** Marks existing sentence objects changed through the whole-photo text editor. */
     fun markSentencesModifiedByUser(photoId: Long, sentences: Set<String>) {
         val values = ContentValues().apply { put("modified_by_user_flag", true) }

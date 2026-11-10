@@ -48,6 +48,9 @@ class MlKitTextExtractor(
                 OcrBlock(
                     text = block.text,
                     lines = lines,
+                    bounds = block.boundingBox?.let { box ->
+                        OcrBounds(box.left, box.top, box.right, box.bottom)
+                    },
                 )
             }
             return OcrDocument(

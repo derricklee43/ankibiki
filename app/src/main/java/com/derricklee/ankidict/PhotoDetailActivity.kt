@@ -35,6 +35,19 @@ class PhotoDetailActivity : AppCompatActivity() {
     private var lastLoadedText: String = ""
     private var lastLoadedPhotoUri: String = ""
     private var pendingEditMediaId: Long = -1L
+    private var loadingText = true
+    private var operationInProgress = false
+    private var textLoadGeneration = 0L
+    private var rescanDialog: androidx.appcompat.app.AlertDialog? = null
+    private var tearingDown = false
+
+    private fun updateActionAvailability() {
+        val enabled = !loadingText && !operationInProgress && currentMediaStoreId() != null
+        binding.editTextButton.isEnabled = enabled
+        binding.deletePhotoButton.isEnabled = enabled
+        binding.refreshThumbnailButton.isEnabled = enabled
+        binding.photoPager.isUserInputEnabled = enabled
+    }
 
     private val textEditorLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -97,29 +110,38 @@ class PhotoDetailActivity : AppCompatActivity() {
             updateCounterAndLoadExtractedText(currentIndex)
         }
 
+        updateActionAvailability()
         binding.refreshThumbnailButton.setOnClickListener {
+            if (loadingText || operationInProgress) return@setOnClickListener
             val mediaId = currentMediaStoreId() ?: return@setOnClickListener
-            binding.refreshThumbnailButton.isEnabled = false
+            operationInProgress = true
+            updateActionAvailability()
+            // Resolve the current database row before any rescan image/thumbnail work.
+            // Capture this candidate once: a modal decision must never use currentIndex.
             ioExecutor.execute {
-                val photo = miningRepository.getPhoto(mediaId)
-                val uri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
-                val refreshed = if (uri.isNotBlank()) {
-                    PhotoThumbnailCache.refreshThumbnail(this, mediaId, uri)
-                } else {
-                    null
-                }
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    binding.refreshThumbnailButton.isEnabled = true
-                    if (refreshed != null) {
-                        pagerAdapter.notifyItemChanged(currentIndex)
-                        Toast.makeText(this, R.string.thumbnail_refreshed_toast, Toast.LENGTH_SHORT).show()
+                try {
+                    val photo = miningRepository.getPhoto(mediaId)
+                    val candidate = PhotoCandidate(
+                        mediaStoreId = mediaId,
+                        contentUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri,
+                        dateAdded = photo?.dateAdded ?: fallbackDateAdded,
+                    )
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        if (photo?.modifiedByUserFlag == true) {
+                            confirmRescan(candidate)
+                        } else {
+                            runRescan(candidate)
+                        }
                     }
+                } catch (error: Exception) {
+                    reportOperationFailure(error)
                 }
             }
         }
 
         binding.editTextButton.setOnClickListener {
+            if (loadingText || operationInProgress) return@setOnClickListener
             val mediaId = currentMediaStoreId() ?: return@setOnClickListener
             pendingEditMediaId = mediaId
             textEditorLauncher.launch(
@@ -133,29 +155,106 @@ class PhotoDetailActivity : AppCompatActivity() {
         }
 
         binding.deletePhotoButton.setOnClickListener {
+            if (loadingText || operationInProgress) return@setOnClickListener
             val mediaId = currentMediaStoreId() ?: return@setOnClickListener
-            binding.deletePhotoButton.isEnabled = false
+            operationInProgress = true
+            updateActionAvailability()
             ioExecutor.execute {
-                val photo = miningRepository.getPhoto(mediaId)
-                val resolvedUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
-                val resolvedDate = photo?.dateAdded ?: fallbackDateAdded
-                miningRepository.markPhotoDeleted(
-                    mediaStoreId = mediaId,
-                    contentUri = resolvedUri,
-                    dateAdded = resolvedDate,
-                )
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    Toast.makeText(this, R.string.photo_excluded_toast, Toast.LENGTH_SHORT).show()
-                    finish()
+                try {
+                    val photo = miningRepository.getPhoto(mediaId)
+                    val resolvedUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
+                    val resolvedDate = photo?.dateAdded ?: fallbackDateAdded
+                    miningRepository.markPhotoDeleted(
+                        mediaStoreId = mediaId,
+                        contentUri = resolvedUri,
+                        dateAdded = resolvedDate,
+                    )
+                    runOnUiThread {
+                        if (isFinishing || isDestroyed) return@runOnUiThread
+                        Toast.makeText(this, R.string.photo_excluded_toast, Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                } catch (error: Exception) {
+                    reportOperationFailure(error)
                 }
             }
         }
     }
 
     override fun onDestroy() {
+        tearingDown = true
+        rescanDialog?.dismiss()
+        rescanDialog = null
         ioExecutor.shutdownNow()
         super.onDestroy()
+    }
+
+    private fun confirmRescan(candidate: PhotoCandidate) {
+        if (isFinishing || isDestroyed || tearingDown) return
+        rescanDialog = PhotoRescanDialog.create(this) { decision ->
+            rescanDialog = null
+            if (isFinishing || isDestroyed || tearingDown) return@create
+            if (decision == PhotoRescanDecision.CANCEL) {
+                operationInProgress = false
+                updateActionAvailability()
+            } else {
+                runRescan(candidate, decision)
+            }
+        }.also { it.show() }
+    }
+
+    private fun runRescan(candidate: PhotoCandidate, decision: PhotoRescanDecision? = null) {
+        ioExecutor.execute {
+            try {
+                val result = miningPipelineRunner.rescanPhoto(candidate, decision)
+                // The runner can discover a new manual edit after our initial row query.
+                if (result == PhotoRescanResult.CONFIRMATION_REQUIRED) {
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed) confirmRescan(candidate)
+                    }
+                    return@execute
+                }
+                if (result == PhotoRescanResult.COMPLETED || result == PhotoRescanResult.SKIPPED) {
+                    checkNotNull(PhotoThumbnailCache.refreshThumbnail(
+                        this, candidate.mediaStoreId, candidate.contentUri,
+                    )) { getString(R.string.photo_thumbnail_refresh_failed) }
+                }
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    operationInProgress = false
+                    if (result == PhotoRescanResult.COMPLETED || result == PhotoRescanResult.SKIPPED) {
+                        val targetIndex = photoIds.indexOf(candidate.mediaStoreId)
+                        if (targetIndex >= 0) pagerAdapter.notifyItemChanged(targetIndex)
+                        if (result == PhotoRescanResult.COMPLETED && currentMediaStoreId() == candidate.mediaStoreId) {
+                            updateCounterAndLoadExtractedText(currentIndex)
+                        }
+                        val message = if (result == PhotoRescanResult.SKIPPED) {
+                            R.string.thumbnail_refreshed_toast
+                        } else {
+                            R.string.photo_rescanned_toast
+                        }
+                        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+                    }
+                    updateActionAvailability()
+                }
+            } catch (error: Exception) {
+                // Even if thumbnail regeneration failed after commit, show the new database text.
+                reportOperationFailure(error, candidate.mediaStoreId)
+            }
+        }
+    }
+
+    private fun reportOperationFailure(error: Exception, reloadMediaId: Long? = null) {
+        runOnUiThread {
+            if (isFinishing || isDestroyed || tearingDown) return@runOnUiThread
+            operationInProgress = false
+            if (reloadMediaId != null && currentMediaStoreId() == reloadMediaId) {
+                updateCounterAndLoadExtractedText(currentIndex)
+            }
+            updateActionAvailability()
+            Toast.makeText(this, getString(R.string.scan_failed_toast,
+                error.localizedMessage ?: error.javaClass.simpleName), Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun currentMediaStoreId(): Long? = photoIds.getOrNull(currentIndex)
@@ -164,40 +263,61 @@ class PhotoDetailActivity : AppCompatActivity() {
         val total = photoIds.size
         binding.photoCounterText.text = if (total > 1) "${position + 1} / $total" else ""
         val mediaId = photoIds.getOrNull(position) ?: return
+        val generation = ++textLoadGeneration
+        loadingText = true
+        lastLoadedText = ""
+        lastLoadedPhotoUri = ""
+        binding.extractedTextDisplay.text = ""
+        updateActionAvailability()
         ioExecutor.execute {
-            val photo = miningRepository.getPhoto(mediaId)
-            val text = photo?.extractedText.orEmpty()
-            val resolvedUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
-            runOnUiThread {
-                if (isFinishing || isDestroyed || currentIndex != position) return@runOnUiThread
-                lastLoadedText = text
-                lastLoadedPhotoUri = resolvedUri
-                binding.extractedTextDisplay.text =
-                    text.ifBlank { getString(R.string.no_extracted_text) }
+            try {
+                val photo = miningRepository.getPhoto(mediaId)
+                val text = photo?.extractedText.orEmpty()
+                val resolvedUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
+                runOnUiThread {
+                    if (isFinishing || isDestroyed || generation != textLoadGeneration ||
+                        currentMediaStoreId() != mediaId) return@runOnUiThread
+                    lastLoadedText = text
+                    lastLoadedPhotoUri = resolvedUri
+                    binding.extractedTextDisplay.text =
+                        text.ifBlank { getString(R.string.no_extracted_text) }
+                    loadingText = false
+                    updateActionAvailability()
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    if (isFinishing || isDestroyed || generation != textLoadGeneration) return@runOnUiThread
+                    loadingText = false
+                    reportOperationFailure(error)
+                }
             }
         }
     }
 
     private fun saveAmendedPhotoText(mediaId: Long, amendedText: String, reprocessWords: Boolean) {
-        binding.editTextButton.isEnabled = false
+        operationInProgress = true
+        updateActionAvailability()
         ioExecutor.execute {
-            miningPipelineRunner.reprocessPhotoText(
-                mediaStoreId = mediaId,
-                amendedText = amendedText,
-                reprocessWords = reprocessWords,
-            )
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                binding.editTextButton.isEnabled = true
-                lastLoadedText = amendedText
-                binding.extractedTextDisplay.text =
-                    amendedText.ifBlank { getString(R.string.no_extracted_text) }
-                val msgRes = if (reprocessWords) {
-                    R.string.text_saved_and_reprocessed_toast
-                } else {
-                    R.string.text_saved_toast
+            try {
+                miningPipelineRunner.reprocessPhotoText(
+                    mediaStoreId = mediaId,
+                    amendedText = amendedText,
+                    reprocessWords = reprocessWords,
+                )
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    operationInProgress = false
+                    if (currentMediaStoreId() == mediaId) updateCounterAndLoadExtractedText(currentIndex)
+                    updateActionAvailability()
+                    val msgRes = if (reprocessWords) {
+                        R.string.text_saved_and_reprocessed_toast
+                    } else {
+                        R.string.text_saved_toast
+                    }
+                    Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
                 }
-                Toast.makeText(this, msgRes, Toast.LENGTH_SHORT).show()
+            } catch (error: Exception) {
+                reportOperationFailure(error, mediaId)
             }
         }
     }

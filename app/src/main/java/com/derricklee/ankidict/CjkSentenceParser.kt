@@ -25,14 +25,21 @@ class CjkSentenceParser(
         val globalMedianHeight = medianInt(globalMainLineHeights)
 
         val sentences = mutableListOf<String>()
+        val stitchedBuffer = StringBuilder()
+        var previousBlock: OcrBlock? = null
 
         for (block in rawBlocks) {
+            // OCR blocks are layout guesses, not sentence boundaries. Continue across adjacent,
+            // aligned blocks in the same reading flow, but never blindly merge columns/regions.
+            if (stitchedBuffer.isNotEmpty() && !continuesReadingFlow(previousBlock, block)) {
+                sentences.addAll(splitIntoSentences(stitchedBuffer.toString()))
+                stitchedBuffer.setLength(0)
+            }
             val blockKanjiHeights = block.lines
                 .filter { line -> hasKanji(line.text) && line.boundingBoxHeightPx != null && line.boundingBoxHeightPx > 0 }
                 .mapNotNull { it.boundingBoxHeightPx }
             val referenceMedianHeight = medianInt(blockKanjiHeights) ?: globalMedianHeight
 
-            val stitchedBuffer = StringBuilder()
             for (line in block.lines) {
                 val cleaned = cleanLine(line.text)
                 if (cleaned.isEmpty()) continue
@@ -53,14 +60,31 @@ class CjkSentenceParser(
                 }
             }
 
-            if (stitchedBuffer.isNotEmpty()) {
-                sentences.addAll(splitIntoSentences(stitchedBuffer.toString()))
-            }
+            previousBlock = block
+        }
+        if (stitchedBuffer.isNotEmpty()) {
+            sentences.addAll(splitIntoSentences(stitchedBuffer.toString()))
         }
 
         return sentences
             .map { it.trim() }
             .filter { countCjkAndKana(it) >= 2 }
+    }
+
+    private fun continuesReadingFlow(previous: OcrBlock?, next: OcrBlock): Boolean {
+        val before = previous?.bounds ?: return false
+        val after = next.bounds ?: return false
+        val previousHeight = medianInt(previous.lines.mapNotNull { it.boundingBoxHeightPx?.takeIf { h -> h > 0 } })
+            ?: return false
+        val nextHeight = medianInt(next.lines.mapNotNull { it.boundingBoxHeightPx?.takeIf { h -> h > 0 } })
+            ?: return false
+        val height = maxOf(previousHeight, nextHeight)
+        if (minOf(previousHeight, nextHeight) < height * 0.65) return false
+        val verticalGap = after.top - before.bottom
+        val horizontalOverlap = minOf(before.right, after.right) - maxOf(before.left, after.left)
+        return horizontalOverlap > 0 &&
+            kotlin.math.abs(after.left - before.left) <= height * 1.5 &&
+            verticalGap >= -height * 0.25 && verticalGap <= height * 1.5
     }
 
     private fun isFuriganaLine(

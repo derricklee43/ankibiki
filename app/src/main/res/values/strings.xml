@@ -73,6 +73,14 @@
     <string name="scan_complete_toast">%1$d枚をスキャン（%2$d枚保存・%3$d件抽出）</string>
     <string name="scan_failed_toast">スキャンに失敗しました: %1$s</string>
     <string name="btn_refresh_thumbnail">↻ サムネイル更新</string>
+    <string name="btn_rescan_photo">再スキャン</string>
+    <string name="photo_rescan_dialog_title">編集済みの写真を再スキャン</string>
+    <string name="photo_rescan_warning">手動で編集したテキストがあります。承認すると写真からテキストを再抽出し、手動の編集と単語・文法の出現データを置き換えます。</string>
+    <string name="photo_rescan_skip_explanation">テキスト抽出をスキップすると、サムネイルのみ更新します。テキストと編集済みの状態は保持されます。</string>
+    <string name="btn_accept_rescan">承認して再スキャン</string>
+    <string name="btn_skip_text_extraction">テキスト抽出パイプラインをスキップ</string>
+    <string name="photo_rescanned_toast">写真を再スキャンしました</string>
+    <string name="photo_thumbnail_refresh_failed">サムネイルを更新できませんでした</string>
     <string name="thumbnail_refreshed_toast">サムネイルを再生成しました</string>
     <string name="btn_save_text">保存</string>
     <string name="reprocess_dialog_title">単語を再抽出しますか？</string>

@@ -139,6 +139,7 @@ class CloudVisionTextExtractor(
                             OcrBlock(
                                 text = blockTextBuilder.toString(),
                                 lines = lines,
+                                bounds = extractBounds(blockObj.optJSONObject("boundingBox")),
                             ),
                         )
                     }
@@ -159,6 +160,17 @@ class CloudVisionTextExtractor(
                 fullText = fullText,
                 blocks = blocks,
             )
+        }
+
+        private fun extractBounds(boundingBox: JSONObject?): OcrBounds? {
+            val vertices = boundingBox?.optJSONArray("vertices") ?: return null
+            if (vertices.length() == 0) return null
+            val points = (0 until vertices.length()).map { vertices.getJSONObject(it) }
+            val left = points.minOf { it.optInt("x", 0) }
+            val top = points.minOf { it.optInt("y", 0) }
+            val right = points.maxOf { it.optInt("x", 0) }
+            val bottom = points.maxOf { it.optInt("y", 0) }
+            return if (right > left && bottom > top) OcrBounds(left, top, right, bottom) else null
         }
 
         private fun extractBoundingHeight(boundingBox: JSONObject?): Int? {

@@ -84,6 +84,50 @@ class MiningPipelineRunner(
         val occurrencesCreated: Int,
     )
 
+    /** Replaces one photo's OCR and derived occurrences atomically; failures retain the old corpus. */
+    fun rescanPhoto(
+        candidate: PhotoCandidate,
+        decision: PhotoRescanDecision? = null,
+    ): PhotoRescanResult {
+        if (decision == PhotoRescanDecision.CANCEL) return PhotoRescanResult.CANCELLED
+        if (decision == PhotoRescanDecision.SKIP_TEXT_EXTRACTION) return PhotoRescanResult.SKIPPED
+        val originalPhoto = miningRepository.getPhoto(candidate.mediaStoreId)
+        if (originalPhoto?.modifiedByUserFlag == true && decision != PhotoRescanDecision.ACCEPT) {
+            return PhotoRescanResult.CONFIRMATION_REQUIRED
+        }
+        val originalSentenceFlags = miningRepository.getSentenceModificationFlags(candidate.mediaStoreId)
+        val prepared = imagePreprocessor.prepare(candidate, defaultPreprocessConfig)
+            ?: error("Could not load the photo for rescanning")
+        try {
+            val tagResult = imageTagger.classify(prepared)
+            val config = pipelineConfigs[tagResult.tag]
+                ?: error("No text extraction pipeline is available for this photo")
+            val document = config.textExtractor.extract(prepared, tagResult.preflightDocument)
+            check(document.fullText.isNotBlank()) { "No text was extracted; existing text was retained" }
+
+            val db = miningRepository.writableDatabase
+            db.beginTransaction()
+            try {
+                // OCR can take seconds: never overwrite an edit made after this attempt began.
+                if (miningRepository.getPhoto(candidate.mediaStoreId) != originalPhoto ||
+                    miningRepository.getSentenceModificationFlags(candidate.mediaStoreId) != originalSentenceFlags
+                ) {
+                    return PhotoRescanResult.CONFIRMATION_REQUIRED
+                }
+                miningRepository.deleteOccurrencesForPhoto(candidate.mediaStoreId)
+                // This is an explicit replacement of the same photo, not a newly discovered retake.
+                processOcrDocument(candidate, config, document, checkDuplicates = false)
+                miningRepository.clearPhotoUserModificationFlag(candidate.mediaStoreId)
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+            return PhotoRescanResult.COMPLETED
+        } finally {
+            if (!prepared.bitmap.isRecycled) prepared.bitmap.recycle()
+        }
+    }
+
     fun processPreparedPhoto(
         candidate: PhotoCandidate,
         prepared: PreparedImage,
@@ -132,13 +176,18 @@ class MiningPipelineRunner(
         candidate: PhotoCandidate,
         config: PipelineConfig,
         ocrDocument: OcrDocument,
+        checkDuplicates: Boolean = true,
     ): PhotoProcessOutcome {
         val tag = config.tag
-        val dupCheck = config.duplicateDetector.checkDuplicate(
-            extractedText = ocrDocument.fullText,
-            tag = tag,
-            config = config.duplicateDetectionConfig,
-        )
+        val dupCheck = if (checkDuplicates) {
+            config.duplicateDetector.checkDuplicate(
+                extractedText = ocrDocument.fullText,
+                tag = tag,
+                config = config.duplicateDetectionConfig,
+            )
+        } else {
+            DuplicateCheckResult(isDuplicate = false)
+        }
         if (dupCheck.isDuplicate) {
             miningRepository.upsertPhoto(
                 ScrapedPhoto(

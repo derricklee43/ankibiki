@@ -73,7 +73,7 @@ data class ScrapedPhoto(
     val ocrBlocksJson: String? = null,
     val status: PhotoStatus,
     val duplicateOfPhotoId: Long? = null,
-    /** Sticky provenance: a confirmed user save changed this text. Not an overwrite policy by itself. */
+    /** Set by a confirmed user text change; only an accepted image rescan clears photo protection. */
     val modifiedByUserFlag: Boolean = false,
 )
 
@@ -95,7 +95,7 @@ data class MatchedSentence(
     val occurrenceId: Long,
     val photoId: Long,
     val sentence: String,
-    /** Sticky provenance: a confirmed user save changed this text. Not an overwrite policy by itself. */
+    /** Persists through text reprocessing; fresh image rescans generate new, unmodified sentences. */
     val modifiedByUserFlag: Boolean = false,
 )
 
