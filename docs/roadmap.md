@@ -45,8 +45,10 @@ fresh-install photo re-link helper.
 - [ ] Provide an accessible corpus export and restore workflow.
 - [ ] Support an independent, off-device copy rather than relying exclusively on
       the gitignored, machine-local development backups.
-- [ ] Document recovery and demonstrate a restore into an isolated installation
+- [x] Document recovery and demonstrate a restore into an isolated installation
       or database before calling backup/recovery complete.
+      (docs/recovery.md; demonstrated 2026-11-10 on isolated databases and on a
+      fresh emulator install of the app — see demonstration logs)
 
 Acceptance: recover photos' metadata, text, user-edit flags, item visibility, and
 occurrence review/deletion state; compare restored data with the source. Surface

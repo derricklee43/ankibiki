@@ -116,6 +116,34 @@ visibility, 7 occurrence + 2 photo user-edit flags):
 | 8 | export/restore with photos included | 3 photo files round-tripped, sha256 identical; `diff` clean |
 | 9 | two restores of same bundle to separate targets | byte-identical outputs |
 
+## Isolated-install demonstration on an emulator (2026-11-10)
+
+With the Pixel disconnected, the device path was proven on a local
+Android 15 (API 35) emulator (`android-35/google_apis/x86_64`, WHPX-accelerated,
+headless; driven from WSL through the Windows `adb.exe`):
+
+1. Fresh debug install of the app; launched once (no `databases/` created —
+   Room opens `mining.db` lazily).
+2. `backup_bundle.py restore` of the real corpus bundle staged `mining.db`,
+   pushed via `/data/local/tmp`, copied in with `run-as` (documented device
+   path above).
+3. Launched the app → mining tab rendered the restored corpus: extracted
+   words with occurrence counts and frequency ranks (無念 1回·N3 #726, 最期
+   4回·N3 #344, 陸 with stored deck name `01 NihongoShark…`). The grammar
+   section showed "no data" — faithful to the source (the snapshot contains
+   122 WORD items, 0 GRAMMAR).
+4. Pulled the app's live `mining.db` back (after force-stop) and `diff`-ed
+   against the source snapshot: byte-identical, integrity ok.
+5. Ran `scripts/backup_mining_db.py` against the emulator end-to-end:
+   snapshot created (`backups/20261110-095903`), verified, and diffed
+   identical to source — the pre-test backup guard works on any adb device,
+   not just the phone.
+
+Known emulator gap: photo thumbnails show placeholders because the image
+bytes live in the Pixel's MediaStore; URIs in the restored DB don't resolve
+there. Covered by `included` bundles + the relink step once a device is
+attached.
+
 ## Off-device copies
 
 The bundle is one small zip — copy it anywhere independent of this machine and
