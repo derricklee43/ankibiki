@@ -89,15 +89,24 @@
             android:visibility="gone">
 
             <!-- Section 1: 最近の写真 (Top ~1/5 of page) -->
-            <LinearLayout
-                android:id="@+id/recentGallerySection"
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/recentPhotosCard"
                 android:layout_width="0dp"
                 android:layout_height="0dp"
-                android:orientation="vertical"
+                android:layout_margin="6dp"
+                app:cardCornerRadius="16dp"
+                app:cardElevation="3dp"
+                app:contentPadding="12dp"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintHeight_percent="0.25"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent">
+
+                <LinearLayout
+                    android:id="@+id/recentGallerySection"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:orientation="vertical">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -148,13 +157,15 @@
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/seeAllPhotosButton"
-                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="end"
                     android:text="@string/see_all" />
 
-            </LinearLayout>
+                </LinearLayout>
+
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- Lower ~4/5 of page: 抽出された単語 & 抽出された文法 -->
             <ScrollView
@@ -165,23 +176,30 @@
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintEnd_toEndOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toBottomOf="@id/recentGallerySection">
+                app:layout_constraintTop_toBottomOf="@id/recentPhotosCard">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:background="#22888888" />
-
                     <!-- Section 2: 抽出された単語 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="3dp"
+                        app:contentPadding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
                         android:text="@string/extracted_words_title"
                         android:textSize="16sp"
                         android:textStyle="bold" />
@@ -244,23 +262,33 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/seeAllWordsButton"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="end"
                         android:text="@string/see_all" />
 
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginTop="8dp"
-                        android:background="#22888888" />
+                    </LinearLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
 
                     <!-- Section 3: 抽出された文法 -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="3dp"
+                        app:contentPadding="12dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
                         android:text="@string/extracted_grammar_title"
                         android:textSize="16sp"
                         android:textStyle="bold" />
@@ -323,11 +351,15 @@
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/seeAllGrammarButton"
-                        style="@style/Widget.MaterialComponents.Button.TextButton"
+                        style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_gravity="end"
                         android:text="@string/see_all" />
+
+                    </LinearLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
 
                 </LinearLayout>
 

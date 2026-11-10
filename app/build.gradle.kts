@@ -80,3 +80,34 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.1")
 }
+
+// ---------------------------------------------------------------------------
+// mining.db backup guard (see scripts/backup_mining_db.py)
+//
+// mining.db on the phone is the ONLY copy of the mined corpus + triage
+// decisions, and Android deletes app data on uninstall -- which is how it was
+// once wiped by an instrumented-test run. gradle.properties keeps the
+// after-test uninstall from happening; this snapshots the DB immediately
+// BEFORE every gradle-initiated wipe (instrumented-test runs and the
+// uninstall* tasks) as the second layer of insurance.
+// ---------------------------------------------------------------------------
+val backupMiningDb by tasks.registering(Exec::class) {
+    description = "Snapshot the phone's mining.db into <repo>/backups/"
+    group = "verification"
+    workingDir = rootProject.projectDir
+    commandLine("python3", rootProject.file("scripts/backup_mining_db.py").absolutePath)
+    // No isIgnoreExitValue: the script exits 0 when there is nothing to
+    // protect (no device / app not installed / mining.db never created) and
+    // non-zero only when a backup was due but FAILED -- that must block the
+    // test run, otherwise the guard silently becomes the wipe it prevents.
+}
+
+// connectedDebugAndroidTest = the historical accident; uninstallAll /
+// uninstallDebug / uninstallRelease / uninstallDebugAndroidTest all delete app
+// data the same way. Backup failure must block any of them (escape hatch for a
+// deliberate wipe-without-backup: `gradle <task> -x backupMiningDb`).
+tasks.matching {
+    it.name == "connectedDebugAndroidTest" || it.name.startsWith("uninstall")
+}.configureEach {
+    dependsOn(backupMiningDb)
+}

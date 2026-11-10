@@ -11,4 +11,5 @@ local.properties
 scripts/dictdata/
 app/src/main/assets/audio.db
 app/src/main/assets/ids.db
+backups/
 __pycache__/
