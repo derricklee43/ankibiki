@@ -16,6 +16,13 @@ If nothing in your decks matches, results fall back to a bundled offline diction
 (KANJIDIC2 + JMdict + RADKFILE for Japanese, CC-CEDICT for Chinese — see
 [ATTRIBUTION.md](ATTRIBUTION.md)).
 
+## Project direction
+
+See [the improvement roadmap](docs/roadmap.md) for prioritized recommendations and
+acceptance criteria covering data recovery, safe reprocessing, extraction quality,
+correction UX, card creation, and lifecycle reliability. The roadmap complements
+[the original photo-mining design](docs/saikutsu-photo-mining-plan.md).
+
 ## Requirements
 
 - AnkiDroid installed, with the two note types above present in your collection (their model
