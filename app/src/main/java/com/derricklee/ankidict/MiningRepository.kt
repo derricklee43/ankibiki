@@ -1013,5 +1013,9 @@ class MiningRepository(
     companion object {
         private const val DB_NAME = "mining.db"
         private const val DB_VERSION = 3
+
+        /** For RecoveryManager: schema expectations of the live corpus db. */
+        internal fun expectedDbName(): String = DB_NAME
+        internal fun expectedUserVersion(): Int = DB_VERSION
     }
 }

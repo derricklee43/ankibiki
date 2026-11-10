@@ -18,12 +18,19 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.PopupWindow
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityMainBinding
+import com.derricklee.ankidict.databinding.ItemSettingsActionBinding
 import com.derricklee.ankidict.databinding.ItemSettingsToggleBinding
 import com.derricklee.ankidict.databinding.PopupSettingsBinding
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import android.provider.OpenableColumns
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -56,6 +63,16 @@ class MainActivity : AppCompatActivity() {
     private val miningExecutor = Executors.newSingleThreadExecutor()
     private val scanExecutor = Executors.newSingleThreadExecutor()
     private val searchGeneration = AtomicInteger(0)
+
+    // Corpus recovery (docs/recovery.md): export/restore of the self-verifying bundle.
+    private val recoveryManager by lazy { RecoveryManager(this, miningRepository) }
+    private var recoveryBusy = false
+    private val exportBundleLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip"),
+    ) { uri -> uri?.let { startRecoveryExport(it) } }
+    private val restoreBundleLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri -> uri?.let { uriStr -> planRecoveryRestore(uriStr, queryDisplayName(uriStr)) } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -303,6 +320,7 @@ class MainActivity : AppCompatActivity() {
     // Iterates SearchSource.entries so a new source added later needs no UI changes here.
     private fun showSettingsMenu() {
         val popupBinding = PopupSettingsBinding.inflate(layoutInflater)
+        var recoveryPopup: PopupWindow? = null
         for (source in SearchSource.entries) {
             val rowBinding = ItemSettingsToggleBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
             rowBinding.toggleLabelText.text = source.label
@@ -315,6 +333,24 @@ class MainActivity : AppCompatActivity() {
 
         val bubbleRow = ItemSettingsToggleBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
         bubbleRow.toggleLabelText.text = getString(R.string.floating_bubble_toggle)
+
+        val exportRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
+        exportRow.actionLabel.setText(R.string.recovery_export_label)
+        exportRow.root.setOnClickListener {
+            recoveryPopup?.dismiss()
+            if (!recoveryBusy) {
+                val ts = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+                exportBundleLauncher.launch("ankibiki-corpus-$ts.zip")
+            }
+        }
+        val restoreRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
+        restoreRow.actionLabel.setText(R.string.recovery_restore_label)
+        restoreRow.root.setOnClickListener {
+            recoveryPopup?.dismiss()
+            if (!recoveryBusy) {
+                restoreBundleLauncher.launch(arrayOf("application/zip"))
+            }
+        }
         bubbleRow.toggleSwitch.isChecked =
             settingsRepository.isFloatingBubbleEnabled() && Settings.canDrawOverlays(this)
         bubbleRow.toggleSwitch.setOnCheckedChangeListener { buttonView, isChecked ->
@@ -337,10 +373,124 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        PopupWindow(popupBinding.root, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true)
-            .apply { isOutsideTouchable = true }
-            .showAsDropDown(binding.settingsButton)
+        recoveryPopup = PopupWindow(
+            popupBinding.root, ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, true,
+        ).apply { isOutsideTouchable = true }
+        recoveryPopup?.showAsDropDown(binding.settingsButton)
     }
+
+    private fun startRecoveryExport(dest: Uri) {
+        if (recoveryBusy) return
+        recoveryBusy = true
+        Toast.makeText(this, R.string.recovery_export_progress, Toast.LENGTH_SHORT).show()
+        scanExecutor.execute {
+            val outcome = runCatching { recoveryManager.exportBundle(dest) }
+            runOnUiThread {
+                recoveryBusy = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                outcome.fold(
+                    onSuccess = { s ->
+                        showRecoveryDialog(
+                            getString(R.string.recovery_export_title),
+                            getString(
+                                R.string.recovery_export_done, s.suggestedName,
+                                s.rows["scraped_photos"], s.rows["extracted_items"],
+                                s.rows["item_occurrences"], s.photosIncluded, s.photosMissing,
+                            ),
+                        )
+                    },
+                    onFailure = { e ->
+                        showRecoveryDialog(getString(R.string.recovery_error_title), e.message.orEmpty())
+                    },
+                )
+            }
+        }
+    }
+
+    private fun planRecoveryRestore(src: Uri, name: String?) {
+        if (recoveryBusy) return
+        recoveryBusy = true
+        Toast.makeText(this, R.string.recovery_restore_progress, Toast.LENGTH_SHORT).show()
+        scanExecutor.execute {
+            val outcome = runCatching { recoveryManager.validateBundle(src, name) }
+            runOnUiThread {
+                recoveryBusy = false
+                if (isFinishing || isDestroyed) {
+                    recoveryManager.discardStaged()
+                    return@runOnUiThread
+                }
+                outcome.fold(
+                    onSuccess = { plan -> confirmRecoveryRestore(plan) },
+                    onFailure = { e ->
+                        recoveryManager.discardStaged()
+                        showRecoveryDialog(getString(R.string.recovery_error_title), e.message.orEmpty())
+                    },
+                )
+            }
+        }
+    }
+
+    private fun confirmRecoveryRestore(plan: RecoveryManager.RestorePlan) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.recovery_restore_title)
+            .setMessage(
+                getString(
+                    R.string.recovery_restore_confirm, plan.bundleName, plan.userVersion,
+                    plan.rows["scraped_photos"], plan.rows["extracted_items"],
+                    plan.rows["item_occurrences"], plan.photosAvailable,
+                ),
+            )
+            .setNegativeButton(R.string.recovery_cancel) { _, _ -> recoveryManager.discardStaged() }
+            .setPositiveButton(R.string.recovery_restore_go) { _, _ -> applyRecoveryRestore(plan) }
+            .show()
+    }
+
+    private fun applyRecoveryRestore(plan: RecoveryManager.RestorePlan) {
+        if (recoveryBusy) return
+        recoveryBusy = true
+        Toast.makeText(this, R.string.recovery_restore_apply_progress, Toast.LENGTH_SHORT).show()
+        scanExecutor.execute {
+            // On success this kills the process and an alarm relaunches the app.
+            val outcome = runCatching { recoveryManager.applyRestore(plan) }
+            runOnUiThread {
+                recoveryBusy = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                outcome.fold(
+                    onSuccess = {
+                        // Fresh activity over the swapped database; CLEAR_TASK discards
+                        // every stale MiningRepository. Android 15 blocks background
+                        // relaunch tricks, so this happens from the foreground dialog.
+                        val launch = packageManager.getLaunchIntentForPackage(packageName)
+                        if (launch != null) {
+                            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                            startActivity(launch)
+                        } else {
+                            showRecoveryDialog(getString(R.string.recovery_export_title),
+                                getString(R.string.recovery_restart_manually))
+                        }
+                    },
+                    onFailure = { e ->
+                        recoveryManager.discardStaged()
+                        showRecoveryDialog(getString(R.string.recovery_error_title), e.message.orEmpty())
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showRecoveryDialog(title: String, message: String) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton(R.string.recovery_dismiss, null)
+            .show()
+    }
+
+    private fun queryDisplayName(uri: Uri): String? = runCatching {
+        contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getString(0) else null
+        }
+    }.getOrNull()
 
     private fun runPhotoScan() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) !=

@@ -98,4 +98,18 @@
     <string name="filter_active">通常</string>
     <string name="filter_hidden">非表示</string>
     <string name="filter_archived">アーカイブ</string>
+    <string name="recovery_export_label">Export corpus backup (bundle)</string>
+    <string name="recovery_restore_label">Restore corpus from bundle</string>
+    <string name="recovery_export_progress">Exporting corpus backup…</string>
+    <string name="recovery_restore_progress">Checking bundle…</string>
+    <string name="recovery_restore_apply_progress">Installing restored database…</string>
+    <string name="recovery_export_title">Backup exported</string>
+    <string name="recovery_export_done">%1$s\nphotos %2$d · items %3$d · occurrences %4$d\nphotos embedded: %5$d · unavailable: %6$d</string>
+    <string name="recovery_error_title">Recovery failed</string>
+    <string name="recovery_restore_title">Confirm restore</string>
+    <string name="recovery_restore_confirm">Bundle %1$s (schema v%2$d):\nphotos %3$d · items %4$d · occurrences %5$d\nphotos embedded: %6$d\n\nRestoring REPLACES the current corpus (the current copy is kept as mining.db.pre-restore) and restarts AnkiBiki. Continue?</string>
+    <string name="recovery_restore_go">Restore</string>
+    <string name="recovery_cancel">Cancel</string>
+    <string name="recovery_dismiss">OK</string>
+    <string name="recovery_restart_manually">Restored. Close and reopen AnkiBiki to load the recovered corpus.</string>
 </resources>

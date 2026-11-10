@@ -1,8 +1,12 @@
 # AnkiBiki data recovery
 
-Status: **local recovery workflow implemented and demonstrated** (this doc +
-`scripts/backup_bundle.py`). In-app export/restore UI is still open — see
-[roadmap §1](roadmap.md).
+Status: **in-app export/restore workflow implemented and demonstrated** —
+Settings (top-right) → *Export corpus backup (bundle)* / *Restore corpus from
+bundle* on the lookup tab. Bundles are fully compatible with
+`scripts/backup_bundle.py` in both directions (proved on an API 35 emulator
+2026-11-10). Remaining pieces: photos-included export needs the device's
+MediaStore readable (works automatically when reconnected), and the fresh-device
+photo re-link helper.
 
 ## What the corpus is, and where it lives
 
@@ -155,7 +159,11 @@ recoverable.
 
 ## Known gaps (open)
 
-- In-app export/restore UI (roadmap §1 first checkbox) — today's workflow
-  requires a dev machine; the bundle format above is what the UI will read/write.
-- `scripts/relink_photos` for fresh-device remap (step 8 of device path).
-- Device-staged photo pull (`backups/` snapshots contain the db only).
+- ~~In-app export/restore UI~~ — done: RecoveryManager + Settings menu entries
+  (SAF picker, confirmation dialog, self-relaunch via CLEAR_TASK; Android 15
+  blocks background relaunch, so the app restarts itself from the foreground).
+- `scripts/relink_photos` for fresh-device remap (step 8 of device path). The
+  in-app restore stages `included` bundle photos to `files/recovery-photos/`
+  with `photos-map.json` and leaves MediaStore registration for this helper.
+- Device-staged photo pull (`backups/` snapshots contain the db only; the
+  in-app export embeds photos whenever MediaStore can read them).
