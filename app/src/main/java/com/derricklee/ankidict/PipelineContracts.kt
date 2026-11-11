@@ -49,10 +49,16 @@ data class OcrBlock(
 data class OcrDocument(
     val fullText: String,
     val blocks: List<OcrBlock>,
+    /** Which extractor produced this document (e.g. "cloud-vision", "on-device"); null = pre-transparency scan. */
+    val provider: String? = null,
+    /** Human-readable caveat, e.g. a cloud fallback reason or an on-device failure class. */
+    val note: String? = null,
 ) {
     fun toJsonString(): String {
         val root = JSONObject()
         root.put("fullText", fullText)
+        provider?.let { root.put("provider", it) }
+        note?.let { root.put("note", it) }
         val blocksArr = JSONArray()
         for (block in blocks) {
             val blockObj = JSONObject()
@@ -111,7 +117,12 @@ data class OcrDocument(
                     }
                     blocks.add(OcrBlock(text = blockText, lines = lines, bounds = bounds))
                 }
-                OcrDocument(fullText = fullText, blocks = blocks)
+                OcrDocument(
+                    fullText = fullText,
+                    blocks = blocks,
+                    provider = root.optString("provider").takeIf { it.isNotBlank() },
+                    note = root.optString("note").takeIf { it.isNotBlank() },
+                )
             }.getOrNull()
         }
     }

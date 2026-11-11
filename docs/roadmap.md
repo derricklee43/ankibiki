@@ -107,13 +107,25 @@ Passing implementation tests is necessary but is not an accuracy benchmark.
 
 ## 3. Make correction and failures understandable
 
-- [ ] Show raw OCR alongside parsed/user-edited text, without overwriting either
+- [x] Show raw OCR alongside parsed/user-edited text, without overwriting either
       merely to display it.
-- [ ] Record and expose the OCR provider used, fallback events, and meaningful
+- [x] Record and expose the OCR provider used, fallback events, and meaningful
       stage failures; distinguish unavailable processing from genuinely empty text.
-- [ ] Preview what reprocessing will replace and what existing work it will retain.
-- [ ] Clearly indicate when text was saved without refreshing derived word/grammar
+- [x] Preview what reprocessing will replace and what existing work it will retain.
+- [x] Clearly indicate when text was saved without refreshing derived word/grammar
       occurrences, and offer a deliberate way to bring them up to date.
+
+Implemented 2026-11-10 and verified on the emulator UI: photo detail now shows
+an `OCR: <provider>` line (Cloud Vision / on-device / pre-scan / unknown for
+legacy scans) plus fallback and recognition-failure notes persisted in
+`ocr_blocks_json`; an expandable raw-OCR section (monospace, selectable, never
+overwritten); a `derived words are stale` chip when the display text and
+occurrence row keys diverge, with a deliberate refresh action; and a preview
+dialog before every word-reprocess reporting kept/new/removed sentences and
+explicitly warning which removed sentences were hand-edited or carry
+reviewed/deleted history. Follow-ups: fold the editor's intent modal and the
+impact preview into one dialog; add the same preview to the sentence-level
+editor path (still post-hoc toasts only).
 
 Acceptance: the user can explain what happened to a photo and why its results
 changed without inspecting database JSON or developer logs. Any quality indicator

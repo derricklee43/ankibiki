@@ -91,6 +91,11 @@
             android:layout_weight="1"
             android:fillViewport="true">
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
             <TextView
                 android:textIsSelectable="true"
                 android:id="@+id/extractedTextDisplay"
@@ -100,6 +105,47 @@
                 android:lineSpacingExtra="4dp"
                 android:padding="4dp"
                 android:textSize="15sp" />
+
+            <TextView
+                android:textIsSelectable="true"
+                android:id="@+id/ocrSourceText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="4dp"
+                android:paddingTop="2dp"
+                android:textAppearance="?attr/textAppearanceCaption"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/staleWordsChip"
+                style="@style/Widget.Material3.Button.TonalButton.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/chip_stale_words"
+                android:visibility="gone"
+                app:icon="@android:drawable/ic_dialog_alert" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toggleRawOcrButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="@string/btn_show_raw_ocr" />
+
+            <TextView
+                android:textIsSelectable="true"
+                android:id="@+id/rawOcrText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/colorSurfaceContainerHighest"
+                android:fontFamily="monospace"
+                android:padding="8dp"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+            </LinearLayout>
 
         </ScrollView>
 

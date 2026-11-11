@@ -32,7 +32,11 @@ class MlKitTextExtractor(
             val result = Tasks.await(recognizer.process(inputImage), 15, TimeUnit.SECONDS)
             result.toOcrDocument()
         }.getOrElse {
-            OcrDocument(fullText = "", blocks = emptyList())
+            OcrDocument(
+                fullText = "",
+                blocks = emptyList(),
+                note = "On-device recognition failed (${it.javaClass.simpleName})",
+            )
         }
     }
 

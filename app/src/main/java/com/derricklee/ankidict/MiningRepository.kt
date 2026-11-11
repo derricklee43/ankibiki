@@ -386,6 +386,29 @@ class MiningRepository(
         return flags
     }
 
+    /** Aggregated occurrence rows per sentence key, for staleness detection and reprocess previews. */
+    fun getOccurrenceSentenceRows(photoId: Long): List<ExtractionStatus.SentenceRows> {
+        val rows = mutableListOf<ExtractionStatus.SentenceRows>()
+        readableDatabase.rawQuery(
+            "SELECT sentence, COUNT(*), SUM(state = 'SEEN'), SUM(state = 'DELETED'), MAX(modified_by_user_flag)" +
+                " FROM item_occurrences WHERE photo_id = ? GROUP BY sentence",
+            arrayOf(photoId.toString()),
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                rows.add(
+                    ExtractionStatus.SentenceRows(
+                        sentence = cursor.getString(0),
+                        rowCount = cursor.getInt(1),
+                        reviewedCount = cursor.getInt(2),
+                        deletedCount = cursor.getInt(3),
+                        userEdited = cursor.getInt(4) != 0,
+                    ),
+                )
+            }
+        }
+        return rows
+    }
+
     /** Hard-deletes all `item_occurrences` rows belonging to [photoId] before reprocessing its text. */
     fun deleteOccurrencesForPhoto(photoId: Long) {
         writableDatabase.delete(

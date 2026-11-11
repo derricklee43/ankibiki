@@ -205,14 +205,20 @@ class CompositeTextExtractor(
         image: PreparedImage,
         preflightDocument: OcrDocument?,
     ): OcrDocument {
-        if (cloudExtractor.isConfigured()) {
-            val cloudDoc = runCatching {
-                cloudExtractor.extract(image, preflightDocument)
-            }.getOrNull()
-            if (cloudDoc != null && cloudDoc.fullText.isNotBlank()) {
-                return cloudDoc
-            }
+        if (preflightDocument != null && preflightDocument.fullText.isNotBlank()) {
+            return preflightDocument.copy(provider = preflightDocument.provider ?: "on-device-preflight")
         }
-        return fallbackExtractor.extract(image, preflightDocument)
+        var cloudFailure: String? = null
+        if (cloudExtractor.isConfigured()) {
+            val outcome = runCatching { cloudExtractor.extract(image, preflightDocument) }
+            val cloudDoc = outcome.getOrNull()
+            if (cloudDoc != null && cloudDoc.fullText.isNotBlank()) {
+                return cloudDoc.copy(provider = "cloud-vision")
+            }
+            cloudFailure = outcome.exceptionOrNull()?.let { "Cloud Vision failed (${it.javaClass.simpleName})" }
+                ?: "Cloud Vision returned no text"
+        }
+        val fallback = fallbackExtractor.extract(image, preflightDocument)
+        return fallback.copy(provider = "on-device", note = cloudFailure ?: fallback.note)
     }
 }

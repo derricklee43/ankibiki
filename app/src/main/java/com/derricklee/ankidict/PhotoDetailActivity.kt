@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,6 +41,9 @@ class PhotoDetailActivity : AppCompatActivity() {
     private var textLoadGeneration = 0L
     private var rescanDialog: androidx.appcompat.app.AlertDialog? = null
     private var tearingDown = false
+    private var lastLoadedDocument: OcrDocument? = null
+    private var lastLoadedRows: List<ExtractionStatus.SentenceRows> = emptyList()
+    private var rawOcrVisible = false
 
     private fun updateActionAvailability() {
         val enabled = !loadingText && !operationInProgress && currentMediaStoreId() != null
@@ -58,7 +62,14 @@ class PhotoDetailActivity : AppCompatActivity() {
             val reprocessWords = result.data
                 ?.getBooleanExtra(TextEditorActivity.RESULT_REPROCESS_WORDS, true) ?: true
             if (pendingEditMediaId >= 0L) {
-                saveAmendedPhotoText(pendingEditMediaId, amendedText, reprocessWords)
+                if (!reprocessWords) {
+                    saveAmendedPhotoText(pendingEditMediaId, amendedText, reprocessWords = false)
+                } else {
+                    // Show what the word-reprocess will replace BEFORE committing (roadmap §3).
+                    showReprocessPreview(pendingEditMediaId, amendedText) {
+                        saveAmendedPhotoText(pendingEditMediaId, amendedText, reprocessWords = true)
+                    }
+                }
             }
         }
     }
@@ -152,6 +163,18 @@ class PhotoDetailActivity : AppCompatActivity() {
                     confirmTitle = getString(R.string.reprocess_dialog_title),
                 ),
             )
+        }
+
+        binding.toggleRawOcrButton.setOnClickListener {
+            rawOcrVisible = !rawOcrVisible
+            applyRawOcrVisibility()
+        }
+        binding.staleWordsChip.setOnClickListener {
+            if (loadingText || operationInProgress) return@setOnClickListener
+            val mediaId = currentMediaStoreId() ?: return@setOnClickListener
+            showReprocessPreview(mediaId, lastLoadedText) {
+                saveAmendedPhotoText(mediaId, lastLoadedText, reprocessWords = true)
+            }
         }
 
         binding.deletePhotoButton.setOnClickListener {
@@ -267,20 +290,28 @@ class PhotoDetailActivity : AppCompatActivity() {
         loadingText = true
         lastLoadedText = ""
         lastLoadedPhotoUri = ""
+        lastLoadedDocument = null
+        lastLoadedRows = emptyList()
         binding.extractedTextDisplay.text = ""
+        bindTransparencyViews()
         updateActionAvailability()
         ioExecutor.execute {
             try {
                 val photo = miningRepository.getPhoto(mediaId)
                 val text = photo?.extractedText.orEmpty()
+                val rows = miningRepository.getOccurrenceSentenceRows(mediaId)
+                val document = OcrDocument.fromJsonString(photo?.ocrBlocksJson)
                 val resolvedUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
                 runOnUiThread {
                     if (isFinishing || isDestroyed || generation != textLoadGeneration ||
                         currentMediaStoreId() != mediaId) return@runOnUiThread
                     lastLoadedText = text
                     lastLoadedPhotoUri = resolvedUri
+                    lastLoadedRows = rows
+                    lastLoadedDocument = document
                     binding.extractedTextDisplay.text =
                         text.ifBlank { getString(R.string.no_extracted_text) }
+                    bindTransparencyViews()
                     loadingText = false
                     updateActionAvailability()
                 }
@@ -321,6 +352,72 @@ class PhotoDetailActivity : AppCompatActivity() {
                 }
             } catch (error: Exception) {
                 reportOperationFailure(error, mediaId)
+            }
+        }
+    }
+
+    /** Provider line, raw-OCR section, and stale-words chip for the currently loaded photo (roadmap §3). */
+    private fun bindTransparencyViews() {
+        val document = lastLoadedDocument
+        val providerLabel = ExtractionStatus.describeProvider(document)
+        binding.ocrSourceText.text = getString(
+            R.string.ocr_source_prefix,
+            if (providerLabel.isEmpty()) getString(R.string.ocr_source_unknown) else providerLabel,
+        ) + document?.note?.let { " — $it" }.orEmpty()
+        val raw = document?.fullText.orEmpty()
+        binding.rawOcrText.text = raw +
+            if (raw.isNotEmpty() && raw == lastLoadedText) " " + getString(R.string.raw_ocr_same_as_display) else ""
+        applyRawOcrVisibility()
+        binding.staleWordsChip.visibility =
+            if (lastLoadedText.isNotBlank() && ExtractionStatus.isStale(lastLoadedText.lines(), lastLoadedRows)) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
+    }
+
+    private fun applyRawOcrVisibility() {
+        binding.toggleRawOcrButton.visibility = if (lastLoadedDocument != null) View.VISIBLE else View.GONE
+        binding.rawOcrText.visibility = if (rawOcrVisible && lastLoadedDocument != null) View.VISIBLE else View.GONE
+        binding.toggleRawOcrButton.setText(
+            if (rawOcrVisible) R.string.btn_hide_raw_ocr else R.string.btn_show_raw_ocr,
+        )
+    }
+
+    /**
+     * Read-only impact preview shown BEFORE any word-reprocess commit:
+     * keeps / new / removed sentences plus how much triage and hand-edit history would be replaced.
+     */
+    private fun showReprocessPreview(mediaId: Long, newText: String, onConfirm: () -> Unit) {
+        operationInProgress = true
+        updateActionAvailability()
+        ioExecutor.execute {
+            val rows = runCatching { miningRepository.getOccurrenceSentenceRows(mediaId) }
+                .getOrDefault(emptyList())
+            val preview = ExtractionStatus.preview(newText.lines(), rows)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                operationInProgress = false
+                updateActionAvailability()
+                var message = getString(
+                    R.string.reprocess_preview_message,
+                    preview.keptSentences, preview.addedSentences, preview.removedSentences,
+                )
+                if (preview.triagedRowsInRemoved > 0) {
+                    message += getString(R.string.reprocess_preview_triaged_note, preview.triagedRowsInRemoved)
+                }
+                if (preview.editedSentencesInRemoved > 0) {
+                    message += getString(R.string.reprocess_preview_edited_note, preview.editedSentencesInRemoved)
+                }
+                if (preview.triagedRowsInRemoved == 0 && preview.editedSentencesInRemoved == 0) {
+                    message += getString(R.string.reprocess_preview_none_lost)
+                }
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.reprocess_preview_title)
+                    .setMessage(message)
+                    .setNegativeButton(R.string.btn_cancel) { dialog, _ -> dialog.dismiss() }
+                    .setPositiveButton(R.string.btn_reprocess_and_save) { _, _ -> onConfirm() }
+                    .show()
             }
         }
     }

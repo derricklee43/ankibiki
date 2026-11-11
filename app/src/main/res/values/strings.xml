@@ -91,6 +91,17 @@
     <string name="text_saved_and_reprocessed_toast">保存して単語を再抽出しました</string>
     <string name="text_saved_toast">テキストを保存しました</string>
     <string name="btn_edit_sentence">編集</string>
+    <string name="chip_stale_words">導出した単語が古い</string>
+    <string name="btn_show_raw_ocr">OCR生文を表示</string>
+    <string name="btn_hide_raw_ocr">OCR生文を隠す</string>
+    <string name="ocr_source_prefix">OCR: %1$s</string>
+    <string name="ocr_source_unknown">不明（旧バージョンで抽出）</string>
+    <string name="raw_ocr_same_as_display">（表示テキストと同じ）</string>
+    <string name="reprocess_preview_title">単語を更新しますか？</string>
+    <string name="reprocess_preview_message">保持 %1$d · 新規 %2$d · 削除 %3$d 文</string>
+    <string name="reprocess_preview_triaged_note">\n削除でレビュー済み/削除済みの出現 %1$d 件も消えます。</string>
+    <string name="reprocess_preview_edited_note">\n削除で手編集された文 %1$d 件が置換されます。</string>
+    <string name="reprocess_preview_none_lost">\n（レビュー履歴は失われません）</string>
     <string name="amend_sentence_dialog_title">例文を編集</string>
     <string name="sort_count">回数</string>
     <string name="sort_date">日時</string>
