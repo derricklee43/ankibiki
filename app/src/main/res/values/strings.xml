@@ -92,6 +92,7 @@
     <string name="text_saved_and_reprocessed_toast">保存して単語を再抽出しました</string>
     <string name="text_saved_toast">テキストを保存しました</string>
     <string name="btn_edit_sentence">編集</string>
+    <string name="view_single_sentence">文を表示</string>
     <string name="chip_stale_words">導出した単語が古い</string>
     <string name="btn_show_raw_ocr">OCR生文を表示</string>
     <string name="btn_hide_raw_ocr">OCR生文を隠す</string>
