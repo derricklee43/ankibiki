@@ -8,6 +8,17 @@ bundle* on the lookup tab. Bundles are fully compatible with
 MediaStore readable (works automatically when reconnected), and the fresh-device
 photo re-link helper.
 
+Demo log (2026-11-10, second round, real corpus): Pixel snapshot
+`backups/20261110-190438/mining.db` (50 photos / 214 items / 262 occurrences)
+→ PC-built bundle → in-app restore on emulator → restored DB byte-identical to
+the bundle's `mining.db`, manifest sha256 match, all three tables
+content-hash-identical to the Pixel source, `integrity_check ok`, schema v3,
+previous corpus preserved as `mining.db.pre-restore`. App-side export on the
+emulator produced a bundle that `backup_bundle.py verify` accepts; its database
+is content-identical to the source (byte-delta only from the WAL-checkpoint
+header counter). Earlier same-day demos (tampered/emptied bundle rejection)
+remain covered by the restore validation tests.
+
 ## What the corpus is, and where it lives
 
 Everything the app derives lives in one SQLite database, `mining.db`

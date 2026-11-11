@@ -38,17 +38,22 @@ This roadmap complements those designs rather than replacing them.
 
 In progress: the verifiable bundle format, restore/diff tooling, documented
 workflow, and an isolated-database restore demonstration are in
-[docs/recovery.md](recovery.md) (`scripts/backup_bundle.py`). Remaining: the
-in-app export/restore UI, photo bytes staged from the device, and the
-fresh-install photo re-link helper.
+[docs/recovery.md](recovery.md) (`scripts/backup_bundle.py`). A second-round
+demo (2026-11-10) restored the REAL 50-photo Pixel corpus through the in-app
+flow into an isolated emulator install and proved content-hash equality both
+after restore and after an app-side re-export (demo log in docs/recovery.md).
+Remaining: photo bytes staged from the device, and the fresh-install photo
+re-link helper.
 
 - [x] Provide an accessible corpus export and restore workflow.
       (RecoveryManager; Settings → Export/Restore, SAF-picked bundle location;
       demonstrated on API 35 emulator 2026-11-10, bundle-compatible with the PC tool)
 - [ ] Support an independent, off-device copy rather than relying exclusively on
       the gitignored, machine-local development backups.
-      (workflow exists — export to any storage incl. cloud folders; first real
-      off-device copies of YOUR corpus remain, and photo bytes need the device)
+      (workflow exists; first real bundles of YOUR corpus now live off the phone
+      in backups/manual/*.zip, content-verified against the Pixel source —
+      copying one off this machine is still a manual step, and photo bytes
+      need the device connected at export time)
 - [x] Document recovery and demonstrate a restore into an isolated installation
       or database before calling backup/recovery complete.
       (docs/recovery.md; demonstrated 2026-11-10 on isolated databases and on a
