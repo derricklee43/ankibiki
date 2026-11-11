@@ -372,7 +372,10 @@ class MiningPipelineRunner(
         } else {
             emptySet()
         }
-        val oldSet = oldSentences.toSet()
+        // Reconcile against the occurrence ROWS, not the photo text: a previous text-only save
+        // intentionally leaves rows keyed by the old sentences ("derived words are stale"), so
+        // only the rows show what extraction state actually exists for this photo.
+        val oldSet = miningRepository.getSentenceModificationFlags(mediaStoreId).keys
         val newSet = newSentences.toSet()
         val keptSentences = newSet.count { it in oldSet }
         val removedSentences = (oldSet - newSet).toList()

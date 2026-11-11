@@ -61,11 +61,11 @@ whether source images themselves are included or only referenced by URI.
 
 ### Safe reprocessing
 
-- [ ] Make editor-driven photo and sentence reprocessing atomic, matching the
+- [x] Make editor-driven photo and sentence reprocessing atomic, matching the
       rollback protection already present in the image-rescan path.
-- [ ] Preserve triage history for unchanged occurrences instead of deleting and
+- [x] Preserve triage history for unchanged occurrences instead of deleting and
       recreating them as unseen entries.
-- [ ] Define reconciliation rules for changed or removed sentences and explicitly
+- [x] Define reconciliation rules for changed or removed sentences and explicitly
       communicate any review-state reset.
 
 Acceptance: injected failures leave the previous corpus intact; unchanged saves,
