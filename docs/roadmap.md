@@ -82,11 +82,18 @@ smallest schema change that satisfies the behavior; a broad rewrite is not a goa
 - [ ] Build a small, representative, appropriately licensed or private fixture
       set from actual use: game dialogue, speaker labels, menus, furigana, unusual
       punctuation, poor photos, line wraps, and Japanese/Chinese examples.
-- [ ] Label expected sentence boundaries and useful word/grammar candidates.
+- [x] Label expected sentence boundaries and useful word/grammar candidates.
 - [ ] Track recognition errors, sentence segmentation, candidate precision/recall,
       and the manual correction effort required to obtain useful study material.
-- [ ] Keep regression fixtures for discovered failures and repeat a real-image
+- [x] Keep regression fixtures for discovered failures and repeat a real-image
       rescan when changing recognition or layout handling.
+
+v1 status (2026-11-10): nine labeled fixtures and a two-layer benchmark are in
+place — see [the baseline report](benchmarks/2026-11-10-extraction-baseline.md).
+Segmentation exact is 2/9 (only locked regressions pass); dominant error classes
+are nameplate leakage (5/9) and OCR-hallucinated `。` blocking stitching (3/9).
+Gaps: no menu/furigana/Chinese fixtures yet, no wrong-candidate (precision)
+metric yet, correction effort measured only via the user-edit-flag proxy.
 
 Acceptance: establish a baseline and explicit quality targets before claiming
 accuracy improvements. Distinguish OCR spelling, layout grouping, tokenization,

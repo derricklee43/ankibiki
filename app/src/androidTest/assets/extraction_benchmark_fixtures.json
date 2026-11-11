@@ -1,0 +1,539 @@
+{
+ "$schema_note": "Ground-truth labels for extraction quality benchmark (docs/roadmap.md §2). expected = sentences a correct pipeline should produce from the SOURCE IMAGE (human-verified 2026-11-10); ocrDocument = blocks as stored at mining time; assert_segmentation=true marks locked regressions.",
+ "fixtures": [
+  {
+   "photoId": 953,
+   "contentUri": "content://media/external/images/media/953",
+   "storedText": "マルスその傷でグラから脱中してきたのか?\n早く手当階·.",
+   "ocrDocument": {
+    "fullText": "マルス\nその傷で\nグラから脱中してきたのか?\n早く手当階·.",
+    "blocks": [
+     {
+      "text": "マルス\nその傷で",
+      "bounds": [
+       424,
+       1222,
+       1188,
+       1582
+      ],
+      "lines": [
+       {
+        "text": "マルス",
+        "height": 141
+       },
+       {
+        "text": "その傷で",
+        "height": 163
+       }
+      ]
+     },
+     {
+      "text": "グラから脱中してきたのか?",
+      "bounds": [
+       503,
+       1563,
+       1871,
+       1724
+      ],
+      "lines": [
+       {
+        "text": "グラから脱中してきたのか?",
+        "height": 161
+       }
+      ]
+     },
+     {
+      "text": "早く手当階·.",
+      "bounds": [
+       497,
+       1743,
+       1098,
+       1892
+      ],
+      "lines": [
+       {
+        "text": "早く手当階·.",
+        "height": 149
+       }
+      ]
+     }
+    ]
+   },
+   "category": "dialogue-wrap-with-nameplate",
+   "expected": [
+    "マルスその傷でグラから脱中してきたのか?",
+    "早く手当階·."
+   ],
+   "assert_segmentation": true,
+   "must_contain_words": [
+    "傷"
+   ],
+   "notes": "locked regression (2026-11-10 stitching fix); 脱中=OCR for 脱出; ·. punctuation as recognized"
+  },
+  {
+   "photoId": 958,
+   "contentUri": "content://media/external/images/media/958",
+   "storedText": "国を守るため\n城を守るために\n多くの民が命を落としました。",
+   "ocrDocument": {
+    "fullText": "国を守るため\n城を守るために\n多くの民が命能落としました。\nエリス",
+    "blocks": [
+     {
+      "text": "国を守るため",
+      "lines": [
+       {
+        "text": "国を守るため",
+        "height": 112
+       }
+      ]
+     },
+     {
+      "text": "城を守るために",
+      "lines": [
+       {
+        "text": "城を守るために",
+        "height": 141
+       }
+      ]
+     },
+     {
+      "text": "多くの民が命能落としました。",
+      "lines": [
+       {
+        "text": "多くの民が命能落としました。",
+        "height": 133
+       }
+      ]
+     },
+     {
+      "text": "エリス",
+      "lines": [
+       {
+        "text": "エリス",
+        "height": 107
+       }
+      ]
+     }
+    ]
+   },
+   "category": "single-sentence-three-line-wrap",
+   "expected": [
+    "国を守るため城を守るために多くの民が命を落としました。"
+   ],
+   "assert_segmentation": false,
+   "must_contain_words": [
+    "父上",
+    "責"
+   ],
+   "notes": "OCR hallucinated 。 after のは, blocking stitching; recognition-bound"
+  },
+  {
+   "photoId": 960,
+   "contentUri": "content://media/external/images/media/960",
+   "storedText": "父上、母上の安否が分からぬ今\n私がその責を担うのは。\n当然のことです。",
+   "ocrDocument": {
+    "fullText": "父上、母上の変否が分からぬ今\n私がその責を担うのは。\n当然のことです。\nエリス",
+    "blocks": [
+     {
+      "text": "父上、母上の変否が分からぬ今",
+      "lines": [
+       {
+        "text": "父上、母上の変否が分からぬ今",
+        "height": 104
+       }
+      ]
+     },
+     {
+      "text": "私がその責を担うのは。",
+      "lines": [
+       {
+        "text": "私がその責を担うのは。",
+        "height": 112
+       }
+      ]
+     },
+     {
+      "text": "当然のことです。",
+      "lines": [
+       {
+        "text": "当然のことです。",
+        "height": 92
+       }
+      ]
+     },
+     {
+      "text": "エリス",
+      "lines": [
+       {
+        "text": "エリス",
+        "height": 97
+       }
+      ]
+     }
+    ]
+   },
+   "category": "single-sentence-three-line-wrap",
+   "expected": [
+    "父上、母上の安否が分からぬ今私がその責を担うのは当然のことです。"
+   ],
+   "assert_segmentation": false,
+   "must_contain_words": [
+    "父上",
+    "責"
+   ],
+   "notes": "OCR hallucinated 。 after のは, blocking stitching; recognition-bound"
+  },
+  {
+   "photoId": 963,
+   "contentUri": "content://media/external/images/media/963",
+   "storedText": "世界でただ1人の。\n神剣ファルシオン\n継承者となるのです。",
+   "ocrDocument": {
+    "fullText": "世界でただ1人の。\n神剣ファルシオン\n鎌承者となるのです。\n一エリス",
+    "blocks": [
+     {
+      "text": "世界でただ1人の。",
+      "lines": [
+       {
+        "text": "世界でただ1人の。",
+        "height": 154
+       }
+      ]
+     },
+     {
+      "text": "神剣ファルシオン",
+      "lines": [
+       {
+        "text": "神剣ファルシオン",
+        "height": 129
+       }
+      ]
+     },
+     {
+      "text": "鎌承者となるのです。",
+      "lines": [
+       {
+        "text": "鎌承者となるのです。",
+        "height": 133
+       }
+      ]
+     },
+     {
+      "text": "一エリス",
+      "lines": [
+       {
+        "text": "一エリス",
+        "height": 125
+       }
+      ]
+     }
+    ]
+   },
+   "category": "single-sentence-three-line-wrap",
+   "expected": [
+    "世界でただ1人の神剣ファルシオン継承者となるのです。"
+   ],
+   "assert_segmentation": false,
+   "must_contain_words": [
+    "神剣",
+    "継承者"
+   ],
+   "notes": "OCR hallucinated 。 after 1人の; recognition-bound"
+  },
+  {
+   "photoId": 1153,
+   "contentUri": "content://media/external/images/media/1153",
+   "storedText": "#ならずもの/\nで、おまえが王子たちにやられりゃこっちは味方殺しの王子様って格好の宣伝ができるわけだ。",
+   "ocrDocument": {
+    "fullText": "#ならずもの/\nで、おまえが王子たちにやられりゃ\nこっちは味方殺しの王子様って\n格好の宣伝ができるわけだ。",
+    "blocks": [
+     {
+      "text": "#ならずもの/",
+      "bounds": [
+       2637,
+       1657,
+       3421,
+       1801
+      ],
+      "lines": [
+       {
+        "text": "#ならずもの/",
+        "height": 144
+       }
+      ]
+     },
+     {
+      "text": "で、おまえが王子たちにやられりゃ\nこっちは味方殺しの王子様って\n格好の宣伝ができるわけだ。",
+      "bounds": [
+       943,
+       1888,
+       2748,
+       2411
+      ],
+      "lines": [
+       {
+        "text": "で、おまえが王子たちにやられりゃ",
+        "height": 160
+       },
+       {
+        "text": "こっちは味方殺しの王子様って",
+        "height": 152
+       },
+       {
+        "text": "格好の宣伝ができるわけだ。",
+        "height": 182
+       }
+      ]
+     }
+    ]
+   },
+   "category": "nameplate-leak-plus-wrap",
+   "expected": [
+    "で、おまえが王子たちにやられりゃこっちは味方殺しの王子様って格好の宣伝ができるわけだ。"
+   ],
+   "assert_segmentation": false,
+   "must_contain_words": [
+    "王子"
+   ],
+   "notes": "#ならずもの/ nameplate decorated with # and / leaked into text"
+  },
+  {
+   "photoId": 1156,
+   "contentUri": "content://media/external/images/media/1156",
+   "storedText": "マルス\n猿ぐつわ!?\nおい、大文夫かい?",
+   "ocrDocument": {
+    "fullText": "マルス\n猿ぐつわ!?\nおい、大文夫かい?",
+    "blocks": [
+     {
+      "text": "マルス",
+      "bounds": [
+       685,
+       1890,
+       1161,
+       2050
+      ],
+      "lines": [
+       {
+        "text": "マルス",
+        "height": 160
+       }
+      ]
+     },
+     {
+      "text": "猿ぐつわ!?",
+      "bounds": [
+       446,
+       2066,
+       2011,
+       2324
+      ],
+      "lines": [
+       {
+        "text": "猿ぐつわ!?",
+        "height": 258
+       }
+      ]
+     },
+     {
+      "text": "おい、大文夫かい?",
+      "bounds": [
+       764,
+       2266,
+       2043,
+       2493
+      ],
+      "lines": [
+       {
+        "text": "おい、大文夫かい?",
+        "height": 227
+       }
+      ]
+     }
+    ]
+   },
+   "category": "two-utterances-plus-nameplate",
+   "expected": [
+    "！！猿ぐつわ!?",
+    "おい、大丈夫かい？"
+   ],
+   "assert_segmentation": false,
+   "must_contain_words": [
+    "猿ぐつわ"
+   ],
+   "notes": "マルス nameplate leaked; 大文夫=OCR for 大丈夫"
+  },
+  {
+   "photoId": 1158,
+   "contentUri": "content://media/external/images/media/1158",
+   "storedText": "はい。\nアリティアの弓兵部に所霧する。\nゴードンです。",
+   "ocrDocument": {
+    "fullText": "はい。\nアリティアの引兵部に所霧する。\nゴードンです。\nゴードン",
+    "blocks": [
+     {
+      "text": "はい。",
+      "bounds": [
+       493,
+       1901,
+       891,
+       2079
+      ],
+      "lines": [
+       {
+        "text": "はい。",
+        "height": 178
+       }
+      ]
+     },
+     {
+      "text": "アリティアの引兵部に所霧する。",
+      "bounds": [
+       454,
+       2091,
+       2645,
+       2306
+      ],
+      "lines": [
+       {
+        "text": "アリティアの引兵部に所霧する。",
+        "height": 215
+       }
+      ]
+     },
+     {
+      "text": "ゴードンです。",
+      "bounds": [
+       579,
+       2310,
+       1469,
+       2487
+      ],
+      "lines": [
+       {
+        "text": "ゴードンです。",
+        "height": 177
+       }
+      ]
+     },
+     {
+      "text": "ゴードン",
+      "bounds": [
+       2881,
+       1648,
+       3370,
+       1835
+      ],
+      "lines": [
+       {
+        "text": "ゴードン",
+        "height": 187
+       }
+      ]
+     }
+    ]
+   },
+   "category": "ack-plus-wrapped-sentence",
+   "expected": [
+    "はい。",
+    "アリティアの弓兵部隊に所属するゴードンです。"
+   ],
+   "assert_segmentation": false,
+   "must_contain_words": [
+    "弓兵",
+    "部隊"
+   ],
+   "notes": "OCR hallucinated 。 after 所属する and mangled 所属→所霧"
+  },
+  {
+   "photoId": 1160,
+   "contentUri": "content://media/external/images/media/1160",
+   "storedText": "よいな、狙いは王子だ。\nアリティアの王子を仕留めよ!\n奴の首をわしの前に差しtせ!",
+   "ocrDocument": {
+    "fullText": "よいな、狙いは王子だ。\nアリティアの王子を仕留めよ!\n奴の首をわしの前に差しtせ!",
+    "blocks": [
+     {
+      "text": "よいな、狙いは王子だ。\nアリティアの王子を仕留めよ!\n奴の首をわしの前に差しtせ!",
+      "bounds": [
+       661,
+       1976,
+       2605,
+       2600
+      ],
+      "lines": [
+       {
+        "text": "よいな、狙いは王子だ。",
+        "height": 196
+       },
+       {
+        "text": "アリティアの王子を仕留めよ!",
+        "height": 202
+       },
+       {
+        "text": "奴の首をわしの前に差しtせ!",
+        "height": 199
+       }
+      ]
+     }
+    ]
+   },
+   "category": "three-clean-utterances",
+   "expected": [
+    "よいな、狙いは王子だ。",
+    "アリティアの王子を仕留めよ!",
+    "奴の首をわしの前に差しtせ!"
+   ],
+   "assert_segmentation": true,
+   "must_contain_words": [
+    "王子",
+    "狙い"
+   ],
+   "notes": "locked regression on SEGMENTATION against frozen OCR input; ジオル nameplate correctly excluded; 差しtせ is the OCR rendering of 差し出せ (recognition error preserved)"
+  },
+  {
+   "photoId": 1170,
+   "contentUri": "content://media/external/images/media/1170",
+   "storedText": "手騎刊きえ持な\n辺境森車国あったi",
+   "ocrDocument": {
+    "fullText": "手騎刊きえ持な\n辺境森車国あったi",
+    "blocks": [
+     {
+      "text": "手騎刊きえ持な",
+      "bounds": [
+       1951,
+       1367,
+       2204,
+       3547
+      ],
+      "lines": [
+       {
+        "text": "手騎刊きえ持な",
+        "height": 2180
+       }
+      ]
+     },
+     {
+      "text": "辺境森車国あったi",
+      "bounds": [
+       2206,
+       1949,
+       2421,
+       3531
+      ],
+      "lines": [
+       {
+        "text": "辺境森車国あったi",
+        "height": 1582
+       }
+      ]
+     }
+    ]
+   },
+   "category": "rotated-capture-narration",
+   "expected": [
+    "クリスマ王国は騎士団さえ持たない辺境の小国であったが"
+   ],
+   "assert_segmentation": false,
+   "must_contain_words": [
+    "王国"
+   ],
+   "notes": "photo rotated 90°; stored OCR badly garbled; Chapter 1 decoration text"
+  }
+ ]
+}
