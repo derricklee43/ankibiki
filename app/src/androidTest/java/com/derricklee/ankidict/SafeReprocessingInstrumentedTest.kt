@@ -245,6 +245,48 @@ class SafeReprocessingInstrumentedTest {
         assertEquals("第一。\n第二。\n追加。", repository.getPhoto(PHOTO_ID)?.extractedText)
     }
 
+    @Test
+    fun hiddenWord_newOccurrence_stampedSeen_neverListsInActiveQueue() {
+        val f = Fixture()
+        f.seedPhoto()
+        f.words["第三。"] = listOf("語A")
+        repository.setItemVisibility(LanguageTag.JAPANESE, ItemType.WORD, "語A", ItemVisibility.HIDDEN)
+
+        f.runner.reprocessPhotoText(PHOTO_ID, "第一。\n第二。\n第三。", reprocessWords = true)
+
+        // The new occurrence of the hidden word enters SEEN directly — never UNSEEN.
+        val newRow = f.rows("第三。").single()
+        assertEquals("語A", newRow.first)
+        assertEquals("SEEN", newRow.second)
+
+        val active = repository.getActiveOccurrences(
+            OccurrenceQuery(itemType = ItemType.WORD, visibilities = setOf(ItemVisibility.ACTIVE)),
+        ).map { it.expression }
+        assertTrue("hidden word leaked into active queue: $active", "語A" !in active)
+        val hiddenBucket = repository.getActiveOccurrences(
+            OccurrenceQuery(itemType = ItemType.WORD, visibilities = setOf(ItemVisibility.HIDDEN)),
+        ).map { it.expression }
+        assertTrue("語A" in hiddenBucket)
+    }
+
+    @Test
+    fun unhideWord_occurrencesIncludingOnesThatArrivedWhileHidden_returnToQueue() {
+        val f = Fixture()
+        f.seedPhoto()
+        f.words["第三。"] = listOf("語A")
+        repository.setItemVisibility(LanguageTag.JAPANESE, ItemType.WORD, "語A", ItemVisibility.HIDDEN)
+        f.runner.reprocessPhotoText(PHOTO_ID, "第一。\n第二。\n第三。", reprocessWords = true)
+
+        repository.setItemVisibility(LanguageTag.JAPANESE, ItemType.WORD, "語A", ItemVisibility.ACTIVE)
+
+        val active = repository.getActiveOccurrences(
+            OccurrenceQuery(itemType = ItemType.WORD, visibilities = setOf(ItemVisibility.ACTIVE)),
+        ).map { it.expression }
+        // Current contract: un-hiding flips the word's whole SEEN history (including
+        // occurrences that arrived while hidden) back to UNSEEN, so it re-enters review.
+        assertTrue("語A" in active)
+    }
+
     companion object {
         private const val TEST_DB_NAME = "mining_reprocess_test.db"
         private const val PHOTO_ID = 910001L
