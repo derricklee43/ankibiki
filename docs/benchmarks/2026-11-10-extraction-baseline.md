@@ -51,7 +51,9 @@ pipeline should produce from the image.
    *reading-flow* neighbors, but nameplates are excluded only accidentally
    (geometry-dependent). Fix direction: geometric/shortness exclusion of
    nameplate regions (they sit above the dialogue box, are short, and
-   punctuation-free), or provider-side region filtering.
+   punctuation-free), or provider-side region filtering. Pinned in
+   docs/roadmap.md "Parked ideas" — opt-in design and benchmark evidence are
+   prerequisites, since exclusion does not generalize to all Japanese media.
 2. **Phantom terminal punctuation — 3/9 (960, 963, 1158).** OCR hallucinates
    `。` mid-sentence (after 担うのは / 1人の / 所属する), which the parser
    correctly honors, blocking stitching. Recognition-bound; mitigation options

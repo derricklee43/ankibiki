@@ -157,3 +157,30 @@ Prefer incremental changes over a wholesale architecture migration.
 
 These should follow demonstrated learning-workflow needs, not expand the scope
 at the expense of data trust and extraction quality.
+
+## Parked ideas
+
+### Speaker-nameplate exclusion (pinned 2026-11-10 — needs evidence and an opt-in
+design before any production code)
+
+The baseline report (docs/benchmarks/2026-11-10-extraction-baseline.md) shows
+nameplate leakage as the largest segmentation error class (5/9 fixtures). Not
+baked in: nameplate exclusion is **not generalizable to all Japanese media** —
+short isolated lines are the actual content in menu screens, and may be headings
+or legitimate one-word utterances elsewhere.
+
+Agreed guardrails before this may ship:
+
+- The parser only *flags* "short, isolated, punctuation-free block adjacent to
+  the reading flow" as a candidate; it never deletes. Dropping is policy.
+- Policy is opt-in per photo (the corpus mixes media within one language),
+  default KEEP (today's behavior), with DEMOTE (treat as speaker label,
+  exclude from mining) and DROP variants. A boolean is the wrong primitive.
+- Raw `ocr_blocks_json` stays authoritative, so any policy can be flipped in
+  reprocessing without re-OCR; turning it off reproduces current behavior
+  exactly.
+
+Prerequisite step (touches no production code): a benchmark-only experiment
+running DEMOTE/DROP over the fixtures plus menu-style photos, measuring what
+exclusion would win and what legitimate content it would damage. Proceed only
+if the wins are real and menu/short-line casualties are zero.
