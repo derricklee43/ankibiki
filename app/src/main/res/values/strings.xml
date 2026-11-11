@@ -49,6 +49,7 @@
     <string name="delete_photo">削除</string>
     <string name="photo_excluded_toast">写真を除外しました</string>
     <string name="navigate_back">戻る</string>
+    <string name="photo_content_description">Source photo</string>
     <string name="label_kanji">漢字:</string>
     <string name="label_kana">かな:</string>
     <string name="label_meaning">意味:</string>

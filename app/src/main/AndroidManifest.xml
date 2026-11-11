@@ -47,6 +47,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".SentenceDetailActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".TextEditorActivity"
             android:windowSoftInputMode="adjustResize"
             android:exported="false" />

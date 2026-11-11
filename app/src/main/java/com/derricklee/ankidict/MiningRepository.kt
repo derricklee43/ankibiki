@@ -489,6 +489,27 @@ class MiningRepository(
         val createdAt: Long,
     )
 
+    /** Parsed word/grammar candidates of one sentence instance (photo, sentence), DELETED excluded. */
+    data class SentenceCandidate(val occurrenceId: Long, val itemType: ItemType, val expression: String)
+
+    fun getSentenceCandidates(photoId: Long, sentence: String): List<SentenceCandidate> =
+        readableDatabase.rawQuery(
+            """SELECT MAX(id), item_type, expression FROM item_occurrences
+               WHERE photo_id = ? AND sentence = ? AND state != 'DELETED'
+               GROUP BY item_type, expression""",
+            arrayOf(photoId.toString(), sentence),
+        ).use { c ->
+            buildList {
+                while (c.moveToNext()) {
+                    val type = runCatching { ItemType.valueOf(c.getString(1)) }.getOrNull() ?: continue
+                    add(SentenceCandidate(c.getLong(0), type, c.getString(2)))
+                }
+            }
+        }.sortedWith(
+            compareBy<MiningRepository.SentenceCandidate> { if (it.itemType == ItemType.WORD) 0 else 1 }
+                .thenBy { it.expression },
+        )
+
     /** Rows for one `(photo, sentence)` pair, newest first — the unit of reprocessing reconciliation. */
     internal fun occurrenceRowsForSentence(photoId: Long, sentence: String): List<OccurrenceRow> =
         readableDatabase.query(

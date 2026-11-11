@@ -283,6 +283,35 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             val row = ItemMatchedSentenceBinding.inflate(layoutInflater, binding.sentencesContainer, false)
             row.sentenceText.text = "• ${matched.sentence}"
             // Sentences are read-only here; the pencil opens the text editor view.
+            // Tapping the sentence opens the single sentence view (photo is a field of it).
+            val openSentenceView = {
+                val anchorPhotoId = if (matched.photoId >= 0L) matched.photoId
+                else detail.photos.firstOrNull()?.mediaStoreId ?: -1L
+                startActivity(
+                    SentenceDetailActivity.newIntent(
+                        context = this,
+                        photoId = anchorPhotoId,
+                        sentence = matched.sentence,
+                        languageTag = detail.languageTag,
+                    ),
+                )
+            }
+            row.root.setOnClickListener { openSentenceView() }
+            // A selectable TextView consumes its own taps, so observe (never intercept) touch
+            // events and treat a single tap as "open"; long-press selection still works.
+            val tapDetector = android.view.GestureDetector(
+                this,
+                object : android.view.GestureDetector.SimpleOnGestureListener() {
+                    override fun onSingleTapUp(e: android.view.MotionEvent): Boolean {
+                        openSentenceView()
+                        return true
+                    }
+                },
+            )
+            row.sentenceText.setOnTouchListener { _, event ->
+                tapDetector.onTouchEvent(event)
+                false
+            }
             row.editSentenceButton.setOnClickListener {
                 pendingAmend = matched
                 textEditorLauncher.launch(

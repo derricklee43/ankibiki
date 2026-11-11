@@ -82,6 +82,17 @@ occurrence references. Sentence text is currently repeated across occurrence
 rows, which makes provenance and revision reconciliation harder. Choose the
 smallest schema change that satisfies the behavior; a broad rewrite is not a goal.
 
+Domain model decision (2026-11-10): the **sentence is the primary object** and an
+image is an **optional field of it** — not the reverse. The view showing a
+sentence with its optional photo is the **single sentence view**
+(`SentenceDetailActivity`, entered by tapping a sentence in the single word
+view; parsed words render as outline chips above the sentence and each opens
+its single word view). Today's schema still keys sentences as
+`(photo_id, sentence)` occurrence rows with `photo_id NOT NULL`, so a photo-less
+sentence exists in the UI layer (`MatchedSentence.photoId = -1`) but not yet as
+a stored record; the first-class sentence table above is what makes the model
+literal.
+
 ## 2. Establish an extraction-quality benchmark
 
 - [ ] Build a small, representative, appropriately licensed or private fixture
