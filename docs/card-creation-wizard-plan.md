@@ -1,9 +1,11 @@
 # Card-creation wizard — design plan (roadmap §4)
 
-Status: **design complete; feasibility gate CLEARED** (spike 001 VALIDATED on the Pixel 2026-11-12:
-field names match all hardcoded indices, 8 decks enumerate incl. empties, full create round-trip
-via addNote works; `/models/#/fields` unsupported → FIELD_NAMES is the source). Ready for build
-when the user green-lights implementation.
+Status: **IMPLEMENTED 2026-11-12** (device-free session; emulator + real AnkiDroid 2.25.3).
+Screens 0/1/2 = `DeckPickerActivity`/`FieldMappingActivity`/`CardPreviewActivity` (`CardWizard.kt`);
+vocabulary `ExportVocabulary.kt` pinned by `DraftAdapterContractTest`; templates in `card_templates`
+(mining.db schema v5, travels in recovery bundles); gateway E2E `CardWizardE2ETest` 5/5; full UI
+walkthrough created two real notes and linked them back. Feasibility gate stayed cleared
+(spike 001 VALIDATED on the Pixel; `/models/#/fields` unsupported → FIELD_NAMES is the source).
 
 ## Flow
 
@@ -110,6 +112,19 @@ never internal column names, so saved templates keep working.
 ## Non-goals (from roadmap §4 acceptance)
 
 Not a general Anki editor; no deck/note-type management UI; template config stays focused on mapping.
+
+## Provider quirks learned during implementation (2026-11-12, emulator)
+
+- `addNewBasicModel` does NOT dedup identical field sets — it mints a new model id. Pinned by
+  `CardWizardE2ETest.modelCreation_sameFieldSetMintsNewId_pinnedBehavior`. Screen 0 therefore lists
+  models by NAME and never assumes uniqueness; templates keyed by modelId remain valid.
+- `previewNewNote` internally creates a scratch note in the **Default deck** with AnkiDroid's test
+  tag and deletes it after rendering. A crash between those steps can leave one scratch note in
+  Default — harmless, filterable by the tag.
+- `addMediaFromUri` runs ONLY on the confirmed write (never during preview), per the Q3 rule:
+  unreadable photo → warning next to the field, blank value written.
+- 2.25.3's AddContentApi has no `deleteNote`/`deleteModel`; cleanup goes through the raw provider
+  contract (`content://…/notes/<id>` delete), as spike P7 proved.
 
 ## Open questions (next design passes)
 

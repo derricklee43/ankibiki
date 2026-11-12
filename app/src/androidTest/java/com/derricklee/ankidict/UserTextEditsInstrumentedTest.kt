@@ -144,7 +144,7 @@ class UserTextEditsInstrumentedTest {
             db.version = 2
         }
         repository = MiningRepository(context, TEST_DB_NAME)
-        assertEquals(4, repository.readableDatabase.version)
+        assertEquals(MiningRepository.expectedUserVersion(), repository.readableDatabase.version)
         // migration-added columns default cleanly on pre-existing rows
         repository.readableDatabase.rawQuery(
             "SELECT COUNT(*) FROM extracted_items WHERE sentence_ranks IS NOT NULL", emptyArray(),

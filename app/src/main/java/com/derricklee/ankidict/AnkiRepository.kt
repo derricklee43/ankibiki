@@ -1,7 +1,9 @@
 package com.derricklee.ankidict
 
 import android.content.Context
+import android.net.Uri
 import com.ichi2.anki.FlashCardsContract
+import java.util.Locale
 import com.ichi2.anki.api.AddContentApi
 
 data class NoteResult(
@@ -66,6 +68,63 @@ class AnkiRepository(private val context: Context) {
 
     fun updateNoteFields(noteId: Long, fields: List<String>): Boolean =
         addContentApi.updateNoteFields(noteId, fields.toTypedArray())
+
+    // ---- card-creation wizard gateway (proven on-device by spike 001, 2026-11-12) ----
+
+    data class AnkiDeckInfo(val deckId: Long, val name: String, val counts: List<String>)
+
+    /** All decks incl. empty ones (spike P2); counts are the raw provider [new,learning,mature] triple. */
+    fun listDecks(): List<AnkiDeckInfo> {
+        val rows = mutableListOf<AnkiDeckInfo>()
+        val c = context.contentResolver.query(
+            FlashCardsContract.Deck.CONTENT_ALL_URI,
+            arrayOf(
+                FlashCardsContract.Deck.DECK_ID,
+                FlashCardsContract.Deck.DECK_NAME,
+                FlashCardsContract.Deck.DECK_COUNTS,
+            ),
+            null, null, null,
+        ) ?: return rows
+        c.use {
+            while (it.moveToNext()) {
+                val counts = it.getString(2).orEmpty().removeSurrounding("[", "]")
+                    .split(",").map { n -> n.trim() }
+                rows += AnkiDeckInfo(it.getLong(0), it.getString(1).orEmpty(), counts)
+            }
+        }
+        return rows.sortedBy { it.name.lowercase(Locale.US) }
+    }
+
+    data class AnkiModelInfo(val modelId: Long, val name: String, val fieldNames: List<String>)
+
+    /** Field names in ordinal order for one model (spike P4: this is the proven truth source). */
+    fun fieldNames(modelId: Long): List<String> =
+        runCatching { addContentApi.getFieldList(modelId)?.toList() }.getOrNull() ?: emptyList()
+
+    /** Read a written note back (post-create verification). */
+    fun readNoteFields(noteId: Long): List<String>? =
+        runCatching { addContentApi.getNote(noteId)?.fields?.toList() }.getOrNull()
+
+    /** All note types with their field names in ordinal order (spike P3/P4: FIELD_NAMES is truth). */
+    fun listModels(): List<AnkiModelInfo> =
+        (addContentApi.getModelList()?.entries ?: emptySet()).map { (mid, name) ->
+            AnkiModelInfo(mid, name.orEmpty(), addContentApi.getFieldList(mid)?.toList() ?: emptyList())
+        }.sortedBy { it.name.lowercase(Locale.US) }
+
+    /** Rendered Q/A per generated card for a would-be note (creates+removes a scratch note inside
+     *  AnkiDroid — the same preview mechanism AnkiDroid's own API sample uses). */
+    fun previewNewNote(modelId: Long, fields: List<String>): Map<String, Map<String, String>>? =
+        runCatching { addContentApi.previewNewNote(modelId, fields.toTypedArray()) }.getOrNull()
+
+    /** Existing notes whose first field equals [key] for this model (roadmap §4 dedupe check). */
+    fun findDuplicateNotes(modelId: Long, key: String): List<String> = runCatching {
+        addContentApi.findDuplicateNotes(modelId, key).mapNotNull { it?.getKey() }
+    }.getOrDefault(emptyList())
+
+    /** Import a media file into Anki's collection; returns the stored filename for field embedding. */
+    fun addMediaFile(uri: String, preferredName: String, mimeType: String): String? = runCatching {
+        addContentApi.addMediaFromUri(Uri.parse(uri), preferredName, mimeType)
+    }.getOrNull()
 
     // CONTENT_URI_V2 runs selection/selectionArgs as parameterized SQL against the notes table.
     // The plain CONTENT_URI instead parses `selection` as Anki's browser search syntax and

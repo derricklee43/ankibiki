@@ -47,7 +47,7 @@ FORMAT_VERSION = 1
 DB_NAME = "mining.db"
 TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # user_version values this tool will restore; extend when migrations land.
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4}
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

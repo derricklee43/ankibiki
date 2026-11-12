@@ -127,8 +127,13 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             val detail = currentDetail
             if (detail?.ankiNoteId != null) {
                 ankiCardService.openExistingCard(this, detail)
-            } else {
-                Toast.makeText(this, R.string.card_creation_pending_toast, Toast.LENGTH_SHORT).show()
+            } else if (detail != null) {
+                startActivity(
+                    Intent(this, DeckPickerActivity::class.java)
+                        .putExtra(WizardKeys.EXTRA_LANGUAGE_TAG, detail.languageTag.name)
+                        .putExtra(WizardKeys.EXTRA_ITEM_TYPE, detail.itemType.name)
+                        .putExtra(WizardKeys.EXTRA_EXPRESSION, detail.expression),
+                )
             }
         }
 

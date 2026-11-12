@@ -131,4 +131,26 @@
     <string name="reprocess_sentence_toast">Saved · candidates kept %1$d · new %2$d · dropped %3$d</string>
     <string name="reprocess_sentence_merged_note">\nMerged %1$d duplicate(s) with the existing identical sentence, keeping the most-reviewed state.</string>
     <string name="recovery_restart_manually">Restored. Close and reopen AnkiBiki to load the recovered corpus.</string>
+    <string name="wizard_continue">Continue</string>
+    <string name="wizard_save_template_continue">Save template &amp; continue</string>
+    <string name="wizard_confirm_create">確認して作成</string>
+    <string name="wizard_deck_title">New card — choose destination</string>
+    <string name="wizard_deck_hint">Pick the deck and the card type (note type). You choose both each time.</string>
+    <string name="wizard_card_type_label">Card type</string>
+    <string name="wizard_no_ankidroid">AnkiDroid isn\'t installed — nothing to write to.</string>
+    <string name="wizard_mapping_title">Map card fields</string>
+    <string name="wizard_mapping_context">Card for %1$s → %2$s · %3$s</string>
+    <string name="wizard_blank_custom">blank / custom</string>
+    <string name="wizard_prefix_hint">prefix</string>
+    <string name="wizard_suffix_hint">suffix</string>
+    <string name="wizard_no_sentence_available">This word has no sentence to build a card from yet.</string>
+    <string name="wizard_template_save_failed">Template not saved: %1$s</string>
+    <string name="wizard_preview_title">Review card</string>
+    <string name="wizard_fields_header">Fields as written</string>
+    <string name="wizard_cards_preview_header">Card preview</string>
+    <string name="wizard_duplicate_warning">Note: %1$d existing note(s) in this card type already start with this term.</string>
+    <string name="wizard_photo_unavailable">Source photo unreadable — photo fields will be written blank.</string>
+    <string name="wizard_preview_unavailable">(rendered preview unavailable — fields above show exactly what will be written)</string>
+    <string name="wizard_created_linked">Card created and linked to the mined item</string>
+    <string name="wizard_create_failed">Create failed: %1$s</string>
 </resources>

@@ -51,6 +51,19 @@
             android:exported="false" />
 
         <activity
+            android:name=".DeckPickerActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".FieldMappingActivity"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
+
+        <activity
+            android:name=".CardPreviewActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".TextEditorActivity"
             android:windowSoftInputMode="adjustResize"
             android:exported="false" />

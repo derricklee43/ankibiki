@@ -153,12 +153,22 @@ being spiked first: see [spikes/001-anki-field-deck-probe](../spikes/001-anki-fi
 export-field adapter contract, and template storage are in
 [docs/card-creation-wizard-plan.md](card-creation-wizard-plan.md) — design only, still open questions.
 
-- [ ] Define a reviewed draft containing expression, reading, meaning, selected
-      sentence, and source photo/context.
-- [ ] Allow destination deck/note-type mapping within the existing Anki integration
+- [x] Define a reviewed draft containing expression, reading, meaning, selected
+      sentence, and source photo/context. (`CardDraft` + `DraftAdapter` export vocabulary,
+      pinned by `DraftAdapterContractTest` — 5 JVM tests.)
+- [x] Allow destination deck/note-type mapping within the existing Anki integration
       boundaries, validate required fields, and check for existing cards.
-- [ ] Show a final preview and explicitly confirm the write to AnkiDroid.
-- [ ] Read back the created note and keep its association with the mined item.
+      (Screen 0 deck+type picker, Screen 1 per-(deck,model) `card_templates` in mining.db
+      schema v5, `findDuplicateNotes` warning; gateway E2E `CardWizardE2ETest` 5/5 on
+      emulator with real AnkiDroid 2.25.3.)
+- [x] Show a final preview and explicitly confirm the write to AnkiDroid.
+      (Screen 2 renders via provider `previewNewNote`; nothing is written until
+      確認して作成; キャンセル writes nothing — verified in UI walkthrough.)
+- [x] Read back the created note and keep its association with the mined item.
+      (`readNoteFields` gate + `updateExtractedItemAnkiMatch`; walkthrough created two real
+      notes on the emulator and both words now show カードを表示 instead of カードを作成.
+      Remaining: photo-bound fields embed via `addMediaFromUri` at confirm — coded but not
+      yet walked in UI; validation against the user's own collection pending device attach.)
 
 Acceptance: turn a reviewed unfamiliar item into a usable Anki card without
 re-entering the same information elsewhere. Cancellation creates nothing; retries

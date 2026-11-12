@@ -92,6 +92,7 @@ class MiningRepository(
                 ON item_occurrences(language_tag, item_type, expression, state)
             """.trimIndent(),
         )
+        db.execSQL(cardTemplatesDdl())
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -111,7 +112,22 @@ class MiningRepository(
             // Per-word manual sentence ordering (rank lives on the word entity; null = date order).
             runCatching { db.execSQL("ALTER TABLE extracted_items ADD COLUMN sentence_ranks TEXT") }
         }
+        if (oldVersion < 5) {
+            db.execSQL(cardTemplatesDdl())
+        }
     }
+
+    private fun cardTemplatesDdl(): String =
+        """
+        CREATE TABLE IF NOT EXISTS card_templates (
+            deck_id INTEGER NOT NULL,
+            model_id INTEGER NOT NULL,
+            ordinal INTEGER NOT NULL,
+            bound_field TEXT,
+            updated_at INTEGER NOT NULL,
+            PRIMARY KEY (deck_id, model_id, ordinal)
+        )
+        """.trimIndent()
 
     private fun cleanPureKanaKanjiBackfill(db: SQLiteDatabase) {
         val toClear = mutableListOf<Triple<String, String, String>>()
@@ -839,6 +855,34 @@ class MiningRepository(
         )
     }
 
+    /** Saved field mapping for one (deck, card type); absent rows read as unbound. */
+    fun loadCardTemplate(deckId: Long, modelId: Long): List<CardTemplateMapping> =
+        readableDatabase.rawQuery(
+            "SELECT ordinal, bound_field FROM card_templates WHERE deck_id = ? AND model_id = ? ORDER BY ordinal ASC",
+            arrayOf(deckId.toString(), modelId.toString()),
+        ).use { c -> buildList { while (c.moveToNext()) add(CardTemplateMapping(c.getInt(0), c.getStringOrNull(1))) } }
+
+    /** Replace-all write: the template IS the submitted row set (null bound = unbound row). */
+    fun saveCardTemplate(deckId: Long, modelId: Long, rows: List<CardTemplateMapping>) {
+        inTransaction {
+            writableDatabase.delete(
+                "card_templates", "deck_id = ? AND model_id = ?",
+                arrayOf(deckId.toString(), modelId.toString()),
+            )
+            val now = System.currentTimeMillis() / 1000L
+            for (row in rows) {
+                val values = android.content.ContentValues().apply {
+                    put("deck_id", deckId)
+                    put("model_id", modelId)
+                    put("ordinal", row.ordinal)
+                    if (row.fieldLabel == null) putNull("bound_field") else put("bound_field", row.fieldLabel)
+                    put("updated_at", now)
+                }
+                writableDatabase.insert("card_templates", null, values)
+            }
+        }
+    }
+
     /**
      * Marks a single occurrence as `SEEN` (`既読`). Removes it from the active occurrence queue
      * while keeping it linked to the item's photos/sentences, and allowing future occurrences to appear.
@@ -1190,7 +1234,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 4
+        private const val DB_VERSION = 5
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME
