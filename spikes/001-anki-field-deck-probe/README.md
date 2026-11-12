@@ -70,7 +70,7 @@ run once with the Pixel attached, then delete. One probe per question, results l
 PENDING — requires the Pixel connected (real account's decks + installed AnkiDroid version are the
 subject). Run instructions above; paste `adb logcat -s AnkiContractProbe` output back here.
 
-## Wizard mapping (deliverable 1 of §4 plan)
+## Wizard mapping (superseded by [docs/card-creation-wizard-plan.md](../../docs/card-creation-wizard-plan.md) — kept as probe-impact notes)
 
 1. **Screen 1 — deck picker**: P2 source; shows every deck (incl. empty) with provider counts
    (`DECK_COUNTS`). Selection stored as (deckId, deckName).

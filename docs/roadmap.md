@@ -149,7 +149,9 @@ Plan (user, 2026-11-10): the flow starts with a **deck-selection wizard** that l
 in the account, then pulls the note type's templated fields **with proper labels** — replacing the
 index-only assumption that forced `KnownNoteTypes.kt` constants. Feasibility of labeled fields is
 being spiked first: see [spikes/001-anki-field-deck-probe](../spikes/001-anki-field-deck-probe/README.md)
-(compile-verified probe; runs when the Pixel is attached).
+(compile-verified probe; runs when the Pixel is attached). The screen-by-screen design, the AnkiBiki
+export-field adapter contract, and template storage are in
+[docs/card-creation-wizard-plan.md](card-creation-wizard-plan.md) — design only, still open questions.
 
 - [ ] Define a reviewed draft containing expression, reading, meaning, selected
       sentence, and source photo/context.
