@@ -65,10 +65,30 @@ run once with the Pixel attached, then delete. One probe per question, results l
   workable but worse; the spike's job is to find out which world we're in.
 - P1 spec < 2 → notes/decks queries must use the browser-syntax URI variants; probe logs and adapts.
 
-## Verdict
+## Verdict: VALIDATED (2026-11-12, on the Pixel — AnkiDroid 2.25.3, provider spec v2)
 
-PENDING — requires the Pixel connected (real account's decks + installed AnkiDroid version are the
-subject). Run instructions above; paste `adb logcat -s AnkiContractProbe` output back here.
+Full log: run the probe as documented; captured evidence:
+
+- **P1** com.ichi2.anki 2.25.3, `apiHostSpecVersion=2` — direct queries all supported.
+- **P2 decks** api=8 raw=8, perfect id-set agreement; `DECK_COUNTS` gives [new,learning,mature];
+  empty decks ARE listed (the spike deck showed `[0,0,0]`). Wizard screen 1 source confirmed.
+- **P3 models** 22 models via `api.getModelList()`; raw `Model.CONTENT_URI` rows carry
+  `field_names/num_cards/note_count` in agreement.
+- **P4 GRUDGE: all MATCH.** NihongoShark Kanji names[4]='kanji' ✓, Chinese Word names[0]='Word' ✓,
+  Chinese Mnemonics names[2]='Hanzi' ✓ — every hardcoded `KnownNoteTypes.kt` index aligns with the
+  provider's field names on the real collection. The past "index-only" situation was a trust
+  artifact, not a provider limitation. Names are the wizard's canonical source going forward.
+- **P5 zip** 23-name/23-value exact pairing on real notes (id, frameNoV4… onYomi Count).
+- **P6** `/models/<id>/fields` NOT supported on 2.25.3 → wizard must (and can) use FIELD_NAMES.
+- **P7 full create path works**: addNewDeck + addNewBasicModel → getFieldList=[Front,Back] →
+  addNote(values in name order) → getNote readback matched → note deleted cleanly.
+  Leftovers to prune in AnkiDroid: deck `AnkiBiki spike 1794519312549`, note type
+  `AnkiBikiSpikeModel1794519312549` (both empty).
+
+### Recommendation for the real build
+Build the wizard on `getFieldList`/`FIELD_NAMES` (ordinals authoritative, proven aligned);
+deck list from `Deck.CONTENT_ALL_URI` (counts included, empties shown); writes via
+`addNote(modelId, deckId, fields-in-ordinal-order)`; do NOT rely on the newer /fields path.
 
 ## Wizard mapping (superseded by [docs/card-creation-wizard-plan.md](../../docs/card-creation-wizard-plan.md) — kept as probe-impact notes)
 

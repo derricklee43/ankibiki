@@ -1,8 +1,9 @@
 # Card-creation wizard — design plan (roadmap §4)
 
-Status: **designing; no implementation** (user, 2026-11-10). Feasibility gate:
-[spike 001](../spikes/001-anki-field-deck-probe/README.md) — field names/decks/create-path must probe
-green on the Pixel before build order is finalized.
+Status: **design complete; feasibility gate CLEARED** (spike 001 VALIDATED on the Pixel 2026-11-12:
+field names match all hardcoded indices, 8 decks enumerate incl. empties, full create round-trip
+via addNote works; `/models/#/fields` unsupported → FIELD_NAMES is the source). Ready for build
+when the user green-lights implementation.
 
 ## Flow
 

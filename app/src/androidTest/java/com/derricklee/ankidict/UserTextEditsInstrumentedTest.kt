@@ -140,10 +140,15 @@ class UserTextEditsInstrumentedTest {
         context.openOrCreateDatabase(TEST_DB_NAME, 0, null).use { db ->
             db.execSQL("ALTER TABLE scraped_photos DROP COLUMN modified_by_user_flag")
             db.execSQL("ALTER TABLE item_occurrences DROP COLUMN modified_by_user_flag")
+            db.execSQL("ALTER TABLE extracted_items DROP COLUMN sentence_ranks")
             db.version = 2
         }
         repository = MiningRepository(context, TEST_DB_NAME)
-        assertEquals(3, repository.readableDatabase.version)
+        assertEquals(4, repository.readableDatabase.version)
+        // migration-added columns default cleanly on pre-existing rows
+        repository.readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM extracted_items WHERE sentence_ranks IS NOT NULL", emptyArray(),
+        ).use { it.moveToFirst(); assertEquals(0, it.getInt(0)) }
         for ((table, rows) in before) assertEquals(table, rows, rowsWithoutFlags(table))
         assertEquals(0, photoFlag())
         assertEquals(0, sentenceFlag(900101L, "証拠がある。"))
@@ -155,7 +160,8 @@ class UserTextEditsInstrumentedTest {
     private fun rowsWithoutFlags(table: String): List<List<String?>> = repository.readableDatabase.rawQuery(
         "SELECT * FROM $table ORDER BY rowid", emptyArray(),
     ).use { cursor ->
-        val columns = cursor.columnNames.indices.filter { cursor.columnNames[it] != "modified_by_user_flag" }
+        val excluded = setOf("modified_by_user_flag", "sentence_ranks")
+        val columns = cursor.columnNames.indices.filter { cursor.columnNames[it] !in excluded }
         buildList {
             while (cursor.moveToNext()) add(columns.map { if (cursor.isNull(it)) null else cursor.getString(it) })
         }

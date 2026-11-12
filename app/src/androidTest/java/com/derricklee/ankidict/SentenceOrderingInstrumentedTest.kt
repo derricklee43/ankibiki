@@ -43,6 +43,10 @@ class SentenceOrderingInstrumentedTest {
                 status = PhotoStatus.KEEP,
             ),
         )
+        repository.upsertExtractedItem(
+            languageTag = LanguageTag.JAPANESE, itemType = ItemType.WORD,
+            expression = "語X", kanji = "語X", kana = "語X", meaning = "test",
+        )
         for ((i, s) in listOf("第一。", "第二。", "第三。").withIndex()) {
             repository.insertOccurrence(
                 languageTag = LanguageTag.JAPANESE, itemType = ItemType.WORD,

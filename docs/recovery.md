@@ -159,6 +159,18 @@ bytes live in the Pixel's MediaStore; URIs in the restored DB don't resolve
 there. Covered by `included` bundles + the relink step once a device is
 attached.
 
+## Off-device copy placed (2026-11-12, real Pixel session)
+
+`ankibiki-corpus-20261112-133204.zip` — the phone's current corpus (100 photos / 447 items /
+530 occurrences, integrity ok) WITH all 100 source photos embedded (199.4 MB, photos=included) —
+verified via the PC tool, copied with matching SHA-256 to BOTH:
+
+- `C:\Users\derri\Documents\AnkiBikiBackups\` (second filesystem, off the phone and off WSL)
+- `C:\Users\derri\OneDrive\AnkiBikiBackups\` (cloud-synced copy)
+
+This closes roadmap §1 item 2. Habit going forward: re-export from the phone's Settings menu after
+serious mining sessions and drop the zip into the OneDrive folder.
+
 ## Off-device copies
 
 The bundle is one small zip — copy it anywhere independent of this machine and

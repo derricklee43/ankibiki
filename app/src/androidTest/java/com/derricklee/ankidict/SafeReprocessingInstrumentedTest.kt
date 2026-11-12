@@ -96,6 +96,15 @@ class SafeReprocessingInstrumentedTest {
         }
 
         fun insertWord(expression: String, sentence: String) {
+            // Real mining always guarantees the canonical item before occurrences (ensureCanonical
+            // in the pipeline); mirror that so item-keyed operations (hide, detail) behave for real.
+            if (!repository.hasExtractedItem(LanguageTag.JAPANESE, ItemType.WORD, expression)) {
+                repository.upsertExtractedItem(
+                    languageTag = LanguageTag.JAPANESE, itemType = ItemType.WORD,
+                    expression = expression, kanji = expression, kana = expression,
+                    meaning = "test meaning",
+                )
+            }
             repository.insertOccurrence(
                 languageTag = LanguageTag.JAPANESE,
                 itemType = ItemType.WORD,
