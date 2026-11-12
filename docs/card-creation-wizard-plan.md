@@ -117,7 +117,5 @@ but its value is always blank. Remaining:
   when the draft's photo is MediaStore-inaccessible (off-device restore case).
 - **Q4** Which enum labels are actually available at the moment the wizard opens (item detail is the
   draft source) — e.g. `sentence_words` joiner defaults, `raw_ocr` availability gating.
-- **Q5** Where does the wizard open from: the single word view's existing `カードを作成` button
-  (`btn_create_card` today falls back to lookup-open), or a new card-creation surface?
 - **Q6** Editing a saved template later: re-enter Screen 1 prefilled (yes) + a reset-to-blank action?
 
