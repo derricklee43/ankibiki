@@ -100,7 +100,8 @@ never internal column names, so saved templates keep working.
 - Q3 (answered 2026-11-12): if the draft's photo is unreadable, the preview shows a **warning adjacent
   to the photo field** and the write proceeds with that field **blank**.
 - Rendered card preview via the provider's generate-HTML path (`AddContentApi.generateCardHtml(flds,
-  mid, ord)` family — exact method to be confirmed by spike P7's sandbox run), one tab per card template.
+  mid, ord)` family — exact method to be confirmed by spike P7's sandbox run), **one tab per card
+  layout, single confirm** (Q2 answered 2026-11-12 — the note is the unit of the write).
 - Explicit confirm button performs the write; **cancel writes nothing**; a retry after failure must
   read-back check for an existing note first (roadmap acceptance: "retries must not silently create
   duplicate cards"). Read-back = query the created note and re-zip fields↔names (spike P5).
@@ -113,18 +114,19 @@ Not a general Anki editor; no deck/note-type management UI; template config stay
 
 Answered 2026-11-10: Q1 = one template per (deck, card type), user chooses explicitly every time;
 Q5 = single word view button is the only entry point for now; Q7 = the blank/custom choice persists
-but its value is always blank. Answered 2026-11-12: **Q3** = unreadable photo → warning adjacent to
-the field on the preview screen, blank on write; **Q4** = `sentence_words` stays in the vocabulary,
-OCR-derived labels are not offered at all. Remaining:
+but its value is always blank. Answered 2026-11-12: **Q2** = a note type with multiple card layouts
+previews as one tab per layout under a single confirm (the note is the unit of the write); **Q3** =
+unreadable photo → warning adjacent to the field on the preview screen, blank on write; **Q4** =
+`sentence_words` stays in the vocabulary, OCR-derived labels are not offered at all; **Q6** = no
+template manager (edit = re-run wizard prefilled, Save overwrites) and **no reset-to-blank button
+at this time**.
 
-- **Q2** (clarified — NOT about sharing one template across decks) In Anki, one note type contains
-  its field definitions AND one or more **card templates** (front/back layouts). A type like
-  "Basic (and reversed card)" turns the single note your wizard writes into TWO cards. Since the
-  provider writes notes, not cards: does the preview/confirm screen show one confirm with a tab per
-  generated card (recommended), or something else?
-- **Q6** (clarified) Editing a saved template later = running the same wizard for that deck × card
-  type: Screen 1 opens pre-filled with the stored bindings and "Save template & continue" overwrites.
-  No separate template-management screen. Open: should Screen 1 also offer an explicit "reset to
-  blank" action (start mapping from nothing while keeping the same saved template otherwise), or is
-  per-field re-selection enough?
+Remaining:
+
+- **Q8** (new — falls out of §4's "reviewed draft" definition) How is the draft's SELECTED sentence
+  chosen? An item has multiple occurrence sentences. Options: (a) the word view's `カードを作成`
+  sends the item's first/most-recent UNSEEN sentence as the draft's sentence by default;
+  (b) sentence-level entry: create-card is invoked from a specific 例文 row so the chosen sentence
+  is explicit; (c) Screen 1 carries a sentence picker defaulting to one. The plan currently assumes
+  (b)-compatible draft construction: the reviewed item + one explicit sentence.
 
