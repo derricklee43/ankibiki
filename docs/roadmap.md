@@ -182,6 +182,11 @@ Prefer incremental changes over a wholesale architecture migration.
 
 ## Secondary improvements
 
+- [ ] Single word view sentence ordering (user 2026-11-12, separate from the card wizard): sentences
+      sort ascending by date added by default; ordering is adjustable and the rank lives on the word
+      entity (`extracted_items`), falling back to date order when unset. The wizard's Sentence 1/2/3
+      dropdown (docs/card-creation-wizard-plan.md Q8) reads the same order, so this feature should
+      land before or with the wizard's first release.
 - [ ] Offer whole-word lookup for multi-character CJK queries while retaining an
       explicit character-exploration path. Currently such queries are split into
       characters before lookup in `SearchService`.

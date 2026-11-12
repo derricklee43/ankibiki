@@ -121,12 +121,17 @@ unreadable photo → warning adjacent to the field on the preview screen, blank 
 template manager (edit = re-run wizard prefilled, Save overwrites) and **no reset-to-blank button
 at this time**.
 
-Remaining:
+Answered 2026-11-12: **Q8** = the draft's selected sentence comes from a dropdown of exactly three
+choices — `Sentence 1 / Sentence 2 / Sentence 3` — resolved as the item's first, second, third
+distinct occurrence sentences ordered **ascending by date added** (`created_at`). Fewer than three
+sentences → dropdown lists only what exists. (The three-slot cap is the spec as given.)
 
-- **Q8** (new — falls out of §4's "reviewed draft" definition) How is the draft's SELECTED sentence
-  chosen? An item has multiple occurrence sentences. Options: (a) the word view's `カードを作成`
-  sends the item's first/most-recent UNSEEN sentence as the draft's sentence by default;
-  (b) sentence-level entry: create-card is invoked from a specific 例文 row so the chosen sentence
-  is explicit; (c) Screen 1 carries a sentence picker defaulting to one. The plan currently assumes
-  (b)-compatible draft construction: the reviewed item + one explicit sentence.
+No open questions remain; the design is build-ready pending the Pixel session (spike P4/P7 gate).
+
+## Draft construction (Q8, 2026-11-12)
+
+The wizard's draft = reviewed item + selected sentence (from the Sentence 1/2/3 dropdown, placed
+above the field rows on Screen 1). The dropdown drives the live values: `sentence`,
+`sentence_words`, and `photo` (the selected sentence's own source photo) re-resolve when the
+selection changes; bindings persist, resolved values recompute.
 
