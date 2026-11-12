@@ -145,6 +145,12 @@ processing and image-upload behavior transparent.
 
 ## 4. Complete a minimal card-creation workflow
 
+Plan (user, 2026-11-10): the flow starts with a **deck-selection wizard** that lists every deck
+in the account, then pulls the note type's templated fields **with proper labels** — replacing the
+index-only assumption that forced `KnownNoteTypes.kt` constants. Feasibility of labeled fields is
+being spiked first: see [spikes/001-anki-field-deck-probe](../spikes/001-anki-field-deck-probe/README.md)
+(compile-verified probe; runs when the Pixel is attached).
+
 - [ ] Define a reviewed draft containing expression, reading, meaning, selected
       sentence, and source photo/context.
 - [ ] Allow destination deck/note-type mapping within the existing Anki integration
