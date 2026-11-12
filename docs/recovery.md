@@ -22,7 +22,7 @@ remain covered by the restore validation tests.
 ## What the corpus is, and where it lives
 
 Everything the app derives lives in one SQLite database, `mining.db`
-(`user_version` 3 as of writing):
+(`user_version` 4 as of writing — v4 adds `sentence_ranks` on `extracted_items`):
 
 | Table | Holds | Recovery-relevant columns |
 | --- | --- | --- |

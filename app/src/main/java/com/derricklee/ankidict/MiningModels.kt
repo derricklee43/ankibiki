@@ -97,6 +97,7 @@ data class MatchedSentence(
     val sentence: String,
     /** Persists through text reprocessing; fresh image rescans generate new, unmodified sentences. */
     val modifiedByUserFlag: Boolean = false,
+    val createdAt: Long = 0L,
 )
 
 data class ExtractedItemDetail(

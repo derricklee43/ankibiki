@@ -195,6 +195,25 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    /** One step up/down in this word's sentence order; re-renders on success. */
+    private fun moveSentence(sentence: String, up: Boolean) {
+        val detail = currentDetail ?: return
+        ioExecutor.execute {
+            val moved = runCatching {
+                miningRepository.moveSentenceRank(
+                    languageTag = detail.languageTag,
+                    itemType = detail.itemType,
+                    expression = detail.expression,
+                    sentence = sentence,
+                    up = up,
+                )
+            }.getOrDefault(false)
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed && moved) loadDetail()
+            }
+        }
+    }
+
     private fun loadDetail() {
         ioExecutor.execute {
             var detail = miningRepository.getItemDetail(languageTag, itemType, expression)
@@ -278,6 +297,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         } else {
             detail.sentences.map { s -> MatchedSentence(occurrenceId = -1L, photoId = -1L, sentence = s) }
         }
+        val distinctOrder = items.map { it.sentence }.distinct()
 
         for (matched in items) {
             val row = ItemMatchedSentenceBinding.inflate(layoutInflater, binding.sentencesContainer, false)
@@ -306,6 +326,15 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                     ),
                 )
             }
+            // Manual ordering: rank stored on the word entity; unset = date-ascending (default).
+            val pos = distinctOrder.indexOf(matched.sentence)
+            val movable = distinctOrder.size > 1
+            row.moveUpButton.visibility = if (movable) View.VISIBLE else View.GONE
+            row.moveDownButton.visibility = if (movable) View.VISIBLE else View.GONE
+            row.moveUpButton.isEnabled = movable && pos > 0
+            row.moveDownButton.isEnabled = movable && pos < distinctOrder.size - 1
+            row.moveUpButton.setOnClickListener { moveSentence(matched.sentence, up = true) }
+            row.moveDownButton.setOnClickListener { moveSentence(matched.sentence, up = false) }
             binding.sentencesContainer.addView(row.root)
         }
     }

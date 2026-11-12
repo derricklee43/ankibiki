@@ -59,6 +59,7 @@ class MiningRepository(
                 anki_note_id INTEGER,
                 is_hidden INTEGER NOT NULL DEFAULT 0,
                 visibility_state TEXT NOT NULL DEFAULT 'ACTIVE',
+                sentence_ranks TEXT,
                 PRIMARY KEY (language_tag, item_type, expression)
             )
             """.trimIndent(),
@@ -105,6 +106,10 @@ class MiningRepository(
             // Prior versions did not track edit provenance; do not guess which legacy rows were edited.
             db.execSQL("ALTER TABLE scraped_photos ADD COLUMN modified_by_user_flag INTEGER NOT NULL DEFAULT 0")
             db.execSQL("ALTER TABLE item_occurrences ADD COLUMN modified_by_user_flag INTEGER NOT NULL DEFAULT 0")
+        }
+        if (oldVersion < 4) {
+            // Per-word manual sentence ordering (rank lives on the word entity; null = date order).
+            runCatching { db.execSQL("ALTER TABLE extracted_items ADD COLUMN sentence_ranks TEXT") }
         }
     }
 
@@ -767,7 +772,7 @@ class MiningRepository(
         val matchedSentences = mutableListOf<MatchedSentence>()
         db.rawQuery(
             """
-            SELECT o.id, o.photo_id, o.sentence, o.modified_by_user_flag
+            SELECT o.id, o.photo_id, o.sentence, o.modified_by_user_flag, o.created_at
             FROM item_occurrences o
             JOIN scraped_photos p ON o.photo_id = p.media_store_id
             WHERE o.language_tag = ?
@@ -775,7 +780,7 @@ class MiningRepository(
               AND o.expression = ?
               AND o.state IN ('UNSEEN', 'SEEN')
               AND p.status = 'KEEP'
-            ORDER BY o.created_at DESC, o.id DESC
+            ORDER BY o.created_at ASC, o.id ASC
             """.trimIndent(),
             arrayOf(languageTag.name, itemType.name, expression),
         ).use { c ->
@@ -791,10 +796,25 @@ class MiningRepository(
                             photoId = photoId,
                             sentence = sentence,
                             modifiedByUserFlag = c.getInt(3) != 0,
+                            createdAt = c.getLong(4),
                         ),
                     )
                 }
             }
+        }
+        // Manual sentence ordering (word-view 例文 + wizard Sentence 1/2/3 read this same order):
+        // ranked sentences first by rank, everything else — including occurrences added after the
+        // map was built — keeps date-ascending order at the end.
+        val rankMap = sentenceRankMap(db, languageTag, itemType, expression)
+        if (rankMap.isNotEmpty()) {
+            matchedSentences.sortWith(
+                compareBy<MatchedSentence> { rankMap[it.sentence] ?: Int.MAX_VALUE }
+                    .thenBy { it.createdAt }
+                    .thenBy { it.occurrenceId },
+            )
+            val ordered = matchedSentences.map { it.sentence }
+            sentences.clear()
+            sentences.addAll(ordered)
         }
 
         return ExtractedItemDetail(
@@ -833,6 +853,76 @@ class MiningRepository(
             "id = ?",
             arrayOf(occurrenceId.toString()),
         )
+    }
+
+    /** The word's manual sentence ordering map (unset / unparsable -> empty = pure date order). */
+    private fun sentenceRankMap(
+        db: SQLiteDatabase,
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+    ): Map<String, Int> {
+        val json = db.rawQuery(
+            "SELECT sentence_ranks FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag.name, itemType.name, expression),
+        ).use { c -> if (c.moveToFirst()) c.getStringOrNull(0) else null } ?: return emptyMap()
+        return runCatching {
+            val obj = org.json.JSONObject(json)
+            buildMap { obj.keys().forEach { k -> put(k, obj.getInt(k)) } }
+        }.getOrDefault(emptyMap())
+    }
+
+    /** Distinct sentences of the word, earliest-added first (pre-rank base order). */
+    private fun distinctSentencesByDate(
+        db: SQLiteDatabase,
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+    ): List<String> = db.rawQuery(
+        """
+        SELECT o.sentence FROM item_occurrences o
+        JOIN scraped_photos p ON o.photo_id = p.media_store_id
+        WHERE o.language_tag = ? AND o.item_type = ? AND o.expression = ?
+          AND o.state IN ('UNSEEN', 'SEEN') AND p.status = 'KEEP'
+          AND TRIM(o.sentence) != ''
+        GROUP BY o.sentence ORDER BY MIN(o.created_at) ASC, MIN(o.id) ASC
+        """.trimIndent(),
+        arrayOf(languageTag.name, itemType.name, expression),
+    ).use { c -> buildList { while (c.moveToNext()) add(c.getString(0).trim()) } }
+
+    /**
+     * Moves [sentence] one step up/down in the word's manual sentence order (word-view 例文 and the
+     * wizard's Sentence 1/2/3 dropdown read this order). The first move materializes the full current
+     * order into the rank map; stale keys (sentences since edited away) are dropped on rewrite.
+     */
+    fun moveSentenceRank(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+        sentence: String,
+        up: Boolean,
+    ): Boolean {
+        val db = writableDatabase
+        val base = distinctSentencesByDate(db, languageTag, itemType, expression)
+        if (base.size < 2 || sentence !in base) return false
+        val rankMap = sentenceRankMap(db, languageTag, itemType, expression)
+        val ordered = (base.sortedBy { rankMap[it] ?: Int.MAX_VALUE }).distinct()
+        val from = ordered.indexOf(sentence)
+        val to = if (up) from - 1 else from + 1
+        if (from < 0 || to !in ordered.indices) return false
+        val moved = ordered.toMutableList().apply { add(to, removeAt(from)) }
+        val values = ContentValues().apply {
+            put(
+                "sentence_ranks",
+                org.json.JSONObject(moved.mapIndexed { i, s -> s to i }.toMap() as Map<String, Any>).toString(),
+            )
+        }
+        val updated = db.update(
+            "extracted_items", values,
+            "language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag.name, itemType.name, expression),
+        )
+        return updated == 1
     }
 
     /**
@@ -1100,7 +1190,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 3
+        private const val DB_VERSION = 4
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

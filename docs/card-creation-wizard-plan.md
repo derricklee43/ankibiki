@@ -135,3 +135,7 @@ above the field rows on Screen 1). The dropdown drives the live values: `sentenc
 `sentence_words`, and `photo` (the selected sentence's own source photo) re-resolve when the
 selection changes; bindings persist, resolved values recompute.
 
+Ordering foundation implemented 2026-11-12 (roadmap secondary): `extracted_items.sentence_ranks`
+(schema v4) + date-ascending default + ↑/↓ manual ordering in the word view — the wizard reads
+`getItemDetail().matchedSentences` in exactly this order for Sentence 1/2/3.
+
