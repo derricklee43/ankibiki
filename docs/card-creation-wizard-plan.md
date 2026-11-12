@@ -66,11 +66,12 @@ never internal column names, so saved templates keep working.
 | `meaning` | item's English meaning | to drown |
 | `sentence` | the selected source sentence | アリティアの弓兵部に所霧する。 |
 | `sentence_words` | parsed words of the sentence (joined) | list, joiner configurable later |
-| `photo` | source photo (media attachment; see open questions) | img.jpg ref |
+| `photo` | source photo (media attachment); unreadable at write time → warning on preview, blank on write (Q3) | img.jpg ref |
 | `language` | Japanese / Chinese (item's tag) | Japanese |
 | `level` | JLPT/HSK badge | N3 |
 | `rank` | corpus frequency rank | #344 |
-| `raw_ocr` | photo's raw OCR text (only if §3 surfaces it) | |
+
+(`raw_ocr` was dropped from the vocabulary — Q4 answered: OCR content is not wizard-mappable.)
 
 - Stored form of a mapping row: `SavedMapping = Unbound | Bound(field: ExportField)` — `Unbound`
   covers the single `blank/custom` dropdown choice (persisted as a choice; resolves to an empty
@@ -96,6 +97,8 @@ never internal column names, so saved templates keep working.
 
 - Per resolved Anki field: show final composed string for THIS note (prefix + value + suffix; a
   `blank/custom` row renders empty) — what gets written equals what is previewed, verbatim.
+- Q3 (answered 2026-11-12): if the draft's photo is unreadable, the preview shows a **warning adjacent
+  to the photo field** and the write proceeds with that field **blank**.
 - Rendered card preview via the provider's generate-HTML path (`AddContentApi.generateCardHtml(flds,
   mid, ord)` family — exact method to be confirmed by spike P7's sandbox run), one tab per card template.
 - Explicit confirm button performs the write; **cancel writes nothing**; a retry after failure must
@@ -110,12 +113,18 @@ Not a general Anki editor; no deck/note-type management UI; template config stay
 
 Answered 2026-11-10: Q1 = one template per (deck, card type), user chooses explicitly every time;
 Q5 = single word view button is the only entry point for now; Q7 = the blank/custom choice persists
-but its value is always blank. Remaining:
-- **Q2** Multiple card templates in one note type (Basic & reversed): does the preview confirm ONE note
-  (all its cards) or allow per-template selection?
-- **Q3** `photo` enum: media bytes via provider media insert + `[filename]` embedding — and what happens
-  when the draft's photo is MediaStore-inaccessible (off-device restore case).
-- **Q4** Which enum labels are actually available at the moment the wizard opens (item detail is the
-  draft source) — e.g. `sentence_words` joiner defaults, `raw_ocr` availability gating.
-- **Q6** Editing a saved template later: re-enter Screen 1 prefilled (yes) + a reset-to-blank action?
+but its value is always blank. Answered 2026-11-12: **Q3** = unreadable photo → warning adjacent to
+the field on the preview screen, blank on write; **Q4** = `sentence_words` stays in the vocabulary,
+OCR-derived labels are not offered at all. Remaining:
+
+- **Q2** (clarified — NOT about sharing one template across decks) In Anki, one note type contains
+  its field definitions AND one or more **card templates** (front/back layouts). A type like
+  "Basic (and reversed card)" turns the single note your wizard writes into TWO cards. Since the
+  provider writes notes, not cards: does the preview/confirm screen show one confirm with a tab per
+  generated card (recommended), or something else?
+- **Q6** (clarified) Editing a saved template later = running the same wizard for that deck × card
+  type: Screen 1 opens pre-filled with the stored bindings and "Save template & continue" overwrites.
+  No separate template-management screen. Open: should Screen 1 also offer an explicit "reset to
+  blank" action (start mapping from nothing while keeping the same saved template otherwise), or is
+  per-field re-selection enough?
 
