@@ -7,12 +7,19 @@ green on the Pixel before build order is finalized.
 ## Flow
 
 ```
-reviewed item (from mining corpus)
-   └─> Screen 0  Deck picker          all decks from provider (spike P2), incl. empty + counts
-          └─> Screen 1  Field mapping  configure this deck's template against its Anki fields
+single word view「カードを作成」(the only entry point for now — Q5 answered)
+   └─> Screen 0  Deck + card type    user explicitly chooses EVERY time (Q1 answered):
+             deck list from provider (spike P2, incl. empty + counts)
+             note type (card template) list from getModelList (spike P3)
+          └─> Screen 1  Field mapping  the (deck × card type) template's bindings pre-fill this
                  └─> Screen 2  Preview / confirm
                         └─> (later) write + read-back verification
 ```
+
+Template granularity (Q1): **one template per (deck, card type)**. Nothing is auto-selected — the
+user picks deck and card type on every creation; the matching saved template only pre-fills Screen 1.
+Entry point (Q5): the single word view's existing `カードを作成` button — today it throws
+"card creation is deferred"; it becomes the wizard launcher. Other entry points come later.
 
 ## Screen 1 — Field mapping (user-specified, 2026-11-10)
 
@@ -27,18 +34,20 @@ Reading:      [ blank/custom ▼ ]   ⟨free literal input for THIS note⟩
 ```
 
 - The dropdown lists **only AnkiBiki field labels** plus a SINGLE `blank/custom` option (one entry,
-  not two) — selecting it exposes a plain literal input for the current note.
+  not two). Per Q7 (answered 2026-11-10): the *choice* is persisted with the template so the user
+  doesn't reselect it each time, but **its value is always blank for now** — no literal input is
+  wired into the note yet; the option is reserved until custom text can mean something.
 - Once a field is selected, the dropdown **stays** showing the selected label; to its right the
   **resolved value** appears inside a composite input as `{value}`:
   - the braced core is **immutable** (it is the live resolved value of the selected AnkiBiki field
     for the current draft item — never editable inside the braces);
   - the user may **prepend / append text outside the braces** (two literal slots around it), which
     is how affixes like `【】`, `【音】…`, tags, or joined "reading (meaning)" shapes are expressed.
-- **Templates store bindings only (revised, user 2026-11-10):** no custom literal and no
-  prefix/suffix text is added to the saved template for ANY field — `Save template & continue`
-  persists only which AnkiBiki field (or blank) maps to each Anki ordinal. Literals/affixes typed
-  on screen affect the note being created right now, and are gone the next time the screen opens.
-  (May change in the future — keep the persistence schema able to grow slots later.)
+- **Templates store bindings only (revised, user 2026-11-10):** no prefix/suffix affix text and no
+  custom literal is ever added to the saved template for ANY field — `Save template & continue`
+  persists only which AnkiBiki field (or the single `blank/custom` option) maps to each Anki
+  ordinal. Affix slots are live-this-note-only and start empty on every visit.
+  (May change in the future — persistence schema grows additively, not by rewrite.)
 - Bottom buttons: **`Save template & continue`** persists this mapping as the deck's template and
   advances; **`Continue`** uses the current mapping for this note only, without persisting.
   (Both paths then land on Screen 2.)
@@ -63,8 +72,9 @@ never internal column names, so saved templates keep working.
 | `rank` | corpus frequency rank | #344 |
 | `raw_ocr` | photo's raw OCR text (only if §3 surfaces it) | |
 
-- Stored form of a mapping row: `SavedMapping = Blank | Bound(field: ExportField)` — nothing else.
-  Ephemeral per-creation state (not saved): prefix/suffix slots and the single blank/custom literal.
+- Stored form of a mapping row: `SavedMapping = Unbound | Bound(field: ExportField)` — `Unbound`
+  covers the single `blank/custom` dropdown choice (persisted as a choice; resolves to an empty
+  value for now). Ephemeral per-creation state (never saved): prefix/suffix slots.
 - Contract test duty: one table-driven test pins every enum → value extraction; adapter refactor is
   only allowed through that gate ("my ankibiki implementation can change without fucking my exports up").
 - Unknown/retired enum in a stored template → row falls back to `blank` + visible warning (never a
@@ -84,8 +94,8 @@ never internal column names, so saved templates keep working.
 
 ## Screen 2 — Preview / confirm
 
-- Per resolved Anki field: show final composed string for THIS note (prefix + value + suffix, or the
-  custom literal) — richer than what the template persists, by design.
+- Per resolved Anki field: show final composed string for THIS note (prefix + value + suffix; a
+  `blank/custom` row renders empty) — what gets written equals what is previewed, verbatim.
 - Rendered card preview via the provider's generate-HTML path (`AddContentApi.generateCardHtml(flds,
   mid, ord)` family — exact method to be confirmed by spike P7's sandbox run), one tab per card template.
 - Explicit confirm button performs the write; **cancel writes nothing**; a retry after failure must
@@ -98,8 +108,9 @@ Not a general Anki editor; no deck/note-type management UI; template config stay
 
 ## Open questions (next design passes)
 
-- **Q1** Deck vs deck+model as the template key: wizard screen 0 picks a deck — where does the note
-  type come from: a second picker, the deck's last-used model, or per-language default (`SEARCH_SOURCE_MODEL_ID`)?
+Answered 2026-11-10: Q1 = one template per (deck, card type), user chooses explicitly every time;
+Q5 = single word view button is the only entry point for now; Q7 = the blank/custom choice persists
+but its value is always blank. Remaining:
 - **Q2** Multiple card templates in one note type (Basic & reversed): does the preview confirm ONE note
   (all its cards) or allow per-template selection?
 - **Q3** `photo` enum: media bytes via provider media insert + `[filename]` embedding — and what happens
@@ -109,7 +120,4 @@ Not a general Anki editor; no deck/note-type management UI; template config stay
 - **Q5** Where does the wizard open from: the single word view's existing `カードを作成` button
   (`btn_create_card` today falls back to lookup-open), or a new card-creation surface?
 - **Q6** Editing a saved template later: re-enter Screen 1 prefilled (yes) + a reset-to-blank action?
-- **Q7** (from the 2026-11-10 revision) Confirm: when `blank/custom` is chosen and a literal typed, that
-  literal DOES flow into the note being created (it's just not saved to the template) — vs. "custom
-  ignored entirely for now, option is effectively blank". The plan assumes the former; say the word
-  if it's the latter and the literal input disappears until it can be persisted.
+
