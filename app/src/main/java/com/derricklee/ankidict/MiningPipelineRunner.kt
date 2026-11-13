@@ -226,7 +226,20 @@ class MiningPipelineRunner(
             correctionEvidence = outcome.evidence
         }
 
-        val sentences = config.sentenceParser.parseSentences(workingDocument)
+        val sentences0 = config.sentenceParser.parseSentences(workingDocument)
+        // Nameplate audit claims (user 2026-11-13): proxy drafts that LEAKED into the sentence
+        // list become pending claims — visible until the user rules; a confirmed plate is hidden
+        // for good here (rescan re-filter) and by applyNameplateVerdict (retroactive strip).
+        // Nothing is removed on draft; the user's verdict is the only destructive action.
+        val claims = sentences0.filter { it.isNotBlank() }
+        miningRepository.insertNameplateClaims(
+            candidate.mediaStoreId,
+            runCatching { OcrCorrectionPass.draftNameplateStrings(workingDocument) }
+                .getOrDefault(emptySet())
+                intersect claims.map { gateCjkOnly(it) }.toSet(),
+        )
+        val hidden = miningRepository.hiddenNameplateCores(candidate.mediaStoreId)
+        val sentences = if (hidden.isEmpty()) claims else claims.filterNot { gateCjkOnly(it) in hidden }
         val displayExtractedText = if (sentences.isNotEmpty()) {
             sentences.joinToString("\n")
         } else {

@@ -80,6 +80,13 @@
     <string name="btn_gold_marked">金</string>
     <string name="gold_marked_toast">金を付けました — この写真がゴールド基準集合に入ります</string>
     <string name="gold_unmarked_toast">金を外しました</string>
+    <string name="nameplate_claims_title">名前の板の候補 — 「正しい」で台詞から永久に非表示</string>
+    <string name="nameplate_correct_btn">正しい</string>
+    <string name="nameplate_incorrect_btn">違う</string>
+    <string name="nameplate_status_hidden">✓ 永久に非表示</string>
+    <string name="nameplate_status_kept">✓ 台詞として残す</string>
+    <string name="nameplate_hidden_toast">名前の板を隠しました — もう現れません</string>
+    <string name="nameplate_kept_toast">台詞として残します — 次からは候補に出しません</string>
     <string name="photo_rescan_dialog_title">編集済みの写真を再スキャン</string>
     <string name="photo_rescan_warning">手動で編集したテキストがあります。承認すると写真からテキストを再抽出し、手動の編集と単語・文法の出現データを置き換えます。</string>
     <string name="photo_rescan_skip_explanation">テキスト抽出をスキップすると、サムネイルのみ更新します。テキストと編集済みの状態は保持されます。</string>

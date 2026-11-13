@@ -2,6 +2,7 @@ package com.derricklee.ankidict
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
@@ -376,6 +377,7 @@ class PhotoDetailActivity : AppCompatActivity() {
                 val text = photo?.extractedText.orEmpty()
                 val rows = miningRepository.getOccurrenceSentenceRows(mediaId)
                 val document = OcrDocument.fromJsonString(photo?.ocrBlocksJson)
+                val claims = miningRepository.nameplateClaims(mediaId)
                 val resolvedUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
                 runOnUiThread {
                     if (isFinishing || isDestroyed || generation != textLoadGeneration ||
@@ -388,6 +390,7 @@ class PhotoDetailActivity : AppCompatActivity() {
                     renderGoldButton()
                     binding.extractedTextDisplay.text =
                         text.ifBlank { getString(R.string.no_extracted_text) }
+                    renderNameplateClaims(mediaId, claims)
                     bindTransparencyViews()
                     loadingText = false
                     updateActionAvailability()
@@ -398,6 +401,94 @@ class PhotoDetailActivity : AppCompatActivity() {
                     loadingText = false
                     reportOperationFailure(error)
                 }
+            }
+        }
+    }
+
+    /**
+     * Nameplate audit ledger for the current photo (v8 table, drafted by the mining proxy).
+     * Pending rows expose 正しい/違う; once ruled the row settles to a status label and the
+     * plate is decided "for good": correct hides the line from text + future mine/rescan,
+     * incorrect keeps it and CONFLICT_IGNORE prevents any re-suggestion for this photo.
+     */
+    private fun renderNameplateClaims(
+        mediaId: Long,
+        claims: List<MiningRepository.NameplateClaim>,
+    ) {
+        val rows = binding.nameplateClaimsRows
+        rows.removeAllViews()
+        binding.nameplateClaimsSection.visibility = if (claims.isEmpty()) View.GONE else View.VISIBLE
+        for (claim in claims) {
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+            row.addView(android.widget.TextView(this).apply {
+                text = claim.text
+                typeface = Typeface.MONOSPACE
+                textSize = 14f
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f,
+                )
+            })
+            when (claim.verdict) {
+                null -> {
+                    row.addView(com.google.android.material.button.MaterialButton(this).apply {
+                        text = getString(R.string.nameplate_correct_btn)
+                        textSize = 12f
+                        setInsetTop(0); setInsetBottom(0)
+                        minWidth = 0; minimumWidth = 0
+                        setOnClickListener { onNameplateVerdict(mediaId, claim.id, true) }
+                    })
+                    row.addView(com.google.android.material.button.MaterialButton(this).apply {
+                        text = getString(R.string.nameplate_incorrect_btn)
+                        textSize = 12f
+                        setInsetTop(0); setInsetBottom(0)
+                        minWidth = 0; minimumWidth = 0
+                        setOnClickListener { onNameplateVerdict(mediaId, claim.id, false) }
+                    })
+                }
+                "correct" -> row.addView(android.widget.TextView(this).apply {
+                    text = getString(R.string.nameplate_status_hidden)
+                    textSize = 12f
+                    setTextColor(androidx.core.content.ContextCompat.getColor(this@PhotoDetailActivity,
+                        android.R.color.holo_green_dark))
+                })
+                else -> row.addView(android.widget.TextView(this).apply {
+                    text = getString(R.string.nameplate_status_kept)
+                    textSize = 12f
+                })
+            }
+            rows.addView(row)
+        }
+    }
+
+    private fun onNameplateVerdict(mediaId: Long, claimId: Long, correct: Boolean) {
+        if (operationInProgress || loadingText) return
+        operationInProgress = true
+        updateActionAvailability()
+        ioExecutor.execute {
+            var failure: Exception? = null
+            try {
+                miningRepository.applyNameplateVerdict(claimId, correct)
+            } catch (e: Exception) {
+                failure = e
+            }
+            runOnUiThread {
+                operationInProgress = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (failure != null) {
+                    Toast.makeText(this, failure!!.message.orEmpty(), Toast.LENGTH_SHORT).show()
+                    updateActionAvailability()
+                    return@runOnUiThread
+                }
+                Toast.makeText(
+                    this,
+                    getString(if (correct) R.string.nameplate_hidden_toast else R.string.nameplate_kept_toast),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                if (currentMediaStoreId() == mediaId) updateCounterAndLoadExtractedText(currentIndex)
+                updateActionAvailability()
             }
         }
     }

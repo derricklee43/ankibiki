@@ -69,7 +69,7 @@ class OcrCorrectionInstrumentedTest {
     fun schema_current_createsOcrCorrectionsTable() {
         val db = repo.readableDatabase
         val uv = db.rawQuery("PRAGMA user_version", null).use { c -> c.moveToFirst(); c.getInt(0) }
-        assertEquals(7, uv) // the gate table arrived in v6; assert the CURRENT version so a bump fails loudly
+        assertEquals(MiningRepository.expectedUserVersion(), uv) // assert the CURRENT version so a bump fails loudly
         val found = db.rawQuery(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='ocr_corrections'", null
         ).use { c -> c.moveToFirst() }
@@ -189,7 +189,7 @@ class OcrCorrectionInstrumentedTest {
         try {
             val db = migrated.readableDatabase
             val uv = db.rawQuery("PRAGMA user_version", null).use { c -> c.moveToFirst(); c.getInt(0) }
-            assertEquals("onUpgrade must land the file at the current version", 7, uv)
+            assertEquals("onUpgrade must land the file at the current version", MiningRepository.expectedUserVersion(), uv)
             val table = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='ocr_corrections'", null)
                 .use { c -> c.moveToFirst() }
             assertTrue("v6 migration did not add ocr_corrections", table)

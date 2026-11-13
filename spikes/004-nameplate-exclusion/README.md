@@ -189,6 +189,11 @@ gap. If none → keep manual strip, re-pin this idea, and say so plainly.
 ## Order of work
 
 1. ~~Candidate review round 4 (user) → freeze `nameplateLabels`~~ DONE 2026-11-13.
+   **Production label stream now exists**: the app's v8 `nameplate_claims` ledger
+   (photo view 正しい/違う buttons) accrues per-string human verdicts on real
+   mining output — same semantics as this spike's truth classes. Cross-check
+   spike ground truth against it before Phase 4 (`SELECT text, verdict FROM
+   nameplate_claims WHERE verdict IS NOT NULL` off the device DB).
 2. Phase 0 truth tables (script, committed alongside).
 3. A1–A3 + casualty audit (offline; geometry needs the provider-artifact
    cloud docs for 46 photos and stored blocks for the rest — flag both

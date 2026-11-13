@@ -134,6 +134,30 @@
                 android:visibility="gone"
                 app:icon="@android:drawable/ic_dialog_alert" />
 
+            <LinearLayout
+                android:id="@+id/nameplateClaimsSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:background="?attr/colorSurfaceContainerLow"
+                android:orientation="vertical"
+                android:padding="8dp"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/nameplate_claims_title"
+                    android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                <LinearLayout
+                    android:id="@+id/nameplateClaimsRows"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:orientation="vertical" />
+            </LinearLayout>
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/toggleRawOcrButton"
                 style="@style/Widget.Material3.Button.TextButton"

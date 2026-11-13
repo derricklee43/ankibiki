@@ -95,6 +95,34 @@ class MiningRepository(
         )
         db.execSQL(cardTemplatesDdl())
         createOcrCorrectionsSchema(db)
+        createNameplateClaimsSchema(db)
+    }
+
+    private fun createNameplateClaimsSchema(db: SQLiteDatabase) {
+        // Audit ledger for speaker-nameplate guesses (user 2026-11-13): the mining proxy DRAFTS
+        // a plate per leaked sentence; NOTHING is hidden until the user rules on it in the photo
+        // view. verdict NULL = pending (line still visible), 'correct' = genuine plate -> hidden
+        // for good (sentence stripped from text + occurrences), 'incorrect' = real content ->
+        // kept and never re-claimed for this photo. Rows are derivable: the raw ocr_blocks_json
+        // stays authoritative (roadmap guardrail G3), so claims are a UI/audit convenience and a
+        // label stream for the exclusion spike — deleting the table loses no truth.
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS nameplate_claims (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                photo_id INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                source TEXT NOT NULL DEFAULT 'proxy',
+                verdict TEXT,
+                created_at INTEGER NOT NULL,
+                verdict_at INTEGER,
+                UNIQUE(photo_id, text)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS idx_nameplate_claims_photo ON nameplate_claims(photo_id, verdict)",
+        )
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -127,6 +155,9 @@ class MiningRepository(
             // deliberate 金 tap; the committed benchmark fixtures keep scoring the pipeline
             // until re-marked photos drive the next regeneration.
             runCatching { db.execSQL("ALTER TABLE scraped_photos ADD COLUMN is_gold INTEGER NOT NULL DEFAULT 0") }
+        }
+        if (oldVersion < 8) {
+            createNameplateClaimsSchema(db)
         }
     }
 
@@ -451,6 +482,134 @@ class MiningRepository(
             "SELECT media_store_id FROM scraped_photos WHERE is_gold = 1 ORDER BY media_store_id",
             null,
         ).use { c -> generateSequence { if (c.moveToNext()) c.getLong(0) else null }.toList() }
+
+    // ---- Nameplate audit claims (v8; see createNameplateClaimsSchema for semantics) ----
+
+    data class NameplateClaim(val id: Long, val text: String, val verdict: String?)
+
+    /** Idempotent draft insert (UNIQUE photo+text): called from the mining path per leaked line. */
+    fun insertNameplateClaims(mediaStoreId: Long, cores: Set<String>, now: Long = System.currentTimeMillis()) {
+        for (core in cores) {
+            if (core.isBlank()) continue
+            val values = ContentValues().apply {
+                put("photo_id", mediaStoreId)
+                put("text", core)
+                put("source", "proxy")
+                put("created_at", now)
+            }
+            writableDatabase.insertWithOnConflict(
+                "nameplate_claims", null, values, SQLiteDatabase.CONFLICT_IGNORE,
+            )
+        }
+    }
+
+    fun nameplateClaims(mediaStoreId: Long): List<NameplateClaim> =
+        readableDatabase.rawQuery(
+            "SELECT id, text, verdict FROM nameplate_claims WHERE photo_id = ? ORDER BY id",
+            arrayOf(mediaStoreId.toString()),
+        ).use { c ->
+            generateSequence {
+                if (c.moveToNext()) NameplateClaim(c.getLong(0), c.getString(1), c.getString(2)) else null
+            }.toList()
+        }
+
+    /** CJK projections of confirmed plates — the sentence filter for future mine/rescan passes. */
+    fun hiddenNameplateCores(mediaStoreId: Long): Set<String> =
+        readableDatabase.rawQuery(
+            "SELECT text FROM nameplate_claims WHERE photo_id = ? AND verdict = 'correct'",
+            arrayOf(mediaStoreId.toString()),
+        ).use { c ->
+            generateSequence { if (c.moveToNext()) c.getString(0) else null }.toSet()
+        }
+
+    /**
+     * Records the user's verdict and settles the plate "for good":
+     * correct -> the matching display lines are stripped from the photo text and their
+     * occurrence rows deleted (raw ocr_blocks_json untouched; later mine/rescan passes
+     * filter the sentence list through hiddenNameplateCores, so it never comes back);
+     * incorrect -> nothing is removed and the claim is never re-suggested for this photo.
+     * Returns the number of display lines removed (0 for incorrect or no-match).
+     */
+    fun applyNameplateVerdict(claimId: Long, correct: Boolean, now: Long = System.currentTimeMillis()): Int {
+        var removed = 0
+        inTransaction {
+            val db = writableDatabase
+            var mediaStoreId = -1L
+            var core = ""
+            db.rawQuery(
+                "SELECT photo_id, text FROM nameplate_claims WHERE id = ?",
+                arrayOf(claimId.toString()),
+            ).use { c ->
+                if (c.moveToFirst()) {
+                    mediaStoreId = c.getLong(0)
+                    core = c.getString(1)
+                }
+            }
+            if (mediaStoreId < 0) return@inTransaction
+            val verdict = if (correct) "correct" else "incorrect"
+            db.update(
+                "nameplate_claims",
+                ContentValues().apply {
+                    put("verdict", verdict)
+                    put("verdict_at", now)
+                },
+                "id = ?",
+                arrayOf(claimId.toString()),
+            )
+            if (!correct) return@inTransaction
+            var text = ""
+            db.rawQuery(
+                "SELECT extracted_text FROM scraped_photos WHERE media_store_id = ?",
+                arrayOf(mediaStoreId.toString()),
+            ).use { c -> if (c.moveToFirst()) text = c.getString(0) }
+            val lines = text.split("\n")
+            val (hidden, kept) = lines.partition { gateCjkOnly(it) == core }
+            if (hidden.isNotEmpty()) {
+                removed = hidden.size
+                db.update(
+                    "scraped_photos",
+                    ContentValues().apply { put("extracted_text", kept.filter(String::isNotBlank).joinToString("\n")) },
+                    "media_store_id = ?",
+                    arrayOf(mediaStoreId.toString()),
+                )
+                for (line in hidden) {
+                    db.delete(
+                        "item_occurrences",
+                        "photo_id = ? AND sentence = ?",
+                        arrayOf(mediaStoreId.toString(), line),
+                    )
+                }
+            }
+        }
+        return removed
+    }
+
+    /**
+     * One-time upgrade backfill (v8): photos mined before the claims table existed get pending
+     * audit rows for plates their STORED artifacts already show — draft set from the frozen
+     * ocr_blocks_json (pure offline proxy, no re-OCR) intersected with leaked lines of the
+     * current extracted_text. Verdicts stay with the user; CONFLICT_IGNORE makes this idempotent,
+     * so reruns after seeded rounds only ADD genuinely new pending rows.
+     */
+    fun backfillNameplateClaims(): Int {
+        var inserted = 0
+        for (photo in getAllScrapedPhotos()) {
+            val document = OcrDocument.fromJsonString(photo.ocrBlocksJson) ?: continue
+            val drafts = runCatching { OcrCorrectionPass.draftNameplateStrings(document) }
+                .getOrDefault(emptySet())
+            if (drafts.isEmpty()) continue
+            val leaked = photo.extractedText.split('\n')
+                .map { gateCjkOnly(it) }
+                .filter { it.isNotEmpty() }
+                .toSet()
+            val cores = drafts intersect leaked
+            if (cores.isEmpty()) continue
+            val before = nameplateClaims(photo.mediaStoreId).map { it.text }.toSet()
+            insertNameplateClaims(photo.mediaStoreId, cores)
+            inserted += (cores - before).size
+        }
+        return inserted
+    }
 
     /** Marks existing sentence objects changed through the whole-photo text editor. */
     fun markSentencesModifiedByUser(photoId: Long, sentences: Set<String>) {
@@ -1348,7 +1507,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 7
+        private const val DB_VERSION = 8
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

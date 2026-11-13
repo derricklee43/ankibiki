@@ -334,8 +334,26 @@ recorded coverage gap — photo 983 excluded from the set by user decision),
 LLM-detection explicitly rejected — see
 [spikes/004-nameplate-exclusion/README.md](../spikes/004-nameplate-exclusion/README.md).
 
-Shipping note (2026-11-13): the policy itself stays parked — nothing has been
-flipped to DEMOTE/DROP and no corpus text is dropped by nameplate reasoning.
+**First slice SHIPPED 2026-11-13 (user-specified UX): the human-confirmed
+claims ledger, schema v8** — guardrails honored: the parser only flags
+(the mining proxy's drafts that leak into the sentence list become PENDING
+`nameplate_claims` rows; drafting deletes nothing), the user's 正しい/違う
+verdict in the photo detail view is the opt-in (正しい hides the plate line
+for good: stripped from display text, occurrence rows dropped, and filtered
+from every future mine/rescan via `hiddenNameplateCores`; 違う keeps the line
+and never re-claims), and raw blocks stay authoritative (table is fully
+re-derivable; deleting it loses no truth). A one-shot startup backfill
+re-derives pending rows for photos mined before v8 from their stored blocks.
+The 81 round-4 verdicts were seeded as confirmed 'correct' on the phone
+(ledger: 82 correct + 8 pending); first live ruling captured on-device
+(#1407 `アプ`). This is also the production label stream spike 004 asked for:
+`SELECT text, verdict FROM nameplate_claims WHERE verdict IS NOT NULL` is
+per-string detector y/n data accruing with normal use. Auto-exclusion
+(no per-photo ruling) remains PARKED pending the spike's go thresholds.
+
+Shipping note (2026-11-13, amended same day): AUTOMATIC exclusion stays parked —
+nothing is dropped by nameplate reasoning alone; the only hides that ship are
+behind the user's own 正しい verdict (v8 claims ledger above).
 The auto-applying correction gate (roadmap §2) does ship a *provisional
 exclusion proxy* (`OcrCorrectionPass.draftNameplateStrings`: short,
 katakana-bearing, hiragana-free, punctuation-free lines): it only routes

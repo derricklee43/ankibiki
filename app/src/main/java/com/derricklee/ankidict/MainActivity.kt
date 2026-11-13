@@ -95,6 +95,18 @@ class MainActivity : AppCompatActivity() {
         )
         settingsRepository = SettingsRepository(this)
         miningRepository = MiningRepository(this)
+        // v8 one-shot maintenance: photos mined before nameplate_claims existed get PENDING
+        // audit rows from their stored artifacts (offline proxy, no re-OCR). Idempotent by
+        // UNIQUE constraint; the flag only avoids the scan on every launch.
+        if (!getSharedPreferences("maintenance", Context.MODE_PRIVATE)
+                .getBoolean("nameplate_backfill_v8", false)
+        ) {
+            miningExecutor.execute {
+                runCatching { miningRepository.backfillNameplateClaims() }
+                getSharedPreferences("maintenance", Context.MODE_PRIVATE).edit()
+                    .putBoolean("nameplate_backfill_v8", true).apply()
+            }
+        }
         miningPipelineRunner = MiningPipelineRunner.createDefault(
             context = this,
             miningRepository = miningRepository,

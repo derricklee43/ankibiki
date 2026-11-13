@@ -49,7 +49,7 @@ class PhotoGoldFlagInstrumentedTest {
     fun freshDatabase_v7_hasIsGoldColumn() {
         val db = repo.readableDatabase
         val uv = db.rawQuery("PRAGMA user_version", null).use { c -> c.moveToFirst(); c.getInt(0) }
-        assertEquals(7, uv)
+        assertEquals(MiningRepository.expectedUserVersion(), uv)
         val cols = db.rawQuery("PRAGMA table_info(scraped_photos)", null).use { c ->
             generateSequence { if (c.moveToNext()) c.getString(1) else null }.toList()
         }
@@ -99,7 +99,7 @@ class PhotoGoldFlagInstrumentedTest {
         val migrated = MiningRepository(context, "test_mig_v6.db")
         try {
             val db = migrated.readableDatabase
-            assertEquals(7, db.rawQuery("PRAGMA user_version", null).use { c -> c.moveToFirst(); c.getInt(0) })
+            assertEquals(MiningRepository.expectedUserVersion(), db.rawQuery("PRAGMA user_version", null).use { c -> c.moveToFirst(); c.getInt(0) })
             // NOT seeded (user 2026-11-13): touched photos do NOT inherit gold — membership
             // starts at zero and every 金 mark is declared.
             assertEquals(false, migrated.getPhoto(11L)?.isGold)
