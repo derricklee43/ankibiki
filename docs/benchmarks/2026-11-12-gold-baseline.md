@@ -13,9 +13,11 @@
 > standalone + 27 inline (81 candidate strings drafted set-wide — provisional ignores,
 > review round 4 pending). Grouped: previously-benchmarked set 24/71 (34%), new batch
 > 49/114 (43%) — the older 46 are the harder, nameplate-stripped, narration-heavy ones.
-> Adjudications: 983 + 1159 retired by user retyping; 7 rules still active (969, 1133,
-> 1149, 1284, 1418, 1420, 1440) — note 969 was retyped but kept 陸下; the 陛下 rule
-> remains applied until it is. 1158 self-excluded (user typed __ placeholders for
+> Adjudications: 983 + 1159 retired by user retyping; **969 fixed in-app on 2026-11-13**
+> (user asked for the correction; device text now reads 陛下, occurrences renamed,
+> rule self-retired) — 6 rules still active (1133, 1149, 1284, 1418, 1420, 1440)
+> awaiting in-app retypes. Headline unaffected (73/185) — same gold content, cleaner
+> provenance. 1158 self-excluded (user typed __ placeholders for
 > unreadable chars and left it unmarked — partially-verified photos are OUT; wildcard
 > '__'-in-gold scoring is a proposed small extension if partial membership is wanted).
 > **OPEN CONFLICT:** locked fixtures 953 & 1160 now have user 金 gold that supersedes
