@@ -130,9 +130,28 @@ not discover.
   non-determinism, G3 tension — raw blocks must re-derive flags offline);
   geometric-top-row-only rules (H8 evidence contradicts).
 
+## Evaluation method (what "testing" means here — user question 2026-11-13)
+
+Three layers, deliberately NOT a 2^9 combination sweep (with ~27+81 labeled
+instances, a 512-way sweep is guaranteed to surface a 100%-by-chance combo —
+a fake result; pre-registration is the defense):
+
+1. **Solo diagnostic**: every heuristic H1–H9 scored alone against the Phase-0
+   truth table: nameplate recall, LEGIT casualties (any >0 disqualifies it as a
+   standalone production rule — H9c, H2, H5, H6 predicted to fail this alone),
+   NOISE pickup. Purpose: locate where each signal's failures live. No shipping
+   decision taken here.
+2. **Pre-registered combinations** = A0–A5 only, declared above before any run,
+   judged against the fixed go/no-go thresholds. If all five fail: verdict is
+   "stays parked" — no post-hoc combination #6 gets promoted without being
+   written here first as A6 with its rationale.
+3. **Two decision points scored separately**: standalone-line flagging (policy
+   input) vs inline-prefix excision (H9 rule) — different actions, different
+   blast radius, separate result tables; they never average each other out.
+
 ## Metrics + go/no-go
 
-Primary (against Phase-0 truth, all 127 photos + 9 legacy):
+Primary (against Phase-0 truth, all 126 gold photos + 9 legacy fixtures):
 - nameplate-line recall, per variant (standalone and inline separate)
 - flag precision (NAMEPLATE / NOISE among flagged) — NOISE flags are allowed
   for the *experiment* but counted
