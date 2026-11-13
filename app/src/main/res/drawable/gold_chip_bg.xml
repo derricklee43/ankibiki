@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Filled gold chip for 金-marked photos (gallery/strip badge, user request 2026-11-13). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/gold" />
+    <corners android:radius="9dp" />
+</shape>

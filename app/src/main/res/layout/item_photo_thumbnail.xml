@@ -18,4 +18,24 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
+    <TextView
+        android:id="@+id/goldChip"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="3dp"
+        android:background="@drawable/gold_chip_bg"
+        android:minWidth="18dp"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:paddingTop="1dp"
+        android:paddingBottom="1dp"
+        android:text="@string/gold_chip_label"
+        android:textColor="?attr/colorSurface"
+        android:textSize="10sp"
+        android:textStyle="bold"
+        android:elevation="2dp"
+        android:visibility="gone"
+        app:layout_constraintStart_toStartOf="@id/thumbnailImage"
+        app:layout_constraintTop_toTopOf="@id/thumbnailImage" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

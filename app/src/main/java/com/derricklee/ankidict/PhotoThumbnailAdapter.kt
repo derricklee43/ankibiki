@@ -53,6 +53,7 @@ class PhotoThumbnailAdapter(
         fun bind(photo: ScrapedPhoto) {
             boundMediaId = photo.mediaStoreId
             binding.root.setOnClickListener { onPhotoClick(photo) }
+            binding.goldChip.visibility = if (photo.isGold) android.view.View.VISIBLE else android.view.View.GONE
 
             val cached = PhotoThumbnailCache.getMemoryCached(photo.mediaStoreId)
             if (cached != null) {
