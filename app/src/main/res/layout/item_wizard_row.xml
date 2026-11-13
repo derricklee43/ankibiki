@@ -11,10 +11,18 @@
     android:paddingHorizontal="8dp"
     android:paddingVertical="6dp">
 
+    <com.google.android.material.radiobutton.MaterialRadioButton
+        android:id="@+id/rowRadio"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:clickable="false"
+        android:focusable="false" />
+
     <TextView
         android:id="@+id/rowTitle"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
         android:layout_weight="1"
         android:textSize="15sp" />
 

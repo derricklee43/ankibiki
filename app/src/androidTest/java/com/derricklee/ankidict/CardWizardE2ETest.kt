@@ -78,7 +78,7 @@ class CardWizardE2ETest {
         assumeAnki()
         val s = seed()
         assertNotNull(s)
-        val again = AddContentApi(ctx).addNewBasicModel("E2EClone${'$'}{System.currentTimeMillis()}")
+        val again = AddContentApi(ctx).addNewBasicModel("E2EClone" + System.currentTimeMillis())
         if (again != null) {
             org.junit.Assert.assertNotEquals("provider started deduping identical field sets", s!!.modelId, again)
         }

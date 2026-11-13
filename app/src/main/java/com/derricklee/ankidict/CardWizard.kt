@@ -16,11 +16,17 @@ import com.derricklee.ankidict.databinding.ActivityCardPreviewBinding
 import com.derricklee.ankidict.databinding.ActivityDeckPickerBinding
 import com.derricklee.ankidict.databinding.ActivityFieldMappingBinding
 import com.derricklee.ankidict.databinding.ItemCardMappingRowBinding
+import com.derricklee.ankidict.databinding.ItemWizardNestedRowBinding
 import com.derricklee.ankidict.databinding.ItemWizardRowBinding
 import com.google.android.material.button.MaterialButton
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.Executors
+
+private sealed interface Row {
+    data class Deck(val info: AnkiRepository.AnkiDeckInfo) : Row
+    data class Model(val info: AnkiRepository.AnkiModelInfo) : Row
+}
 
 /** Intent keys shared by the three wizard screens (docs/card-creation-wizard-plan.md). */
 internal object WizardKeys {
@@ -50,6 +56,7 @@ class DeckPickerActivity : AppCompatActivity() {
     private var models: List<AnkiRepository.AnkiModelInfo> = emptyList()
     private var selectedDeck: Long? = null
     private var selectedModel: Long? = null
+    private lateinit var adapter: PickAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,10 +66,10 @@ class DeckPickerActivity : AppCompatActivity() {
 
         binding.screenTitle.setText(R.string.wizard_deck_title)
         binding.stepHint.setText(R.string.wizard_deck_hint)
-        binding.modelLabel.setText(R.string.wizard_card_type_label)
         binding.backButton.setOnClickListener { finish() }
-        binding.deckList.layoutManager = LinearLayoutManager(this)
-        binding.modelList.layoutManager = LinearLayoutManager(this)
+        binding.pickList.layoutManager = LinearLayoutManager(this)
+        adapter = PickAdapter()
+        binding.pickList.adapter = adapter
 
         if (!ankiRepository.isAnkiDroidAvailable()) {
             binding.stepHint.setText(R.string.wizard_no_ankidroid)
@@ -74,18 +81,7 @@ class DeckPickerActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 decks = d; models = m
-                binding.deckList.adapter = PickAdapter(d.map { it.name to it.counts.joinToString("/") }) { pos ->
-                    selectedDeck = d[pos].deckId
-                    (binding.deckList.adapter as PickAdapter).selected = pos
-                    (binding.deckList.adapter as PickAdapter).notifyDataSetChanged()
-                    updateContinue()
-                }
-                binding.modelList.adapter = PickAdapter(m.map { it.name to "${it.fieldNames.size} flds" }) { pos ->
-                    selectedModel = m[pos].modelId
-                    (binding.modelList.adapter as PickAdapter).selected = pos
-                    (binding.modelList.adapter as PickAdapter).notifyDataSetChanged()
-                    updateContinue()
-                }
+                adapter.rebuild()
             }
         }
 
@@ -114,25 +110,65 @@ class DeckPickerActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    private inner class PickAdapter(
-        private val rows: List<Pair<String, String>>,
-        private val onClick: (Int) -> Unit,
-    ) : RecyclerView.Adapter<PickAdapter.Holder>() {
-        var selected = -1
+    /** Deck rows globally; card-type rows nest (indented, elevated bg) under the selected deck only. */
+    private inner class PickAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
-        inner class Holder(val b: ItemWizardRowBinding) : RecyclerView.ViewHolder(b.root)
+        private var rows: List<Row> = emptyList()
 
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) =
-            Holder(ItemWizardRowBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+        fun rebuild() {
+            val out = mutableListOf<Row>()
+            decks.forEach { deck ->
+                out += Row.Deck(deck)
+                if (deck.deckId == selectedDeck) models.forEach { out += Row.Model(it) }
+            }
+            rows = out
+            notifyDataSetChanged()
+            updateContinue()
+        }
+
+        override fun getItemViewType(position: Int) = if (rows[position] is Row.Deck) 0 else 1
 
         override fun getItemCount() = rows.size
 
-        override fun onBindViewHolder(holder: Holder, position: Int) {
-            val (title, sub) = rows[position]
-            holder.b.rowTitle.text = if (position == selected) "✓  $title" else title
-            holder.b.rowSubtitle.text = sub
-            holder.b.root.setOnClickListener { onClick(position) }
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+            val inflater = LayoutInflater.from(parent.context)
+            return if (viewType == 0)
+                DeckHolder(ItemWizardRowBinding.inflate(inflater, parent, false))
+            else
+                ModelHolder(ItemWizardNestedRowBinding.inflate(inflater, parent, false))
         }
+
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+            when (val row = rows[position]) {
+                is Row.Deck -> {
+                    holder as DeckHolder
+                    holder.b.rowTitle.text = row.info.name
+                    holder.b.rowSubtitle.text = row.info.counts.joinToString("/")
+                    holder.b.rowRadio.isChecked = row.info.deckId == selectedDeck
+                    holder.b.root.setOnClickListener {
+                        if (selectedDeck != row.info.deckId) {
+                            selectedDeck = row.info.deckId
+                            selectedModel = null // card type belongs to the newly opened deck
+                        }
+                        rebuild()
+                    }
+                }
+                is Row.Model -> {
+                    holder as ModelHolder
+                    holder.b.rowTitle.text = row.info.name
+                    holder.b.rowSubtitle.text = "${row.info.fieldNames.size} flds"
+                    holder.b.rowRadio.isChecked = row.info.modelId == selectedModel
+                    holder.b.root.setOnClickListener {
+                        selectedModel = row.info.modelId
+                        notifyDataSetChanged()
+                        updateContinue()
+                    }
+                }
+            }
+        }
+
+        private inner class DeckHolder(val b: ItemWizardRowBinding) : RecyclerView.ViewHolder(b.root)
+        private inner class ModelHolder(val b: ItemWizardNestedRowBinding) : RecyclerView.ViewHolder(b.root)
     }
 }
 
