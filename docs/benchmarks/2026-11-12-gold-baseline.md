@@ -1,9 +1,10 @@
 # Gold baseline — 46 user-corrected photos — 2026-11-12 (rev 5, gold cleaned)
 
 > **Membership note (2026-11-13):** this rev measures the set selected by the OLD rule
-> (touched photos = gold). Membership is now explicit 金 marks (`scraped_photos.is_gold`);
-> the v7 migration seeded marks from the same flag, so this exact set carries over unchanged
-> — future gold regenerations follow marks, and photos can enter gold without ever being edited.
+> (touched photos = gold). Membership is now explicit 金 marks (`scraped_photos.is_gold`)
+> and the v7 migration does NOT seed them (user decision: gold era starts from zero) — this
+> committed fixture set stays the scoring baseline until the first regeneration run against
+> photos the user has personally re-marked.
 
 Rev 3 = 25-photo set + harness fixes; rev 4 = expanded to 46. **Rev 5: gold
 cleanup round 3 applied** — 10 stored-vs-Cloud word disagreements adjudicated by

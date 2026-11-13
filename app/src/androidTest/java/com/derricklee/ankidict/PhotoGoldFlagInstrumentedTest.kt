@@ -57,7 +57,7 @@ class PhotoGoldFlagInstrumentedTest {
     }
 
     @Test
-    fun migration_v6toV7_seedsGoldFromEditFlag() {
+    fun migration_v6toV7_addsColumn_startingAllUnmarked() {
         repo.close()
         val dbFile = context.getDatabasePath("test_mig_v6.db")
         dbFile.parentFile?.mkdirs()
@@ -100,9 +100,12 @@ class PhotoGoldFlagInstrumentedTest {
         try {
             val db = migrated.readableDatabase
             assertEquals(7, db.rawQuery("PRAGMA user_version", null).use { c -> c.moveToFirst(); c.getInt(0) })
-            assertEquals(true, migrated.getPhoto(11L)?.isGold)   // touched -> reviewed -> seeded gold
-            assertEquals(false, migrated.getPhoto(22L)?.isGold)  // untouched perfect photo: NOT gold yet
-            assertEquals(true, migrated.getPhoto(33L)?.isGold)
+            // NOT seeded (user 2026-11-13): touched photos do NOT inherit gold — membership
+            // starts at zero and every 金 mark is declared.
+            assertEquals(false, migrated.getPhoto(11L)?.isGold)
+            assertEquals(false, migrated.getPhoto(22L)?.isGold)
+            assertEquals(false, migrated.getPhoto(33L)?.isGold)
+            assertEquals(listOf<Long>(), migrated.getGoldPhotoIds())
             assertEquals("古い文11。", migrated.getPhoto(11L)?.extractedText)
         } finally {
             migrated.close()

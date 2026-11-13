@@ -146,7 +146,9 @@ literal.
       and the manual correction effort required to obtain useful study material.
       (recognition/segmentation/char-distance tracked in the gold harness; still missing:
       wrong-candidate precision metric; correction-effort proxy upgraded from "touched"
-      to explicit 金 marks + ocr_corrections rows, 2026-11-13)
+      to explicit 金 marks + ocr_corrections rows, 2026-11-13; marks NOT seeded at v7 —
+      gold era starts from zero by user decision, committed fixtures remain the baseline
+      until re-marking drives the next regeneration)
 - [x] Keep regression fixtures for discovered failures and repeat a real-image
       rescan when changing recognition or layout handling.
 

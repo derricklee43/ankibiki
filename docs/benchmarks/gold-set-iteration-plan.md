@@ -28,8 +28,10 @@ every one without a device.
 **Mark as gold** button (`scraped_photos.is_gold`, schema v7). Partial edits
 across multiple passes no longer imply verification, never-edited perfect
 photos can join, and a full image rescan retires a photo's mark (its text was
-replaced). The v6→v7 migration seeded `is_gold` from the old flag so the
-reviewed set carried over unchanged.
+replaced). The v7 migration does NOT seed marks (user decision, "flip them all
+off"): live membership starts at zero and the 46-photo era is re-marked by
+choice; the committed fixtures JSON keeps scoring the pipeline until the first
+regeneration run against marked photos.
 
 **The caveat:** the user stripped speaker nameplates while correcting
 (`一エリス`, `ゴードン`, …). Naive exact-match against gold would charge every

@@ -122,11 +122,11 @@ class MiningRepository(
         }
         if (oldVersion < 7) {
             // Gold membership becomes an EXPLICIT mark (user 2026-11-13), replacing the
-            // "touched = gold" assumption. Seed current gold from the edit-provenance flag so
-            // the reviewed set survives migration; the app's Mark-as-gold toggle owns it from
-            // there on (unmark or rescan retires a photo).
+            // "touched = gold" assumption. NOT seeded (user decision 2026-11-13: "flip them
+            // all off") - the gold era starts from zero marks and every membership is a
+            // deliberate 金 tap; the committed benchmark fixtures keep scoring the pipeline
+            // until re-marked photos drive the next regeneration.
             runCatching { db.execSQL("ALTER TABLE scraped_photos ADD COLUMN is_gold INTEGER NOT NULL DEFAULT 0") }
-            db.execSQL("UPDATE scraped_photos SET is_gold = 1 WHERE modified_by_user_flag = 1")
         }
     }
 
@@ -436,11 +436,10 @@ class MiningRepository(
         writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
     }
 
-    /**
-     * Explicit gold-set membership toggle (Mark as gold button; user 2026-11-13). Never touches
+    /** Explicit gold-set membership toggle (Mark as gold button; user 2026-11-13). Never touches
      * edit provenance — marking is verification, not an edit. Full image rescans clear the mark
-     * because they replace the text it attests to.
-     */
+     * because they replace the text it attests to. The v7 migration does NOT seed marks:
+     * membership starts at zero by user decision (2026-11-13), every 金 is declared. */
     fun setPhotoIsGold(mediaStoreId: Long, gold: Boolean) {
         val values = ContentValues().apply { put("is_gold", gold) }
         writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
