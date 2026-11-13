@@ -75,10 +75,10 @@
     <string name="scan_failed_toast">スキャンに失敗しました: %1$s</string>
     <string name="btn_refresh_thumbnail">↻ サムネイル更新</string>
     <string name="btn_rescan_photo">再スキャン</string>
-    <string name="btn_mark_gold">金にする</string>
+    <string name="btn_mark_gold">金を付ける</string>
     <string name="btn_gold_marked">金</string>
-    <string name="gold_marked_toast">金に登録しました — この写真がゴールド基準集合に入ります</string>
-    <string name="gold_unmarked_toast">金の登録を解除しました</string>
+    <string name="gold_marked_toast">金を付けました — この写真がゴールド基準集合に入ります</string>
+    <string name="gold_unmarked_toast">金を外しました</string>
     <string name="photo_rescan_dialog_title">編集済みの写真を再スキャン</string>
     <string name="photo_rescan_warning">手動で編集したテキストがあります。承認すると写真からテキストを再抽出し、手動の編集と単語・文法の出現データを置き換えます。</string>
     <string name="photo_rescan_skip_explanation">テキスト抽出をスキップすると、サムネイルのみ更新します。テキストと編集済みの状態は保持されます。</string>
