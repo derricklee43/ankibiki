@@ -110,11 +110,13 @@ Segmentation exact is 2/9 (only locked regressions pass); dominant error classes
 are nameplate leakage (5/9) and OCR-hallucinated `。` blocking stitching (3/9).
 Gaps: no menu/furigana/Chinese fixtures yet, no wrong-candidate (precision)
 metric yet, correction effort measured only via the user-edit-flag proxy.
-Iteration plan against the 25-photo user-corrected gold set (nameplate-
-agnostic scoring; v1 JVM layer built 2026-11-12, rev-2 numbers in
+Iteration plan against the 46-photo user-corrected gold set (nameplate-
+agnostic scoring; v1 JVM layer built 2026-11-12, rev-4 numbers in
 [docs/benchmarks/2026-11-12-gold-baseline.md](benchmarks/2026-11-12-gold-baseline.md)
-— sentence exact 22/43, segmentation exact 6/25, char acc 0.856, 17 provisional
+— sentence exact 32/74, segmentation exact 10/46, char acc 0.809, 25 provisional
 nameplate leaks excluded from headline): [docs/benchmarks/gold-set-iteration-plan.md](benchmarks/gold-set-iteration-plan.md).
+Provider A/B on the 46-photo set (stored == fresh-local; Cloud different but
+complementary, oracle 37/74): [docs/benchmarks/2026-11-12-provider-ab.md](benchmarks/2026-11-12-provider-ab.md).
 
 Acceptance: establish a baseline and explicit quality targets before claiming
 accuracy improvements. Distinguish OCR spelling, layout grouping, tokenization,
