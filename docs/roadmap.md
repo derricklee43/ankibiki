@@ -7,30 +7,73 @@ just a larger collection of features. These are recommendations from the project
 assessment, not scheduled commitments. Items remain open until their acceptance
 criteria are verified; owners and dates have not been assigned.
 
-The next product milestone is:
+The milestone that opened this roadmap —
 
 > I can collect material, correct it once, trust that my corrections and review
 > decisions survive, and turn the useful results into study material with less
 > effort than doing it manually.
+
+— is **met as plumbing** (2026-11-13: recovery, safe reprocessing, correction UX,
+wizard, gate, gold marks). The next one:
+
+> The pipeline catches the recognition errors it can *prove*, my correction
+> effort per photo trends toward zero, and every automatic change is visible,
+> measurable, and reversible.
 
 The original feature designs remain in
 [the photo-mining plan](saikutsu-photo-mining-plan.md) and
 [the Chinese word/hanzi sync plan](chinese-word-hanzi-sync-plan.md).
 This roadmap complements those designs rather than replacing them.
 
-## Current assessment
+## Current assessment (refreshed 2026-11-13)
 
-- Personal Anki lookup, offline dictionaries, and source-photo context provide
-  useful functionality today.
-- Photo mining is an **assisted workflow**, not yet a reliable unattended source
-  of study-ready text. Successful execution does not establish linguistic accuracy.
-- Manual editing, provenance flags, rescan confirmation, and development-time DB
-  backups improve trust, but do not complete recovery or revision management.
-- New-card creation from mined material is intentionally deferred in the original
-  plan; its absence still leaves the practical capture-to-study loop incomplete.
-- Language support is asymmetric: Japanese has morphological analysis and a
-  limited regex grammar catalogue; Chinese uses dictionary-based segmentation
-  and currently has no grammar extraction.
+- The capture-to-study loop is **closed end-to-end**: photo mining -> transparent
+  correction UX -> explicit gold marking (金 button) -> auto-applying quality gate ->
+  card-creation wizard writing real AnkiDroid notes. Data trust (§1) and transparency
+  (§3) shipped; recovery bundles are proven against the live corpus.
+- **Extraction quality is now the bottleneck, not plumbing.** The gold harness says
+  27/73 sentences exact, 7/46 segmentation (as-typed floor caveat applies); the
+  dominant classes — phantom-`。` stitching failures and nameplate leaks — are OUT of
+  the correction gate's reach (it fixes recognition-substitution islands only).
+- The S003-D' gate ships auto-apply (user decision 2026-11-13) behind a per-island
+  audit table: its real-world precision is now an EMPIRICAL question the gold loop
+  answers. The spike's n=36 bounds failure at ~8%; ~200 marked-sample evidence gates
+  the next rollout decision.
+- Nameplate exclusion stays parked; the gate runs behind a deliberately over-excluding
+  structural proxy, and the policy's benchmark experiment is still its prerequisite.
+- Language support is asymmetric in every direction: Japanese has morphology, a grammar
+  catalogue, the gold set, AND the gate; Chinese has dictionary segmentation only — no
+  grammar extraction and (deliberately) no gate, because the evidence base is JMdict.
+- Lifecycle robustness (§5) is untouched: long scans are not resumable; rotation,
+  backgrounding, and process-death behavior are untested.
+
+## Next up (prioritized unfinished work, 2026-11-13)
+
+Roughly biggest-lever-first; each item's acceptance detail lives in its home section.
+
+1. **Stitching fixes for the 9 wrong-set photos** (§2): phantom-`。` guard + wrapped-sentence
+   stitching in `CjkSentenceParser` — the biggest single move for headline sentence-exact and
+   segmentation. Target: wrong-set photos become correct-set without regressing locked fixtures.
+2. **Grow the gold set + gate scoreboard** (§2): mark more photos 金, regenerate fixtures from
+   the marked backup (`build_gold_fixtures.py` selects `is_gold=1`), then a `gate_score.py`
+   joining `ocr_corrections` rows against marked gold — checkpoints at ~50/100/200 applied
+   samples; at ~200 with ≤1 rejection, revisit the silent-apply vs suggestion-layer call.
+3. **Nameplate-exclusion experiment** (Parked ideas): benchmark-side DEMOTE/DROP over fixtures
+   + menu-style photos; wins must be real and menu casualties zero. Ships first or jointly with
+   any suggestion UX; replaces the gate's over-excluding proxy. Second-biggest segmentation lever.
+4. **Close the §2 fixture gaps**: menu/furigana/Chinese examples in the fixture set + a
+   wrong-candidate (precision) metric + correction-effort measure now that gold marks exist.
+5. **§5 lifecycle reliability**: resumable/recoverable long scans, rotation/background/process-
+   death/permission-loss tests, draft preservation; consolidate mutation rules into explicit
+   use cases (README item done 2026-11-13).
+6. **Wizard finishing tail** (§4): media-embed path walked in UI + validation against the real
+   collection (pending device session).
+7. **Settings surface** (new): expose the correction-gate kill switch + a gold-mark view; today
+   both live in code/DB only.
+8. **Chinese gate** (backlog, deliberately last): port the gate to a CC-CEDICT evidence base
+   only after the Japanese track's ~200-sample verdict, so the second port starts measured.
+9. **Secondary improvements** list below (whole-word CJK lookup, grammar-coverage evaluation,
+   less collection-specific deck config) — follow demonstrated needs, not scope.
 
 ## 1. Finish the trust foundation — highest priority
 
@@ -101,6 +144,9 @@ literal.
 - [x] Label expected sentence boundaries and useful word/grammar candidates.
 - [ ] Track recognition errors, sentence segmentation, candidate precision/recall,
       and the manual correction effort required to obtain useful study material.
+      (recognition/segmentation/char-distance tracked in the gold harness; still missing:
+      wrong-candidate precision metric; correction-effort proxy upgraded from "touched"
+      to explicit 金 marks + ocr_corrections rows, 2026-11-13)
 - [x] Keep regression fixtures for discovered failures and repeat a real-image
       rescan when changing recognition or layout handling.
 
@@ -113,7 +159,7 @@ metric yet, correction effort measured only via the user-edit-flag proxy.
 Iteration plan against the 46-photo user-corrected gold set (gold
 membership since 2026-11-13 = explicitly marked photos, `scraped_photos.is_gold`
 via the Mark-as-gold button in the photo view — not "any touched photo";
-nameplate-agnostic scoring; v1 JVM layer built 2026-11-12, rev-4 numbers in
+nameplate-agnostic scoring; v1 JVM layer built 2026-11-12, rev-5 numbers in
 [docs/benchmarks/2026-11-12-gold-baseline.md](benchmarks/2026-11-12-gold-baseline.md)
 — sentence exact 27/73 (cleaned gold), segmentation exact 7/46, char acc 0.794, 25 provisional
 nameplate leaks excluded from headline): [docs/benchmarks/gold-set-iteration-plan.md](benchmarks/gold-set-iteration-plan.md).
@@ -179,13 +225,14 @@ processing and image-upload behavior transparent.
 
 ## 4. Complete a minimal card-creation workflow
 
-Plan (user, 2026-11-10): the flow starts with a **deck-selection wizard** that lists every deck
+|x|
 in the account, then pulls the note type's templated fields **with proper labels** — replacing the
 index-only assumption that forced `KnownNoteTypes.kt` constants. Feasibility of labeled fields is
 being spiked first: see [spikes/001-anki-field-deck-probe](../spikes/001-anki-field-deck-probe/README.md)
 (compile-verified probe; runs when the Pixel is attached). The screen-by-screen design, the AnkiBiki
 export-field adapter contract, and template storage are in
-[docs/card-creation-wizard-plan.md](card-creation-wizard-plan.md) — design only, still open questions.
+[docs/card-creation-wizard-plan.md](card-creation-wizard-plan.md) — implemented 2026-11-12
+(plan doc carries the shipped-status header; Q1–Q8 all answered).
 
 - [x] Define a reviewed draft containing expression, reading, meaning, selected
       sentence, and source photo/context. (`CardDraft` + `DraftAdapter` export vocabulary,
@@ -217,8 +264,11 @@ Anki editor.
       during processing; preserve editor drafts and pending save targets.
 - [ ] Consolidate mutation/reprocessing rules into explicit use cases rather than
       allowing Activity callbacks to become the source of business rules.
-- [ ] Update the README to describe mining, data ownership, backups, cloud/offline
+- [x] Update the README to describe mining, data ownership, backups, cloud/offline
       processing, build prerequisites, and the limitations of supported languages.
+      (2026-11-13 housekeeping pass: README now covers the mining pipeline, the cloud
+      correction gate + upload transparency, gold marking, kill switch, and the
+      Japanese/Chinese asymmetry.)
 
 Acceptance: interrupted work can be resumed or safely retried without corrupting
 or duplicating data, and a fresh checkout has a documented path to a working build.

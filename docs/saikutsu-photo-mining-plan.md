@@ -1,5 +1,11 @@
 # Design Document: `引き` & `採掘` Navigation and Photo Mining Pipeline
 
+> **Status (2026-11-13):** the original design — largely shipped: tabs, library, photo/word/
+> sentence views, occurrence queue, and the pipeline are live. "Card creation deferred" is
+> superseded (wizard implemented 2026-11-12, docs/card-creation-wizard-plan.md); the extraction-
+> quality tooling (gold marks, correction gate, audit table) landed on top of this design
+> 2026-11-12/13. Current status: docs/roadmap.md. Kept as the design record.
+
 ## 1. Goal Description
 
 1. Add a bottom navigation bar (`BottomNavigationView`) to **AnkiBiki** with two tabs:

@@ -1,5 +1,10 @@
 # Spike 003 — gate upgrades + calibration
 
+> **Superseded 2026-11-13 by user decision:** shipped as AUTO-APPLY into the mining pipeline
+> (overriding the "one-tap suggestions first" rollout below); the evidence-log schema became
+> the `ocr_corrections` table and the ~200-sample bar is now what the gold loop measures.
+> Production port + parity pinning: docs/roadmap.md §2, OcrCorrectionGateParityTest.
+
 Status: DONE. Successor to spikes/002 (whose cleaned-gold verdict was: margin≥0.10
 → 96% precision / 44% coverage, ordering can't separate the tail).
 Method: `python3 spikes/003-gate-upgrades/scripts/gate_v2.py` (offline; gold

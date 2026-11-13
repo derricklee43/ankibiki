@@ -13,8 +13,11 @@ Add a new "Chinese Word" deck/note type. Keep it linked to the existing Hanzi de
   tree), rendered as an expandable tree on the card itself.
 - The whole thing (after one-time setup) is re-run from a button in the app.
 
-This is a planning document — nothing here is implemented yet. Section 9 is the intended build
-order. Section 10 records the decisions made on the first draft's open questions.
+Status: **IMPLEMENTED** (Aug 2026: `6979de2` sync + button, `e1f9916`/`c90d1d6` UsedInWords,
+`e1f9916` Constituents directory-tree render, `b984dba` per-node meanings, `fae4cc4` audio
+reuse, `26e43cf` diacritic pinyin, `511ad0b` HSK + kanji cross-reference backfill). This doc
+is now the design record; live status lives in docs/roadmap.md. Section 9 is the build order
+that was followed. Section 10 records the decisions made on the first draft's open questions.
 
 ## 1. Current state (recap)
 

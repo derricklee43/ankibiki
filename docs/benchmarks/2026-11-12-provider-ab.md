@@ -46,7 +46,15 @@ provider — but a decisive split by photo class:
 Group split: OLD-25 stored 15 == cloud 15 (wins/losses cancel); NEW-21
 narration-heavy cloud 12 > stored 10.
 
-## Conclusion / design options (open — user call)
+## Conclusion / design options — RESOLVED 2026-11-13 (superseded by the shipped architecture)
+
+The shipped correction gate implements a *fourth* shape that was in none of the options verbatim:
+local-first stays authoritative for segmentation, Cloud runs as a SECOND read per Japanese photo
+at mining time, and only gate-accepted single-substitution islands are merged surgically into the
+local text — recognition borrowed, geometry refused. No wholesale re-extraction; the 37/74
+pick-best oracle remains unimplemented. Details: docs/roadmap.md §2 + OcrCorrectionPass.kt.
+Original open-question text preserved below for the record.
+
 
 Re-scanning with local changes nothing. Cloud is a genuinely different reader:
 better recognition on dialogue/narration, worse layout on short lines, and its

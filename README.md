@@ -4,8 +4,11 @@
   <img src="docs/icon.png" width="220" alt="AnkiBiki" />
 </p>
 
-A personal Android dictionary app (Pixel 10 Pro XL) that searches your own Anki cards live via
-AnkiDroid, with an offline dictionary fallback and Chinese pronunciation audio.
+A personal Android dictionary + mining app (Pixel 10 Pro XL). The 引き tab searches your own
+Anki cards live via AnkiDroid, with an offline dictionary fallback and Chinese pronunciation
+audio; the 採掘 tab mines Japanese sentences out of screenshots — OCR, sentence parsing, word
+and grammar extraction, a correction gate, and a wizard that turns reviewed items into real
+AnkiDroid cards.
 
 Searches two decks directly out of AnkiDroid's live collection:
 
@@ -16,12 +19,41 @@ If nothing in your decks matches, results fall back to a bundled offline diction
 (KANJIDIC2 + JMdict + RADKFILE for Japanese, CC-CEDICT for Chinese — see
 [ATTRIBUTION.md](ATTRIBUTION.md)).
 
+## Photo mining & extraction
+
+Screenshots picked up from the camera roll go through: language tagging -> on-device ML Kit
+OCR -> `CjkSentenceParser` (sentence stitching) -> Kuromoji word analysis + grammar catalogue
+-> deduplicated occurrences per sentence. Every photo keeps its raw OCR document, its parsed
+text, your manual edits (provenance-flagged), and the source image.
+
+**Correction gate (auto-apply):** when `CLOUD_VISION_API_KEY` is configured, each Japanese
+photo also gets one Cloud Vision read at mining time; where the two readers disagree on a
+kanji island, the S003-D' gate (dictionary anchoring + glyph-confusability, nameplate-adjacent
+islands excluded) auto-applies only the fixes it can evidence from JMdict. Local ML Kit keeps
+authoritative segmentation — cloud geometry is never adopted. Offline or unconfigured = pure
+local pipeline. Every evaluated island, applied or not, is logged to the `ocr_corrections`
+audit table (reversible per write). Kill switch: `PipelineConfig.ocrCorrectionEnabled`.
+
+**Gold standard:** marking a photo 金 (its button, filled when set) is the *only* thing that
+makes it benchmark gold — membership is declared, not inferred from edits. The JVM harness
+(`GoldBenchmarkTest`) scores sentence-exact / segmentation / char-accuracy against the marked
+set; iteration plan + baselines live in [docs/benchmarks/](docs/benchmarks/).
+
+## Cloud processing & privacy
+
+With a Cloud Vision key configured, each mined Japanese photo's image bytes are uploaded to
+Google Cloud Vision (DOCUMENT_TEXT_DETECTION) once at mining time — ~1 request/photo, 1,000
+free per month. Without the key, nothing leaves the device. The photo view always shows which
+provider produced the text, and gate corrections are annotated in the stored document note.
+
 ## Project direction
 
-See [the improvement roadmap](docs/roadmap.md) for prioritized recommendations and
-acceptance criteria covering data recovery, safe reprocessing, extraction quality,
-correction UX, card creation, and lifecycle reliability. The roadmap complements
-[the original photo-mining design](docs/saikutsu-photo-mining-plan.md).
+See [the improvement roadmap](docs/roadmap.md) — current status, a prioritized "next up"
+queue, and acceptance criteria covering extraction quality, the nameplate policy, the
+gate's annotation scoreboard, lifecycle reliability, and more. Historical designs:
+[photo mining](docs/saikutsu-photo-mining-plan.md),
+[card wizard](docs/card-creation-wizard-plan.md),
+[Chinese word/hanzi sync](docs/chinese-word-hanzi-sync-plan.md).
 
 ## Corpus data & recovery
 
@@ -47,7 +79,17 @@ work**, and Android deletes it on uninstall — an instrumented test once wiped 
 
 - AnkiDroid installed, with the two note types above present in your collection (their model
   IDs are hardcoded in `KnownNoteTypes.kt` — a different collection won't match).
+- Optional: `CLOUD_VISION_API_KEY` in `local.properties` (or env) enables the correction
+  gate's second Cloud read; unset = fully local mining.
 - A device running this build (personal app, not published).
+
+## Language support is asymmetric (on purpose)
+
+- **Japanese**: morphological word analysis, grammar catalogue, gold benchmark, correction
+  gate (JMdict evidence base).
+- **Chinese**: CC-CEDICT dictionary segmentation, hanzi sync + audio; no grammar extraction
+  and no correction gate — a CC-CEDICT-based port is deliberately last, after the Japanese
+  track's ~200-sample rollout evidence.
 
 ## Architecture, briefly
 
