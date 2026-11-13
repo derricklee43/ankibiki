@@ -1,0 +1,153 @@
+# Gold-set iteration plan — parsing quality vs user-corrected text
+
+Status: PLAN (no code yet). Approved direction; open questions at the end
+must be answered before the build step starts.
+
+## Why this exists
+
+The 2026-11-10 baseline (`2026-11-10-extraction-baseline.md`) scores against
+`expected` lists an agent read off 9 source images. That measures
+segmentation, but not acceptability: it can't say "the pipeline now outputs
+what the user would have typed instead." Since then the user has manually
+corrected 25 photo texts in-app (backup `backups/20261112-155132`,
+`modified_by_user_flag=1` on `scraped_photos.extracted_text`). That corrected
+text is now our gold standard: content AND sentence boundaries (the `\n`
+breaks are the user's segmentation decisions). All 25 photos carry frozen
+`ocr_blocks_json` in the backup, so the deterministic JVM layer can replay
+every one without a device.
+
+**The caveat:** the user stripped speaker nameplates while correcting
+(`一エリス`, `ゴードン`, …). Naive exact-match against gold would charge every
+nameplate leak against "parsing quality" — a confound the user explicitly
+does not want in the headline results. Nameplate leakage therefore gets its
+own ignored diagnostic column, measured separately (it also becomes the
+acceptance data for the parked opt-in exclusion design; see §Integration).
+
+## Inputs
+
+- Gold source: `backups/20261112-155132/mining.db`, 25 photos (963, 969,
+  975, 983, 1133, 1135–1143, 1145, 1147–1149, 1157–1159, 1164, 1166, 1174,
+  1278, 1284). Golden source of truth for edits: always a fresh
+  `adb`-pulled backup copy, never the live DB.
+- Overlap with the 9 old fixtures: 963 and 1158. The two locked regressions
+  (953, 1160) are untouched by the gold set and stay as-is.
+- Photo 983 is a menu/system-text capture whose gold KEEPS short isolated
+  lines — it is the control case proving "short line" ≠ "nameplate".
+
+## Step 1 — gold fixture generator (script, no app code)
+
+`scripts/build_gold_fixtures.py`, mirroring the existing fixtures format:
+per photo emit `photoId`, `contentUri`, frozen `ocrDocument`, `gold`
+(user text split on `\n`), `source_backup` (timestamp, so reruns diff),
+and `nameplate_labels` (filled in step 2, then frozen). Regenerate whenever
+the user corrects more photos; gold is derived, never hand-maintained.
+Rerunning on a newer backup only ADDS/UPDATES photos with
+`modified_by_user_flag=1`; photos with human-reviewed nameplate labels are
+not silently re-labeled.
+
+## Step 2 — nameplate labels (one human review, benchmark-side only)
+
+A Python pass joins frozen OCR blocks with the current parser's output over
+the gold set and proposes, per photo, every leaked line that matches no gold
+sentence — these are nameplate candidates (e.g. `一エリス` on 963). The user
+reviews the list once (~5–10 strings) and confirms each as NAMEPLATE, LEGIT
+utterance, or MENU-LINE (never-ignorable). Labels live in the fixture JSON.
+These same labels are the ground truth for the parked DEMOTE/DROP
+experiment — see §Integration.
+
+## Step 3 — nameplate-agnostic scorer (JVM layer)
+
+For each fixture, re-parse frozen blocks with the current
+`CjkSentenceParser`, then:
+
+1. Align gold sentences ↔ pipeline sentences order-preserving (DP
+   alignment), one-to-one, maximizing exact matches then minimizing
+   normalized edit distance (NED).
+2. Pipeline sentences that align to nothing: if the text is one of the
+   photo's confirmed `nameplate_labels` → count in the **nameplate-leak
+   diagnostic**, excluded from every headline metric. Everything else is a
+   real false-positive (penalized).
+3. Inline merges (nameplate stuck to the front of an utterance, the 953
+   shape): only attempted for a gold sentence still unmatched after pass 1 —
+   retry alignment against the candidate with the label removed as an exact
+   leading/standalone token. Never substring-strip blindly: `ゴードン` is a
+   label on 1158 yet appears legitimately inside the utterance `ゴードンです。`
+   — one-to-one matching first means that utterance matches exactly and is
+   never stripped.
+4. Gold sentences are scored as typed. No fuzzy normalization: gold still
+   contains recognition the user left in (`所霧`, `様会`), and per Q1
+   corrections may keep going, so tolerance would hide real movement.
+
+Headline metrics per run (report only, see §Gating):
+
+- `sentences_exact`: # gold sentences matched exactly / # gold sentences.
+- `char_accuracy`: mean (1 − NED) over aligned pairs.
+- `segmentation_errors`: splits + merges + missing + non-nameplate extras.
+- `nameplate_leaks` (diagnostic): count and which labels; tracks toward the
+  parked exclusion feature but never moves the headline.
+
+## Step 4 — the iteration loop
+
+- Inner loop: generator → JVM scorer on every parser change. Deterministic,
+  `./gradlew :app:testDebugUnitTest`, no device. Compare this run's JSON
+  report against the previous one; every still-failing fixture must be
+  classified by responsible stage (recognition-bound vs parser vs
+  preprocessing) exactly as the baseline report does — a parser fix must not
+  be claimed against recognition-bound failures (960/963-shape phantom `。`
+  cases stay red until the OCR path changes).
+- Outer loop: opt-in live layer (`-e benchmark true`, device session) on the
+  same gold fixtures, to confirm frozen-block wins survive fresh OCR. Live
+  numbers are recorded separately; a JVM-only improvement is not "fixed"
+  until live agrees.
+- New failures discovered in normal use continue to become fixtures via the
+  android-ocr-debugging procedure.
+
+## Step 5 — first gold baseline report
+
+`docs/benchmarks/2026-11-12-gold-baseline.md` (dated): 25-row table (photo,
+category, exact/total sentences, char accuracy, error class, nameplate leaks
+ignored), headline metrics, and a short "distance to acceptable" list.
+Targets in roadmap §2 are replaced with numbers agreed after this report
+exists — not before.
+
+## Gating policy
+
+The gold set starts REPORT-ONLY: `assert_segmentation` stays false for all
+25 because the current pipeline is expected to fail many of them; promoting
+a photo to locked requires (a) the fix that makes it pass and (b) the user
+confirming the gold is final for that photo. The existing locked pair
+(953, 1160) keeps gating against regressions immediately. Nothing writes to
+the corpus; both layers remain read-only.
+
+## Integration with the parked nameplate-exclusion design
+
+Per docs/roadmap.md "Parked ideas", shipping exclusion requires a
+benchmark-only DEMOTE/DROP experiment showing real wins and zero menu/
+short-line casualties. Steps 2–3 build exactly that evidence surface:
+confirmed labels (wins/losses measurable), a menu-control photo (983), and a
+leak counter. No production parser code changes flow from this plan; the
+flag-only guardrail, opt-in per-photo policy, and raw-blocks-authoritative
+rules stay in force.
+
+## Open questions
+
+- **Q1 — how authoritative is gold-as-typed?** Several corrected texts keep
+  recognition typos (`所霧` on 1158 where the true line is 所属; `様会` for
+  機会 on 1133; `帳った` for 謀った on 1284). Do you want the scorer to
+  measure "did the pipeline output exactly what you typed" (typos included —
+  simple, unambiguous, but means you must re-edit to raise the ceiling), or
+  will you do a second cleanup pass on the 25 so gold is fully correct text
+  first (higher ceiling, one extra review round)?
+- **Q2 — do your `\n` breaks define sentence boundaries?** On 1158 you kept
+  the OCR's mid-sentence split (`…所霧する。` / `ゴードンです。`) while the old
+  agent-made fixture expected one merged sentence. If gold wins, the scorer
+  treats the split as correct and the old `expected` for 963/1158 is
+  superseded by gold (locks 953/1160 remain, unaffected). Confirm gold
+  boundaries take precedence, or that on 1158 the split was just not edited
+  rather than an endorsement.
+- **Q3 — scope: photo-level only for v1?** The backup also has 103 edited
+  `item_occurrences.sentence` rows (word-view sentences, downstream of
+  parsing + candidate extraction). v1 benchmarks the parsing pipeline at
+  photo level; occurrence-level checks (edited sentence retained after
+  reprocess, candidate recall against your corrected text) as v1.1. OK to
+  defer the occurrence layer to a second phase?
