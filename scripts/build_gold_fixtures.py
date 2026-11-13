@@ -40,6 +40,17 @@ STRIP_CHARS = " \t、・。「」『』（）()【】〈〉—–_-*#:/\\~＾＾
 def content_chars(s: str) -> str:
     return "".join(c for c in s if not c.isspace() and c not in STRIP_CHARS)
 
+def lev(a: str, b: str) -> int:
+    if not a:
+        return len(b)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb))
+        prev = cur
+    return prev[-1]
+
 def ocr_lines(doc: dict) -> list[str]:
     lines = []
     for b in doc.get("blocks", []):
@@ -63,6 +74,19 @@ def draft_candidates(doc: dict, gold: list[str]) -> tuple[list[str], list[str]]:
                 content fragment (神剣ファルシオン). Goes to human review;
                 NEVER auto-ignored by the scorer.
     """
+    def best_window_sim(a: str, b: str) -> float:
+        """Max 1−NED of `a` against any sliding window of b (len ± 2)."""
+        if not b:
+            return 0.0
+        best = 0.0
+        for w in range(max(1, len(a) - 2), min(len(b), len(a) + 2) + 1):
+            for i in range(len(b) - w + 1):
+                d = lev(a, b[i:i + w])
+                best = max(best, 1.0 - d / max(len(a), w))
+                if best >= 0.6:
+                    return best
+        return best
+
     gold_norm = [norm(g) for g in gold]
     gold_contents = {content_chars(g) for g in gold}
     cand, ambig = [], []
@@ -75,12 +99,15 @@ def draft_candidates(doc: dict, gold: list[str]) -> tuple[list[str], list[str]]:
         cc = content_chars(line)
         if not cc or cc in gold_contents:
             continue
-        if not any(cc in g for g in gold_norm):
-            if line not in cand:
-                cand.append(line)
-        else:
+        if any(cc in g for g in gold_norm) or best_window_sim(cc, "".join(gold_contents)) >= 0.6:
+            # substring, or within ~40% edits of a gold window -> a MISREAD
+            # CONTENT FRAGMENT (跡上がると for 技が上ると), never auto-ignored;
+            # it goes to human review instead.
             if line not in ambig:
                 ambig.append(line)
+        else:
+            if line not in cand:
+                cand.append(line)
     return cand, ambig
 
 def main() -> int:
