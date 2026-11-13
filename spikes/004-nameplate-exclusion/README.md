@@ -2,9 +2,12 @@
 
 Status: design only — no probe has run yet. Successor to the "Parked ideas"
 entry in docs/roadmap.md (guardrails below are binding on this design).
-Inputs are all committed assets: `gold_fixtures.json` (127 photos, user 金
-gold), `legitShortLines` verdict ledger, 81 drafted nameplate candidates,
-provider A/B artifact (46 photos, 3 readers), legacy 9-fixture set.
+Inputs are all committed assets: `gold_fixtures.json` (126 photos, user 金
+gold), `legitShortLines` verdict ledger, nameplate candidates CONFIRMED by
+review round 4 (2026-11-13: all 81 occurrences, user verdict "every instance
+looked fine") — `nameplateLabels` is populated across 79 photos, Phase 0
+ground truth is unblocked. Provider A/B artifact (46 photos, 3 readers)
+supplies geometry; legacy 9-fixture set remains for report context.
 
 ## Problem and binding guardrails (from roadmap "Parked ideas")
 
@@ -43,10 +46,9 @@ Per photo, the universe of *leaked lines* = current-parser sentences not
 matching user gold (nameplate-clean comparison already excludes them; we
 re-score WITHOUT exclusion). Truth classes, all derivable from committed data:
 
-- NAMEPLATE: line equals (or contains-with-≤2-edits) a candidate string the
-  user confirms in review round 4. **The 81 drafted candidates must be
-  confirmed first** (one-time user pass, ~10 min) — spike output table
-  enumerates them per photo for that review.
+- NAMEPLATE: line equals (or contains-with-≤2-edits) a confirmed label string.
+  **Round-4 review DONE (2026-11-13)**: user confirmed all 81 occurrences;
+  `nameplateLabels` populated on 79 photos — Phase 0 inputs complete.
 - LEGIT: line appears in user gold, or is in `legitShortLines`, or is a short
   gold sentence (≤8 chars, punctuation-free) — e.g. ヘヘヘ, はい。. The former
   menu-line examples (photo 983) apply shape-wise, but that photo is excluded
@@ -186,7 +188,7 @@ gap. If none → keep manual strip, re-pin this idea, and say so plainly.
 
 ## Order of work
 
-1. Candidate review round 4 (user, ~10 min) → freeze `nameplateLabels`.
+1. ~~Candidate review round 4 (user) → freeze `nameplateLabels`~~ DONE 2026-11-13.
 2. Phase 0 truth tables (script, committed alongside).
 3. A1–A3 + casualty audit (offline; geometry needs the provider-artifact
    cloud docs for 46 photos and stored blocks for the rest — flag both
