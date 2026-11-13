@@ -93,6 +93,7 @@ class MiningRepository(
             """.trimIndent(),
         )
         db.execSQL(cardTemplatesDdl())
+        createOcrCorrectionsSchema(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -115,6 +116,47 @@ class MiningRepository(
         if (oldVersion < 5) {
             db.execSQL(cardTemplatesDdl())
         }
+        if (oldVersion < 6) {
+            createOcrCorrectionsSchema(db)
+        }
+    }
+
+    /**
+     * Per-island audit log of the S003-D' OCR correction gate (spikes/003-gate-upgrades).
+     * One row for EVERY disagreement island — applied or not — so annotation feedback can
+     * score gate precision and every auto-write is reversible (line_before/line_after).
+     */
+    private fun createOcrCorrectionsSchema(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS ocr_corrections (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                photo_id INTEGER NOT NULL,
+                line_index INTEGER NOT NULL,
+                a_start INTEGER NOT NULL,
+                a_end INTEGER NOT NULL,
+                a_text TEXT NOT NULL,
+                b_text TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                margin REAL NOT NULL,
+                anchored_a INTEGER NOT NULL,
+                anchored_b INTEGER NOT NULL,
+                confusable INTEGER NOT NULL,
+                nameplate_excluded INTEGER NOT NULL,
+                decision TEXT NOT NULL,
+                reason TEXT,
+                line_before TEXT NOT NULL,
+                line_after TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE INDEX IF NOT EXISTS idx_ocr_corrections_photo
+                ON ocr_corrections(photo_id)
+            """.trimIndent(),
+        )
     }
 
     private fun cardTemplatesDdl(): String =
@@ -434,6 +476,49 @@ class MiningRepository(
     fun deleteOccurrencesForPhoto(photoId: Long) {
         writableDatabase.delete(
             "item_occurrences",
+            "photo_id = ?",
+            arrayOf(photoId.toString()),
+        )
+    }
+
+    /** Appends gate audit rows (one per evaluated island) for [photoId] reprocessing. */
+    fun insertCorrectionRows(rows: List<CorrectionEvidenceRow>) {
+        if (rows.isEmpty()) return
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            for (row in rows) {
+                val values = ContentValues().apply {
+                    put("photo_id", row.photoId)
+                    put("line_index", row.lineIndex)
+                    put("a_start", row.aStart)
+                    put("a_end", row.aEnd)
+                    put("a_text", row.aText)
+                    put("b_text", row.bText)
+                    put("kind", row.kind)
+                    put("margin", row.margin)
+                    put("anchored_a", row.anchoredA)
+                    put("anchored_b", row.anchoredB)
+                    put("confusable", row.confusable)
+                    put("nameplate_excluded", row.nameplateExcluded)
+                    put("decision", row.decision)
+                    put("reason", row.reason)
+                    put("line_before", row.lineBefore)
+                    put("line_after", row.lineAfter)
+                    put("created_at", row.createdAt)
+                }
+                db.insert("ocr_corrections", null, values)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Rescans replace prior gate decisions for the photo: drop its audit rows with the old OCR. */
+    fun deleteCorrectionsForPhoto(photoId: Long) {
+        writableDatabase.delete(
+            "ocr_corrections",
             "photo_id = ?",
             arrayOf(photoId.toString()),
         )
@@ -1234,7 +1319,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 5
+        private const val DB_VERSION = 6
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

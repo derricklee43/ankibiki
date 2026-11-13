@@ -228,6 +228,11 @@ data class PipelineConfig(
     val grammarAnalyzer: GrammarAnalyzer,
     val dictionaryProviders: List<DictionaryProvider>,
     val ankiMatchLookup: AnkiMatchLookup? = null,
+    /** S003-D' stored-vs-Cloud correction pass; null = correction disabled for this pipeline. */
+    val correctionPass: OcrCorrectionPass? = null,
+    // Default ON by user decision 2026-11-13 ("implement the gate to auto correct"),
+    // overriding spike 003's suggestion-first rollout. Tests pass values explicitly.
+    val ocrCorrectionEnabled: Boolean = true,
 )
 
 data class ScanSummary(

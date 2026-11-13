@@ -115,8 +115,9 @@ class MiningPipelineRunner(
                     return PhotoRescanResult.CONFIRMATION_REQUIRED
                 }
                 miningRepository.deleteOccurrencesForPhoto(candidate.mediaStoreId)
+                miningRepository.deleteCorrectionsForPhoto(candidate.mediaStoreId)
                 // This is an explicit replacement of the same photo, not a newly discovered retake.
-                processOcrDocument(candidate, config, document, checkDuplicates = false)
+                processOcrDocument(candidate, config, document, checkDuplicates = false, prepared = prepared)
                 miningRepository.clearPhotoUserModificationFlag(candidate.mediaStoreId)
                 db.setTransactionSuccessful()
             } finally {
@@ -165,18 +166,21 @@ class MiningPipelineRunner(
             return PhotoProcessOutcome(status = PhotoStatus.IGNORED, occurrencesCreated = 0)
         }
 
-        return processOcrDocument(candidate, config, ocrDocument)
+        return processOcrDocument(candidate, config, ocrDocument, prepared = prepared)
     }
 
     /**
      * Runs Stages 4–9 (duplicate check, sentence parsing, word/grammar normalization, dictionary/Anki
      * enrichment, and 1-occurrence-per-sentence insertion) on an extracted [OcrDocument].
+     * When [prepared] is supplied and the pipeline carries a correction pass, the stored document is
+     * first auto-corrected against a second Cloud read (S003-D' gate; docs/roadmap.md §2).
      */
     fun processOcrDocument(
         candidate: PhotoCandidate,
         config: PipelineConfig,
         ocrDocument: OcrDocument,
         checkDuplicates: Boolean = true,
+        prepared: PreparedImage? = null,
     ): PhotoProcessOutcome {
         val tag = config.tag
         val dupCheck = if (checkDuplicates) {
@@ -205,11 +209,28 @@ class MiningPipelineRunner(
             return PhotoProcessOutcome(status = PhotoStatus.DUPLICATE, occurrencesCreated = 0)
         }
 
-        val sentences = config.sentenceParser.parseSentences(ocrDocument)
+        // Cloud-gate correction (user decision 2026-11-13, spike 003): runs between the duplicate
+        // check and parsing so every derived artifact (text, sentences, occurrences) sees the
+        // corrected document; raw geometry/bounds survive because only line TEXTS are rewritten.
+        // Skipped silently when disabled, unconfigured (no pass), offline, or the doc is already
+        // a cloud read. Evidence rows persist for every island — accepted or not — so the
+        // annotation loop scores the gate on real data and each write is reversible.
+        var workingDocument = ocrDocument
+        var correctionEvidence: List<CorrectionEvidenceRow> = emptyList()
+        val pass = config.correctionPass
+        if (pass != null && config.ocrCorrectionEnabled && prepared != null &&
+            tag == LanguageTag.JAPANESE // JMdict-anchored gate is measured for Japanese only
+        ) {
+            val outcome = pass.correct(candidate, ocrDocument, prepared)
+            workingDocument = outcome.document
+            correctionEvidence = outcome.evidence
+        }
+
+        val sentences = config.sentenceParser.parseSentences(workingDocument)
         val displayExtractedText = if (sentences.isNotEmpty()) {
             sentences.joinToString("\n")
         } else {
-            ocrDocument.fullText.trim()
+            workingDocument.fullText.trim()
         }
 
         miningRepository.upsertPhoto(
@@ -219,11 +240,12 @@ class MiningPipelineRunner(
                 dateAdded = candidate.dateAdded,
                 languageTag = tag,
                 extractedText = displayExtractedText,
-                ocrBlocksJson = ocrDocument.toJsonString(),
+                ocrBlocksJson = workingDocument.toJsonString(),
                 status = PhotoStatus.KEEP,
                 duplicateOfPhotoId = null,
             ),
         )
+        miningRepository.insertCorrectionRows(correctionEvidence)
 
         var occurrencesCreated = 0
         val baseTimestamp = if (candidate.dateAdded > 0L) {
@@ -584,14 +606,28 @@ class MiningPipelineRunner(
             val duplicateDetector = LevenshteinDuplicatePhotoDetector(miningRepository)
             val sentenceParser = CjkSentenceParser()
 
+            val cloudJp = CloudVisionTextExtractor(LanguageTag.JAPANESE)
             val jpTextExtractor = CompositeTextExtractor(
-                cloudExtractor = CloudVisionTextExtractor(LanguageTag.JAPANESE),
+                cloudExtractor = cloudJp,
                 fallbackExtractor = MlKitTextExtractor(LanguageTag.JAPANESE),
             )
             val zhTextExtractor = CompositeTextExtractor(
                 cloudExtractor = CloudVisionTextExtractor(LanguageTag.CHINESE),
                 fallbackExtractor = MlKitTextExtractor(LanguageTag.CHINESE),
             )
+
+            // S003-D' auto-correction (user decision 2026-11-13): only when the Cloud key is
+            // configured; the lexicon and gate build lazily on first corrected scan.
+            val jpCorrectionPass: OcrCorrectionPass? = if (cloudJp.isConfigured()) {
+                OcrCorrectionPass(
+                    gateProvider = { OcrCorrectionGate(GateLexiconProvider.lexicon(appContext)) },
+                    reader = CloudReedReader { image ->
+                        runCatching { cloudJp.extract(image, null) }.getOrNull()
+                    },
+                )
+            } else {
+                null
+            }
 
             val jpConfig = PipelineConfig(
                 tag = LanguageTag.JAPANESE,
@@ -608,6 +644,7 @@ class MiningPipelineRunner(
                     ),
                 ),
                 ankiMatchLookup = ankiMatchLookup,
+                correctionPass = jpCorrectionPass,
             )
 
             val zhConfig = PipelineConfig(

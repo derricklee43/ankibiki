@@ -47,7 +47,9 @@ FORMAT_VERSION = 1
 DB_NAME = "mining.db"
 TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # user_version values this tool will restore; extend when migrations land.
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5}
+# 5 = card_templates (wizard), 6 = ocr_corrections (cloud-gate audit log). Bundles carry the
+# whole sqlite file, so auxiliary tables ship and restore regardless of TABLES validation scope.
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

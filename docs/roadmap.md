@@ -127,6 +127,21 @@ S002's margin band is subsumed. Rollout verdict: ship as one-tap suggestions wit
 per-island evidence logging; revisit silent-apply at ~200 samples with ≤1 rejection;
 nameplate exclusion should ship first or jointly:
 [spikes/003-gate-upgrades/README.md](../spikes/003-gate-upgrades/README.md).
+**GATE SHIPPING AS AUTO-APPLY (user decision 2026-11-13, overriding the spike's
+suggestion-first rollout:** "implement the gate to auto correct — I'll continue to
+annotate and we get a better idea of how well it works"). Production port in
+`OcrCorrectionGate.kt`/`OcrCorrectionPass.kt`, JVM-pinned to the spike's exact output
+by `OcrCorrectionGateParityTest` (72/72 islands, accepted set == 36/36/0, gold labels
+stable); at mining time the pipeline fetches a second Cloud Vision read per photo and
+auto-applies only S003-D'-accepted single substitutions into the LOCAL document
+(segmentation stays ML-Kit-authoritative); offline/no-key = untouched text; the
+provisional nameplate exclusion (short katakana/no-hiragana lines, deliberately
+over-excluding — font-size proved no use, photo 1136: nameplate 214px == dialogue
+median) keeps all 3 harmful islands out and ≥34/36 fixes in. Every island (applied or
+not) lands in schema-v6 `ocr_corrections` (photo, offsets, A/B, margin, anchoring,
+confusability, decision, line_before/after) = the annotation scoreboard for the
+≥200-sample auto-apply evidence + per-write reversibility. Japanese-only for now
+(JMdict evidence base); `PipelineConfig.ocrCorrectionEnabled` is the kill switch.
 
 Acceptance: establish a baseline and explicit quality targets before claiming
 accuracy improvements. Distinguish OCR spelling, layout grouping, tokenization,
@@ -256,3 +271,12 @@ Prerequisite step (touches no production code): a benchmark-only experiment
 running DEMOTE/DROP over the fixtures plus menu-style photos, measuring what
 exclusion would win and what legitimate content it would damage. Proceed only
 if the wins are real and menu/short-line casualties are zero.
+
+Shipping note (2026-11-13): the policy itself stays parked — nothing has been
+flipped to DEMOTE/DROP and no corpus text is dropped by nameplate reasoning.
+The auto-applying correction gate (roadmap §2) does ship a *provisional
+exclusion proxy* (`OcrCorrectionPass.draftNameplateStrings`: short,
+katakana-bearing, hiragana-free, punctuation-free lines): it only routes
+ambiguous islands AWAY from auto-apply, never writes or deletes text, and
+deliberately over-excludes. When the real policy lands, it replaces the proxy
+as the gate's upstream input.
