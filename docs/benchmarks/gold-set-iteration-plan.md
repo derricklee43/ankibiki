@@ -2,10 +2,13 @@
 
 Status: v1 BUILT 2026-11-12. Steps 1–5 implemented for the JVM layer
 (`scripts/build_gold_fixtures.py`, `gold_fixtures.json`, `GoldBenchmarkTest`,
-first report `2026-11-12-gold-baseline.md`). Pending: the step-2 nameplate
-label review (report has the confirm/reject table), the device live-layer
-pass over the gold fixtures, and the v1.1 occurrence layer (deferred per Q3).
-Q1–Q3 answered by the user 2026-11-12 — see §Answered questions.
+first report `2026-11-12-gold-baseline.md` rev 2). Label review round 1 DONE:
+all ambiguous short lines judged LEGIT by the user and frozen into
+`legitShortLines` (generator will never re-draft them); nameplateCandidates
+remain provisional auto-ignores; nameplateLabels still empty — candidate
+confirmation optional. Pending: device live-layer pass over gold fixtures,
+v1.1 occurrence layer (deferred per Q3). Q1–Q3 answered 2026-11-12 — see
+§Answered questions.
 
 ## Why this exists
 

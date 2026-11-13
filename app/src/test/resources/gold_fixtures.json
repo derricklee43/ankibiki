@@ -11,12 +11,13 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [
+        "神剣ファルシオン"
+      ],
       "nameplateCandidates": [
         "一エリス"
       ],
-      "ambiguousShortLines": [
-        "神剣ファルシオン"
-      ],
+      "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "世界でただ1人の。\n神剣ファルシオン\n鎌承者となるのです。\n一エリス",
         "blocks": [
@@ -70,6 +71,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "カイン"
       ],
@@ -121,6 +123,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "カイン画"
       ],
@@ -156,13 +159,13 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
-      "nameplateCandidates": [
+      "legitShortLines": [
+        "敵全員の",
+        "Xボタンで",
         "攻華範囲表示"
       ],
-      "ambiguousShortLines": [
-        "敵全員の",
-        "Xボタンで"
-      ],
+      "nameplateCandidates": [],
+      "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "全体危険範囲 閉じるR\n敵全員の\n攻華範囲表示\nXボタンで\n酸全停の攻等を表示できます。",
         "blocks": [
@@ -247,17 +250,18 @@
     {
       "photoId": 1133,
       "contentUri": "content://media/external/images/media/1133",
-      "category": "user-corrected-nameplate-prone",
+      "category": "user-corrected",
       "gold": [
         "やがて、敵軍の警戒がゆるやかになり絶好の様会訪れるが"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
-      "nameplateCandidates": [],
-      "ambiguousShortLines": [
+      "legitShortLines": [
         "絶好の様会訪れる"
       ],
+      "nameplateCandidates": [],
+      "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "やて、敵軍の警戒がゆるやかになり\n絶好の様会訪れる",
         "blocks": [
@@ -294,12 +298,13 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [
+        "グラの大部隊が"
+      ],
       "nameplateCandidates": [
         "モロドフー"
       ],
-      "ambiguousShortLines": [
-        "グラの大部隊が"
-      ],
+      "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "モロドフー\nグラの大部隊が\n後るから迫ってきておりほす。\n先を急がねばなりません。",
         "blocks": [
@@ -367,6 +372,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "モ口ドフ"
       ],
@@ -437,6 +443,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "モロドフ"
       ],
@@ -491,6 +498,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "モロドア"
       ],
@@ -556,6 +564,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "モロドフ"
       ],
@@ -625,6 +634,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "村人"
       ],
@@ -682,6 +692,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -746,6 +757,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "グラ軍隊長"
       ],
@@ -800,12 +812,13 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [
+        "おまえたちは"
+      ],
       "nameplateCandidates": [
         "グラ軍隊長"
       ],
-      "ambiguousShortLines": [
-        "おまえたちは"
-      ],
+      "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "グラ軍隊長\nおまえたちは\nし言われたとおりに\nばいい。",
         "blocks": [
@@ -871,6 +884,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "ならずもの"
       ],
@@ -968,6 +982,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "ならずもの("
       ],
@@ -1050,6 +1065,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -1128,9 +1144,11 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
-      "nameplateCandidates": [
-        "マル入",
+      "legitShortLines": [
         "しか引兵部隊の"
+      ],
+      "nameplateCandidates": [
+        "マル入"
       ],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -1172,7 +1190,7 @@
     {
       "photoId": 1158,
       "contentUri": "content://media/external/images/media/1158",
-      "category": "user-corrected-nameplate-prone",
+      "category": "user-corrected",
       "gold": [
         "はい。",
         "アリティアの弓兵部に所霧する。",
@@ -1181,10 +1199,11 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
-      "nameplateCandidates": [],
-      "ambiguousShortLines": [
+      "legitShortLines": [
         "ゴードン"
       ],
+      "nameplateCandidates": [],
+      "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "はい。\nアリティアの引兵部に所霧する。\nゴードンです。\nゴードン",
         "blocks": [
@@ -1261,12 +1280,13 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [
+        "このザマに"
+      ],
       "nameplateCandidates": [
         "ゴードン"
       ],
-      "ambiguousShortLines": [
-        "このザマに"
-      ],
+      "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "不覚にも敵に飾らわれてしまい\nこのザマに\nゴードン",
         "blocks": [
@@ -1328,6 +1348,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -1376,6 +1397,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "モロドフ"
       ],
@@ -1445,6 +1467,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -1483,6 +1506,7 @@
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
+      "legitShortLines": [],
       "nameplateCandidates": [
         "マルスミ"
       ],
@@ -1557,17 +1581,18 @@
     {
       "photoId": 1284,
       "contentUri": "content://media/external/images/media/1284",
-      "category": "user-corrected-nameplate-prone",
+      "category": "user-corrected",
       "gold": [
         "彼らは、付近の村を荒うしたり旅人を帳ったして大変恐れられております。"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
-      "nameplateCandidates": [],
-      "ambiguousShortLines": [
+      "legitShortLines": [
         "旅人を帳ったして"
       ],
+      "nameplateCandidates": [],
+      "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "彼うば、付近の村を荒うしたり\n旅人を帳ったして\n大変恐れられております。",
         "provider": "on-device-preflight",

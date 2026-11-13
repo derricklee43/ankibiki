@@ -111,8 +111,10 @@ are nameplate leakage (5/9) and OCR-hallucinated `。` blocking stitching (3/9).
 Gaps: no menu/furigana/Chinese fixtures yet, no wrong-candidate (precision)
 metric yet, correction effort measured only via the user-edit-flag proxy.
 Iteration plan against the 25-photo user-corrected gold set (nameplate-
-agnostic scoring; plan only, not yet built, Q1–Q3 pending):
-[docs/benchmarks/gold-set-iteration-plan.md](benchmarks/gold-set-iteration-plan.md).
+agnostic scoring; v1 JVM layer built 2026-11-12, rev-2 numbers in
+[docs/benchmarks/2026-11-12-gold-baseline.md](benchmarks/2026-11-12-gold-baseline.md)
+— sentence exact 22/43, segmentation exact 5/25, char acc 0.856, 16 provisional
+nameplate leaks excluded from headline): [docs/benchmarks/gold-set-iteration-plan.md](benchmarks/gold-set-iteration-plan.md).
 
 Acceptance: establish a baseline and explicit quality targets before claiming
 accuracy improvements. Distinguish OCR spelling, layout grouping, tokenization,

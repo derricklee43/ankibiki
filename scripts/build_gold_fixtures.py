@@ -92,11 +92,16 @@ def main() -> int:
     db.row_factory = sqlite3.Row
 
     reviewed = {}
+    legit = {}
     if args.existing and Path(args.existing).exists():
         prev = json.loads(Path(args.existing).read_text(encoding="utf-8"))
         for f in prev.get("fixtures", []):
+            pid = str(f["photoId"])
             if f.get("nameplateLabels"):
-                reviewed[str(f["photoId"])] = f["nameplateLabels"]
+                reviewed[pid] = f["nameplateLabels"]
+            if f.get("legitShortLines"):
+                # user-confirmed content lines — never re-drafted as candidates
+                legit[pid] = f["legitShortLines"]
 
     rows = db.execute(
         "SELECT media_store_id, content_uri, extracted_text, ocr_blocks_json "
@@ -115,6 +120,9 @@ def main() -> int:
             continue
         pid = str(r["media_store_id"])
         cand, ambig = draft_candidates(doc, gold)
+        confirmed_legit = legit.get(pid, [])
+        cand = [c for c in cand if c not in confirmed_legit]
+        ambig = [c for c in ambig if c not in confirmed_legit]
         has_np = pid in reviewed or bool(cand) or bool(ambig)
         f = {
             "photoId": r["media_store_id"],
@@ -126,6 +134,7 @@ def main() -> int:
             "assert_segmentation": False,
             "sourceBackup": Path(args.db).parent.name,
             "nameplateLabels": reviewed.get(pid, []),
+            "legitShortLines": confirmed_legit,
             "nameplateCandidates": cand,
             "ambiguousShortLines": ambig,
             "ocrDocument": doc,
