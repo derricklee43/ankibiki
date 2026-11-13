@@ -59,6 +59,9 @@ class MiningPipelineInstrumentedTest {
             tag = LanguageTag.JAPANESE,
             textExtractor = MlKitTextExtractor(LanguageTag.JAPANESE),
             duplicateDetector = duplicateDetector,
+            // Explicit: production default is enabled=false (2026-11-12); this E2E asserts the
+            // duplicate path, so it opts in rather than relying on the default.
+            duplicateDetectionConfig = DuplicateDetectionConfig(enabled = true),
             sentenceParser = sentenceParser,
             wordAnalyzer = KuromojiWordAnalyzer(),
             grammarAnalyzer = JlptGrammarAnalyzer(),

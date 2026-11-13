@@ -16,7 +16,11 @@ data class ScanDiscoveryConfig(
 )
 
 data class DuplicateDetectionConfig(
-    val enabled: Boolean = true,
+    // Disabled in production by user decision 2026-11-12 ("for the time being"): mining is
+    // deliberate screenshots, and near-identical short VN lines risk false DUPLICATE links.
+    // The detector stays fully implemented + tested; tests and any future re-enable pass
+    // enabled = true explicitly.
+    val enabled: Boolean = false,
     val similarityThreshold: Double = 0.90,
     val lookbackPhotoCount: Int = 10,
 )
