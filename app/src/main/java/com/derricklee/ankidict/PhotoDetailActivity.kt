@@ -50,7 +50,15 @@ class PhotoDetailActivity : AppCompatActivity() {
         binding.editTextButton.isEnabled = enabled
         binding.deletePhotoButton.isEnabled = enabled
         binding.refreshThumbnailButton.isEnabled = enabled
+        binding.markGoldButton.isEnabled = !operationInProgress && currentMediaStoreId() != null
         binding.photoPager.isUserInputEnabled = enabled
+    }
+
+    /** Gold state of the photo currently shown; owned by the is_gold column, refreshed on load. */
+    private var currentIsGold = false
+
+    private fun renderGoldButton() {
+        binding.markGoldButton.setText(if (currentIsGold) R.string.btn_gold_marked else R.string.btn_mark_gold)
     }
 
     private val textEditorLauncher = registerForActivityResult(
@@ -105,6 +113,42 @@ class PhotoDetailActivity : AppCompatActivity() {
         currentIndex = photoIds.indexOf(initialMediaId).coerceAtLeast(0)
 
         binding.backButton.setOnClickListener { finish() }
+
+        // Mark-as-gold: explicit gold-set membership (user 2026-11-13). Gold = marked, replacing
+        // the "any touched photo" assumption; marking never sets the edit-provenance flag.
+        binding.markGoldButton.setOnClickListener {
+            val mediaId = currentMediaStoreId() ?: return@setOnClickListener
+            if (operationInProgress || loadingText) return@setOnClickListener
+            val newValue = !currentIsGold
+            operationInProgress = true
+            updateActionAvailability()
+            ioExecutor.execute {
+                var failure: Exception? = null
+                try {
+                    miningRepository.setPhotoIsGold(mediaId, newValue)
+                } catch (e: Exception) {
+                    failure = e
+                }
+                runOnUiThread {
+                    operationInProgress = false
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    if (failure != null) {
+                        currentIsGold = !newValue // write failed; keep the truthful state
+                        Toast.makeText(this, failure!!.message.orEmpty(), Toast.LENGTH_SHORT).show()
+                    } else {
+                        currentIsGold = newValue
+                        Toast.makeText(
+                            this,
+                            getString(if (newValue) R.string.gold_marked_toast else R.string.gold_unmarked_toast),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                    renderGoldButton()
+                    updateActionAvailability()
+                }
+            }
+        }
+        renderGoldButton()
 
         pagerAdapter = PhotoPageAdapter()
         binding.photoPager.adapter = pagerAdapter
@@ -284,8 +328,15 @@ class PhotoDetailActivity : AppCompatActivity() {
 
     private fun updateCounterAndLoadExtractedText(position: Int) {
         val total = photoIds.size
-        binding.photoCounterText.text = if (total > 1) "${position + 1} / $total" else ""
-        val mediaId = photoIds.getOrNull(position) ?: return
+        val shownId = photoIds.getOrNull(position)
+        // The MediaStore id is the photo number benchmarks, reports, and the ocr_corrections
+        // audit rows refer to — surfacing it here makes annotation and evidence lookup line up.
+        binding.photoCounterText.text = when {
+            shownId == null -> ""
+            total > 1 -> "${position + 1} / $total · #${shownId}"
+            else -> "#${shownId}"
+        }
+        val mediaId = shownId ?: return
         val generation = ++textLoadGeneration
         loadingText = true
         lastLoadedText = ""
@@ -309,6 +360,8 @@ class PhotoDetailActivity : AppCompatActivity() {
                     lastLoadedPhotoUri = resolvedUri
                     lastLoadedRows = rows
                     lastLoadedDocument = document
+                    currentIsGold = photo?.isGold == true
+                    renderGoldButton()
                     binding.extractedTextDisplay.text =
                         text.ifBlank { getString(R.string.no_extracted_text) }
                     bindTransparencyViews()

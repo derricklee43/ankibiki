@@ -23,6 +23,14 @@ breaks are the user's segmentation decisions). All 25 photos carry frozen
 `ocr_blocks_json` in the backup, so the deterministic JVM layer can replay
 every one without a device.
 
+**Membership revised 2026-11-13:** gold is no longer assumed from
+`modified_by_user_flag=1` — it is whatever the user marked with the
+**Mark as gold** button (`scraped_photos.is_gold`, schema v7). Partial edits
+across multiple passes no longer imply verification, never-edited perfect
+photos can join, and a full image rescan retires a photo's mark (its text was
+replaced). The v6→v7 migration seeded `is_gold` from the old flag so the
+reviewed set carried over unchanged.
+
 **The caveat:** the user stripped speaker nameplates while correcting
 (`一エリス`, `ゴードン`, …). Naive exact-match against gold would charge every
 nameplate leak against "parsing quality" — a confound the user explicitly
@@ -48,9 +56,9 @@ per photo emit `photoId`, `contentUri`, frozen `ocrDocument`, `gold`
 (user text split on `\n`), `source_backup` (timestamp, so reruns diff),
 and `nameplate_labels` (filled in step 2, then frozen). Regenerate whenever
 the user corrects more photos; gold is derived, never hand-maintained.
-Rerunning on a newer backup only ADDS/UPDATES photos with
-`modified_by_user_flag=1`; photos with human-reviewed nameplate labels are
-not silently re-labeled.
+Rerunning on a newer backup only ADDS/UPDATES photos with `is_gold=1`
+(explicit marks; unmarked photos are never picked up by edits alone); photos
+with human-reviewed nameplate labels are not silently re-labeled.
 
 ## Step 2 — nameplate labels (one human review, benchmark-side only)
 

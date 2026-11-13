@@ -66,10 +66,10 @@ class OcrCorrectionInstrumentedTest {
     }
 
     @Test
-    fun schema_v6_createsOcrCorrectionsTable() {
+    fun schema_current_createsOcrCorrectionsTable() {
         val db = repo.readableDatabase
         val uv = db.rawQuery("PRAGMA user_version", null).use { c -> c.moveToFirst(); c.getInt(0) }
-        assertEquals(6, uv)
+        assertEquals(7, uv) // the gate table arrived in v6; assert the CURRENT version so a bump fails loudly
         val found = db.rawQuery(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='ocr_corrections'", null
         ).use { c -> c.moveToFirst() }
@@ -152,7 +152,7 @@ class OcrCorrectionInstrumentedTest {
     }
 
     @Test
-    fun migration_v5toV6_preservesRows_andAddsCorrectionsTable() {
+    fun migration_v5toCurrent_preservesRows_andAddsCorrectionsTable() {
         // Build a real v5 corpus file (tables as they stood at schema 5, user_version=5, one row
         // in each), then open it through MiningRepository so SQLiteOpenHelper.onUpgrade(5->6)
         // runs exactly as on a user device.
@@ -189,7 +189,7 @@ class OcrCorrectionInstrumentedTest {
         try {
             val db = migrated.readableDatabase
             val uv = db.rawQuery("PRAGMA user_version", null).use { c -> c.moveToFirst(); c.getInt(0) }
-            assertEquals("onUpgrade must land the file at v6", 6, uv)
+            assertEquals("onUpgrade must land the file at the current version", 7, uv)
             val table = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='ocr_corrections'", null)
                 .use { c -> c.moveToFirst() }
             assertTrue("v6 migration did not add ocr_corrections", table)

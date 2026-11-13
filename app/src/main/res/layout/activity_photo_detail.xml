@@ -74,6 +74,14 @@
                 android:textStyle="bold" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/markGoldButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="@string/btn_mark_gold" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/editTextButton"
                 style="@style/Widget.Material3.Button"
                 android:layout_width="wrap_content"

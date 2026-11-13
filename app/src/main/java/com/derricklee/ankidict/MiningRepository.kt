@@ -31,7 +31,8 @@ class MiningRepository(
                 ocr_blocks_json TEXT,
                 status TEXT NOT NULL,
                 duplicate_of_photo_id INTEGER,
-                modified_by_user_flag INTEGER NOT NULL DEFAULT 0
+                modified_by_user_flag INTEGER NOT NULL DEFAULT 0,
+                is_gold INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent(),
         )
@@ -118,6 +119,14 @@ class MiningRepository(
         }
         if (oldVersion < 6) {
             createOcrCorrectionsSchema(db)
+        }
+        if (oldVersion < 7) {
+            // Gold membership becomes an EXPLICIT mark (user 2026-11-13), replacing the
+            // "touched = gold" assumption. Seed current gold from the edit-provenance flag so
+            // the reviewed set survives migration; the app's Mark-as-gold toggle owns it from
+            // there on (unmark or rescan retires a photo).
+            runCatching { db.execSQL("ALTER TABLE scraped_photos ADD COLUMN is_gold INTEGER NOT NULL DEFAULT 0") }
+            db.execSQL("UPDATE scraped_photos SET is_gold = 1 WHERE modified_by_user_flag = 1")
         }
     }
 
@@ -278,7 +287,7 @@ class MiningRepository(
         val dbByMediaId = mutableMapOf<Long, ScrapedPhoto>()
         readableDatabase.rawQuery(
             "SELECT media_store_id, content_uri, date_added, language_tag, extracted_text, " +
-                "ocr_blocks_json, status, duplicate_of_photo_id, modified_by_user_flag FROM scraped_photos",
+                "ocr_blocks_json, status, duplicate_of_photo_id, modified_by_user_flag, is_gold FROM scraped_photos",
             emptyArray(),
         ).use { cursor ->
             while (cursor.moveToNext()) {
@@ -392,6 +401,7 @@ class MiningRepository(
                 arrayOf(photo.mediaStoreId.toString()),
             ).use { cursor -> cursor.moveToFirst() && cursor.getInt(0) != 0 }
             values.put("modified_by_user_flag", photo.modifiedByUserFlag || previouslyModified)
+            values.put("is_gold", photo.isGold)
             db.insertWithOnConflict("scraped_photos", null, values, SQLiteDatabase.CONFLICT_REPLACE)
             db.setTransactionSuccessful()
         } finally {
@@ -425,6 +435,23 @@ class MiningRepository(
         val values = ContentValues().apply { put("modified_by_user_flag", false) }
         writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
     }
+
+    /**
+     * Explicit gold-set membership toggle (Mark as gold button; user 2026-11-13). Never touches
+     * edit provenance — marking is verification, not an edit. Full image rescans clear the mark
+     * because they replace the text it attests to.
+     */
+    fun setPhotoIsGold(mediaStoreId: Long, gold: Boolean) {
+        val values = ContentValues().apply { put("is_gold", gold) }
+        writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
+    }
+
+    /** Gold-set membership straight from the flag (what build_gold_fixtures.py selects on). */
+    fun getGoldPhotoIds(): List<Long> =
+        readableDatabase.rawQuery(
+            "SELECT media_store_id FROM scraped_photos WHERE is_gold = 1 ORDER BY media_store_id",
+            null,
+        ).use { c -> generateSequence { if (c.moveToNext()) c.getLong(0) else null }.toList() }
 
     /** Marks existing sentence objects changed through the whole-photo text editor. */
     fun markSentencesModifiedByUser(photoId: Long, sentences: Set<String>) {
@@ -1280,6 +1307,7 @@ class MiningRepository(
                 "status",
                 "duplicate_of_photo_id",
                 "modified_by_user_flag",
+                "is_gold",
             ),
             selection,
             selectionArgs,
@@ -1306,6 +1334,8 @@ class MiningRepository(
             status = runCatching { PhotoStatus.valueOf(getString(6)) }.getOrDefault(PhotoStatus.IGNORED),
             duplicateOfPhotoId = getLongOrNull(7),
             modifiedByUserFlag = getInt(8) != 0,
+            // Name-based read: projections that predate is_gold (word-view photo joins) map it false.
+            isGold = getColumnIndex("is_gold").takeIf { it >= 0 }?.let { getInt(it) != 0 } ?: false,
         )
 
     private fun Cursor.getStringOrNull(index: Int): String? =
@@ -1319,7 +1349,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 6
+        private const val DB_VERSION = 7
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

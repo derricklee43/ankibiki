@@ -75,6 +75,13 @@ data class ScrapedPhoto(
     val duplicateOfPhotoId: Long? = null,
     /** Set by a confirmed user text change; only an accepted image rescan clears photo protection. */
     val modifiedByUserFlag: Boolean = false,
+    /**
+     * Explicitly marked GOLD in the photo view (user decision 2026-11-13): gold membership is
+     * the mark itself, NOT the touched/edit flag — partial edits across multiple passes no longer
+     * imply verification, and never-edited perfect photos can join the gold set. A full image
+     * rescan replaces the text, so it clears the mark; user text edits keep it.
+     */
+    val isGold: Boolean = false,
 )
 
 data class ExtractedOccurrenceRow(

@@ -110,8 +110,10 @@ Segmentation exact is 2/9 (only locked regressions pass); dominant error classes
 are nameplate leakage (5/9) and OCR-hallucinated `。` blocking stitching (3/9).
 Gaps: no menu/furigana/Chinese fixtures yet, no wrong-candidate (precision)
 metric yet, correction effort measured only via the user-edit-flag proxy.
-Iteration plan against the 46-photo user-corrected gold set (nameplate-
-agnostic scoring; v1 JVM layer built 2026-11-12, rev-4 numbers in
+Iteration plan against the 46-photo user-corrected gold set (gold
+membership since 2026-11-13 = explicitly marked photos, `scraped_photos.is_gold`
+via the Mark-as-gold button in the photo view — not "any touched photo";
+nameplate-agnostic scoring; v1 JVM layer built 2026-11-12, rev-4 numbers in
 [docs/benchmarks/2026-11-12-gold-baseline.md](benchmarks/2026-11-12-gold-baseline.md)
 — sentence exact 27/73 (cleaned gold), segmentation exact 7/46, char acc 0.794, 25 provisional
 nameplate leaks excluded from headline): [docs/benchmarks/gold-set-iteration-plan.md](benchmarks/gold-set-iteration-plan.md).

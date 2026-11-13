@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Build gold-set benchmark fixtures from a backup copy of the live corpus DB.
 
-Gold standard = the user's in-app corrected photo texts (scraped_photos rows
-with modified_by_user_flag=1). Their text is authoritative for CONTENT and
-their \\n breaks are authoritative for SEGMENTATION (docs/benchmarks/
-gold-set-iteration-plan.md, Q1/Q2 answered 2026-11-12).
+Gold standard = photos the user EXPLICITLY marked "Gold" in-app
+(scraped_photos.is_gold = 1; schema v7 + Mark-as-gold button, user revision
+2026-11-13). Membership used to be ASSUMED from modified_by_user_flag=1, which
+punished partial edits and excluded never-edited perfect photos; now the mark
+is the membership. Their text is authoritative for CONTENT and their \n breaks
+are authoritative for SEGMENTATION (docs/benchmarks/gold-set-iteration-plan.md,
+Q1/Q2 answered 2026-11-12).
 
 Caveat baked into the design: the user strips speaker nameplates while
 correcting, so gold never contains them. This script DRAFTS nameplate
@@ -164,7 +167,7 @@ def main() -> int:
 
     rows = db.execute(
         "SELECT media_store_id, content_uri, extracted_text, ocr_blocks_json "
-        "FROM scraped_photos WHERE modified_by_user_flag=1 AND extracted_text IS NOT NULL "
+        "FROM scraped_photos WHERE is_gold=1 AND extracted_text IS NOT NULL "
         "ORDER BY media_store_id"
     ).fetchall()
 

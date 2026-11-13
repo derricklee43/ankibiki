@@ -373,6 +373,8 @@ class RecoveryManager(
         private const val DB_ENTRY = "mining.db"
         private const val TAG = "RecoveryManager"
         private val TABLES = listOf("scraped_photos", "extracted_items", "item_occurrences")
+        // is_gold (v7) is deliberately NOT required: pre-v7 bundles stay valid and the restored
+        // file migrates on first app open; the full sqlite file rides in every bundle anyway.
         private val REQUIRED_COLUMNS = mapOf(
             "scraped_photos" to setOf(
                 "media_store_id", "content_uri", "date_added", "language_tag", "extracted_text",
