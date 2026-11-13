@@ -24,7 +24,18 @@ Binding rules this spike cannot break:
   re-derivable by reprocess; turning policy off reproduces current behavior
   exactly.
 - **G4** Zero-casualty requirement for production go: menu/short-legit-line
-  photos must never lose content under any shipped policy.
+  content must never be lost under any shipped policy.
+
+**Sample-set exclusion (user decision 2026-11-13):** photo 983 (system-menu
+screenshot) is an outlier and is NOT part of any sample set — un-marked on the
+device, out of gold fixtures (126 photos). Its geometry remains cited as
+counter-evidence (an observation, not a scored sample). CONSEQUENCE: the spike
+executes with NO menu-style control photo — recorded as a coverage gap, not
+silently ignored. Casualty audit runs on the in-set LEGIT lines that do exist
+(1149 ヘヘヘ, 1136 はい。, all `legitShortLines` ledger entries, every ≤8-char
+gold sentence); any menu-style photo the user marks in a future round joins
+the audit set automatically, and production-go should refuse until at least
+one menu-style control exists in the corpus.
 
 ## Ground truth construction (Phase 0, no device needed)
 
@@ -36,9 +47,10 @@ re-score WITHOUT exclusion). Truth classes, all derivable from committed data:
   user confirms in review round 4. **The 81 drafted candidates must be
   confirmed first** (one-time user pass, ~10 min) — spike output table
   enumerates them per photo for that review.
-- LEGIT: line appears in user gold, or is in `legitShortLines`, or a short
-  gold sentence (≤8 chars, punctuation-free) — e.g. ヘヘヘ, はい。, 983's
-  three menu lines. Never-flaggable.
+- LEGIT: line appears in user gold, or is in `legitShortLines`, or is a short
+  gold sentence (≤8 chars, punctuation-free) — e.g. ヘヘヘ, はい。. The former
+  menu-line examples (photo 983) apply shape-wise, but that photo is excluded
+  from the set per the note above. Never-flaggable.
 - NOISE: neither (recognition fragment / segmentation artifact) — flagging it
   is a false positive against the NAMEPLATE detector but NOT a casualty
   (policy would DROP it too; only LEGIT matters for G4).
@@ -111,8 +123,10 @@ Primary (against Phase-0 truth, all 127 photos + 9 legacy):
 - nameplate-line recall, per variant (standalone and inline separate)
 - flag precision (NAMEPLATE / NOISE among flagged) — NOISE flags are allowed
   for the *experiment* but counted
-- **casualties on LEGIT = must be 0 for any production candidate (G4 hard gate);
-  983 must flag zero lines that are in its gold**
+- **casualties on LEGIT = must be 0 for any production candidate (G4 hard gate):
+  in-set audit = every `legitShortLines` entry, ヘヘヘ/はい。-class short gold
+  sentences; NO menu-style control photo exists in the set (983 excluded) —
+  production-go blocked until one is marked (coverage-gap note above)**
 Secondary: rev-6 scorer re-run under simulated DEMOTE/DROP → headline
 unchanged by construction (nameplate noise was already excluded); the honest
 lift metric is correction-effort proxy: leaked lines a user no longer strips

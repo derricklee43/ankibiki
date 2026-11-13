@@ -28,6 +28,13 @@
 > locks RETIRED OUTRIGHT (assert_segmentation=false; a shape-guard intermediate was
 > implemented and explicitly declined). The 金 gold set + GoldBenchmarkTest are now
 > the sole annotation authority; future locks come only from gold photos that pass.
+>
+> **Set exclusion (2026-11-13, same day):** photo 983 (system-menu screenshot)
+> ruled an outlier by the user and removed from all sample sets — un-marked on the
+> device (is_gold=0, backup 130704 pre), fixtures regenerated at **126 photos**.
+> Headline after removal: **73/181 exact (40.3%)**, seg-exact 31/126, acc 0.799
+> (983 contributed 1/4 exact + zero-casualty-example geometry; its counter-evidence
+> citations remain, unscored).
 
 Rev 3 = 25-photo set + harness fixes; rev 4 = expanded to 46. **Rev 5: gold
 cleanup round 3 applied** — 10 stored-vs-Cloud word disagreements adjudicated by
