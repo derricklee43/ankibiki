@@ -17,7 +17,9 @@
       "nameplateCandidates": [
         "一エリス"
       ],
-      "ambiguousShortLines": [],
+      "ambiguousShortLines": [
+        "世界でただ1人の。"
+      ],
       "ocrDocument": {
         "fullText": "世界でただ1人の。\n神剣ファルシオン\n鎌承者となるのです。\n一エリス",
         "blocks": [
@@ -818,7 +820,9 @@
       "nameplateCandidates": [
         "グラ軍隊長"
       ],
-      "ambiguousShortLines": [],
+      "ambiguousShortLines": [
+        "ばいい。"
+      ],
       "ocrDocument": {
         "fullText": "グラ軍隊長\nおまえたちは\nし言われたとおりに\nばいい。",
         "blocks": [
@@ -886,6 +890,7 @@
       "nameplateLabels": [],
       "legitShortLines": [],
       "nameplateCandidates": [
+        ".",
         "ならずもの"
       ],
       "ambiguousShortLines": [],
@@ -1056,7 +1061,7 @@
     {
       "photoId": 1149,
       "contentUri": "content://media/external/images/media/1149",
-      "category": "user-corrected",
+      "category": "user-corrected-nameplate-prone",
       "gold": [
         "ま、言い返したくとも",
         "猿ぐつわをかまされてリゃ無理だわな。",
@@ -1066,7 +1071,9 @@
       "sourceBackup": "20261112-155132",
       "nameplateLabels": [],
       "legitShortLines": [],
-      "nameplateCandidates": [],
+      "nameplateCandidates": [
+        "ならずもの。"
+      ],
       "ambiguousShortLines": [],
       "ocrDocument": {
         "fullText": "ま、言い返したくとも\nならずもの。\n猿ぐつわをかまされてリゃ無理だわな。\nヘヘヘ",
@@ -1510,7 +1517,9 @@
       "nameplateCandidates": [
         "マルスミ"
       ],
-      "ambiguousShortLines": [],
+      "ambiguousShortLines": [
+        "返していけばいい。"
+      ],
       "ocrDocument": {
         "fullText": "マルスミ\n愛けた恩は、これからの戦いて\n返していけばいい。\n行こうカシム。",
         "provider": "on-device-preflight",

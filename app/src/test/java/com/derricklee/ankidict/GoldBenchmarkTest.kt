@@ -139,16 +139,22 @@ class GoldBenchmarkTest {
         val ignoredTexts: List<String>,
     )
 
+    /** Standalone labels tolerate trailing punctuation (ならずもの。) — a leaked
+     * nameplate whose OCR hallucinated a 。 is still a nameplate leak. */
+    private fun matchesIgnore(p: String, ignores: List<String>): Boolean =
+        ignores.any { it == p || (p.length > it.length && p.removeSuffix("。").removeSuffix("！")
+            .removeSuffix("？") == it) }
+
     private fun scoreFixture(f: GoldFixture): FixtureScore {
         val parsed = parser.parseSentences(f.document).map(::norm)
         val ignores = ignoreSet(f)
         val goldNorm = f.gold.map(::norm)
 
-        val leaksStandalone = parsed.filter { p -> ignores.any { it == p } }
+        val leaksStandalone = parsed.filter { p -> matchesIgnore(p, ignores) }
         val pool = mutableListOf<Pair<String, String?>>() // normalized text + stripped inline label
         var inlineMerges = 0
         for (p in parsed) {
-            if (ignores.any { it == p }) continue // standalone nameplate leak, already counted
+            if (matchesIgnore(p, ignores)) continue // standalone nameplate leak, already counted
             val merged = ignores.firstOrNull { label ->
                 p.length > label.length && p.startsWith(label) &&
                     goldNorm.any { g -> similarity(p.removePrefix(label), g) >= 0.6 }

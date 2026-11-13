@@ -67,7 +67,10 @@ def draft_candidates(doc: dict, gold: list[str]) -> tuple[list[str], list[str]]:
     gold_contents = {content_chars(g) for g in gold}
     cand, ambig = [], []
     for line in ocr_lines(doc):
-        if len(line) > 8 or any(c in line for c in TERMINAL_PUNCT):
+        # trailing terminal punctuation is tolerated in drafting (OCR hallucinates
+        # 。 on nameplates, e.g. ならずもの。 on photo 1149) — judge the core.
+        core = line.rstrip(TERMINAL_PUNCT)
+        if len(core) > 8 or any(c in core for c in TERMINAL_PUNCT):
             continue
         cc = content_chars(line)
         if not cc or cc in gold_contents:

@@ -1,32 +1,34 @@
-# Gold baseline — user-corrected set — 2026-11-12 (rev 2, post label review)
+# Gold baseline — user-corrected set — 2026-11-12 (rev 3, post label review + harness fix)
 
 Plan: docs/benchmarks/gold-set-iteration-plan.md (Q1–Q3 answered 2026-11-12: gold
 scored exactly as typed; user line breaks are the segmentation truth; photo level first).
-Fixtures generated from `backups/20261112-155132/mining.db` (25 photos, all with frozen
+Fixtures generated from `backups/20261112-155132/mining.db` (25 photos, all frozen
 `ocr_blocks_json`) via `scripts/build_gold_fixtures.py`. Scorer: `GoldBenchmarkTest`
 (JVM, report-only, deterministic — current `CjkSentenceParser` re-parses frozen blocks;
-no device, no corpus writes). Rev 2 applies the user's label review verdicts.
+no device, no corpus writes). Rev 2 = user label-review verdicts (all ambiguous short
+lines LEGIT, frozen in `legitShortLines`). Rev 3 = harness fix: candidate drafting and
+standalone-ignore now tolerate a trailing hallucinated `。` (ならずもの。 on 1149 was
+being charged as a real false extra instead of an ignored nameplate leak).
 
-**Nameplate-agnostic:** nameplate-candidate strings that leak as whole sentences or
-merge inline onto an utterance are removed before alignment and counted ONLY in the
-leak columns — they never move headline metrics. Candidates are still auto-drafted
-provisional ignores (nameplateLabels not yet frozen); every string the user judged
-LEGIT is now recorded in `legitShortLines` and can never be auto-ignored again.
+**Nameplate-agnostic:** nameplate-candidate strings leaking as whole sentences or
+merging inline are removed before alignment and counted ONLY in the leak columns.
+Candidates remain provisional auto-ignores (`nameplateLabels` empty); strings the
+user judged LEGIT can never be auto-ignored (`legitShortLines`).
 
 ## Headline (nameplate noise excluded)
 
 - Sentence exact: **22/43** = 51.2% of gold sentences reproduced exactly
 - Mean char accuracy (1−NED over all gold sentences): **0.856**
-- Segmentation exact (all gold sentences matched exactly, zero non-nameplate extras): **5/25** photos (1136, 1138, 1140, 1145, 1159)
+- Segmentation exact: **6/25** photos (1136, 1138, 1140, 1145, 1149, 1159)
 - Correct sentence SET, character distance left: 14 photos (983, 1133, 1135, 1139, 1142, 1143, 1147, 1148, 1157, 1164, 1166, 1174, 1278, 1284)
-- Wrong sentence set (missed/extra after cleaning): 6 photos (963, 969, 975, 1137, 1149, 1158)
-- Nameplate leaks ignored from headline: **5 standalone** + **11 inline-merged**
-- Real (non-nameplate) errors: 2 gold sentences missed, 9 false extras
+- Wrong sentence set after cleaning: 5 photos (963, 969, 975, 1137, 1158)
+- Nameplate leaks ignored from headline: **6 standalone** + **11 inline-merged**
+- Real (non-nameplate) errors: 2 gold sentences missed, 8 false extras
 
-Interpretation: the parser's stitching already produces the correct sentence SET on
-19/25 photos; most exact-match loss is recognition-bound
-(mining-time OCR character errors the user fixed by hand). The parser-side headroom is
-the 6 wrong-set photos, two of them phantom-`。` stitch blocks (963, 975-shape).
+Loss anatomy: of the 21 non-exact gold sentences, 16 sit on photos whose sentence
+SET is already correct — pure recognition distance (frozen mining-time OCR). The
+parser-side headroom is the 5 wrong-set photos; everything else is OCR-bound until
+a fresh-OCR (live-layer) measurement says otherwise.
 
 ## Per-photo results
 
@@ -48,7 +50,7 @@ the 6 wrong-set photos, two of them phantom-`。` stitch blocks (963, 975-shape)
 | 1145 | user-corrected-nameplate-prone | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
 | 1147 | user-corrected-nameplate-prone | 0/1 | 0.968 | — | 0 | 0 | 1 |
 | 1148 | user-corrected-nameplate-prone | 1/3 | 0.896 | — | 0 | 0 | 1 |
-| 1149 | user-corrected | 3/3 | 1.000 | — | 0 | 1 | 0 |
+| 1149 | user-corrected-nameplate-prone | 3/3 | 1.000 | ✓ | 0 | 0 | 1 |
 | 1157 | user-corrected-nameplate-prone | 0/1 | 0.600 | — | 0 | 0 | 1 |
 | 1158 | user-corrected | 2/3 | 0.978 | — | 0 | 1 | 0 |
 | 1159 | user-corrected-nameplate-prone | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
@@ -108,10 +110,6 @@ the 6 wrong-set photos, two of them phantom-`。` stitch blocks (963, 975-shape)
 - gold: ["たった数日でこのザマだ。", "アリティアも大したことねえな。", "悔しかったらなんとか言ってみな。"]
 - parsed (leaks shown for context): ["たった教てこのザマだ。", "アリティアも大したことねえな。", "ならずもの(", "毎しかったらなんとか言ってみな。"]
 
-**1149** — parser/segmentation-bound (sentence set wrong even after nameplate cleaning)
-- gold: ["ま、言い返したくとも", "猿ぐつわをかまされてリゃ無理だわな。", "ヘヘヘ"]
-- parsed (leaks shown for context): ["ま、言い返したくとも", "ならずもの。", "猿ぐつわをかまされてリゃ無理だわな。", "ヘヘヘ"]
-
 **1157** — recognition-bound (sentence set correct; character errors only)
 - gold: ["君はたしか弓兵部隊の"]
 - parsed (leaks shown for context): ["マル入", "しか引兵部隊の"]
@@ -142,9 +140,8 @@ the 6 wrong-set photos, two of them phantom-`。` stitch blocks (963, 975-shape)
 
 ## Label review — verdicts recorded 2026-11-12
 
-User call: every ambiguous short line (unflagged) is LEGIT content. Combined with the
-pre-flagged misreads, these strings are frozen into `legitShortLines` in the fixtures
-(the generator now never re-drafts them as nameplate candidates):
+User call: every ambiguous short line (unflagged) is LEGIT content; pre-flagged
+misreads joined them. Frozen into `legitShortLines` (survives regeneration):
 
 | Photo | Legit (never-ignorable) line |
 |---|---|
@@ -160,8 +157,10 @@ pre-flagged misreads, these strings are frozen into `legitShortLines` in the fix
 | 1159 | `このザマに` |
 | 1284 | `旅人を帳ったして` |
 
-Still provisional — auto-ignored as nameplate candidates until confirmed NAMEPLATE or
-moved to legitShortLines if they turn out to be content:
+Provisional ignores (auto-drafted nameplate candidates; confirm or reclassify later).
+Note 1158: `ゴードン` was called LEGIT (it lives inside the utterance ゴードンです。)
+so its standalone leak stays charged as a false extra — a photo-level label could
+ignore the leak without eating the utterance if that call is revisited:
 
 - 963: `一エリス`
 - 969: `カイン`
@@ -174,28 +173,29 @@ moved to legitShortLines if they turn out to be content:
 - 1140: `村人`
 - 1143: `グラ軍隊長`
 - 1145: `グラ軍隊長`
+- 1147: `.`
 - 1147: `ならずもの`
 - 1148: `ならずもの(`
+- 1149: `ならずもの。`
 - 1157: `マル入`
 - 1159: `ゴードン`
 - 1166: `モロドフ`
 - 1278: `マルスミ`
 
-## Targets (proposed, not gating)
+## Loss anatomy / iteration targets (rev 3)
 
-- Promote a photo to `assert_segmentation=true` only when a parser change makes it
-  pass AND the user confirms its gold final. Never gate recognition-bound photos
-  on exact text.
-- Headline to beat next iteration: sentence exact > 22/43; wrong-set photos < 6.
-- 963-class failures (phantom `。` blocking stitching) stay red until the OCR path
-  changes — parser work must not claim them.
+Non-exact sentences by lever: recognition-distance-on-correct-set 16 (OCR-bound on
+frozen blocks — live layer decides the true share); wrong sentence set 5 photos
+(963, 969, 975, 1137, 1158 — parser stitching, 963/975 phantom-`。` riskier).
+Nameplate opt-in policy would clear 17 leaked/merged lines (headline-neutral by
+design, real correction-effort win).
 
 ## Reproducing
 
 ```
 python3 scripts/build_gold_fixtures.py --db backups/20261112-155132/mining.db \
   --out app/src/test/resources/gold_fixtures.json \
-  --existing app/src/test/resources/gold_fixtures.json   # keeps reviewed labels + legit verdicts
+  --existing app/src/test/resources/gold_fixtures.json   # keeps labels + legit verdicts
 ./gradlew :app:testDebugUnitTest --tests "*GoldBenchmark*"
 # JSON lines: BENCHMARK_GOLD_FIXTURE / BENCHMARK_GOLD_SUMMARY in the test XML stdout
 ```
