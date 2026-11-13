@@ -72,7 +72,12 @@ class OcrCorrectionGateParityTest {
         if (isNull(key)) emptyList() else getJSONArray(key).let { a -> (0 until a.length()).map(a::getString) }
 
     private fun loadFixtures(): List<Fixture> {
-        val raw = checkNotNull(javaClass.getResourceAsStream("/gold_fixtures.json"))
+        // FROZEN snapshot of the fixture set spike 003 measured on (46 photos, 2026-11-12
+        // rev-5 state, commit 814181e). NOT the live gold_fixtures.json: that file is
+        // regenerated whenever the user re-annotates (membership = 金 marks), and parity
+        // here pins gate LOGIC to the spike's inputs — drift in corpus membership must
+        // never masquerade as drift in the ported math.
+        val raw = checkNotNull(javaClass.getResourceAsStream("/gold_fixtures_spike003_snapshot.json"))
             .reader(Charsets.UTF_8).readText()
         return JSONObject(raw).getJSONArray("fixtures").let { arr ->
             (0 until arr.length()).map { i ->

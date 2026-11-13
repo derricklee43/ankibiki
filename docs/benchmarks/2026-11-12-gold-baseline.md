@@ -6,6 +6,23 @@
 > committed fixture set stays the scoring baseline until the first regeneration run against
 > photos the user has personally re-marked.
 
+> **Rev 6 addendum (2026-11-13, regeneration DONE):** user annotated heavily; first
+> regeneration under explicit 金 membership. Gold set **127 photos / 185 sentences**
+> (from 46/73); 82 photos newly in-set. Headline: **73/185 exact (39.5%)**,
+> segmentation-exact 31/127, char accuracy 0.796, nameplate noise excluded: 38
+> standalone + 27 inline (81 candidate strings drafted set-wide — provisional ignores,
+> review round 4 pending). Grouped: previously-benchmarked set 24/71 (34%), new batch
+> 49/114 (43%) — the older 46 are the harder, nameplate-stripped, narration-heavy ones.
+> Adjudications: 983 + 1159 retired by user retyping; 7 rules still active (969, 1133,
+> 1149, 1284, 1418, 1420, 1440) — note 969 was retyped but kept 陸下; the 陛下 rule
+> remains applied until it is. 1158 self-excluded (user typed __ placeholders for
+> unreadable chars and left it unmarked — partially-verified photos are OUT; wildcard
+> '__'-in-gold scoring is a proposed small extension if partial membership is wanted).
+> **OPEN CONFLICT:** locked fixtures 953 & 1160 now have user 金 gold that supersedes
+> their content (953: nameplate dropped + 脱出/手当を fixed; 1160: 差し出せ vs pinned
+> 差しtせ). Per Q2 gold wins — locks should be downgraded to segmentation-shape checks
+> (sentence count + boundary indices) or retired; pending user decision.
+
 Rev 3 = 25-photo set + harness fixes; rev 4 = expanded to 46. **Rev 5: gold
 cleanup round 3 applied** — 10 stored-vs-Cloud word disagreements adjudicated by
 the user (all 10 confirmed Cloud = screen truth) and encoded as durable rules in
