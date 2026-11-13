@@ -64,11 +64,11 @@
     "マルスその傷でグラから脱中してきたのか?",
     "早く手当階·."
    ],
-   "assert_segmentation": true,
+   "assert_segmentation": false,
    "must_contain_words": [
     "傷"
    ],
-   "notes": "locked regression (2026-11-10 stitching fix); 脱中=OCR for 脱出; ·. punctuation as recognized"
+   "notes": "locked regression (2026-11-10 stitching fix); 脱中=OCR for 脱出; ·. punctuation as recognized | LOCK RETIRED 2026-11-13 by user (content superseded by 金 gold; gold set is the annotation source of truth)"
   },
   {
    "photoId": 958,
@@ -479,12 +479,12 @@
     "アリティアの王子を仕留めよ!",
     "奴の首をわしの前に差しtせ!"
    ],
-   "assert_segmentation": true,
+   "assert_segmentation": false,
    "must_contain_words": [
     "王子",
     "狙い"
    ],
-   "notes": "locked regression on SEGMENTATION against frozen OCR input; ジオル nameplate correctly excluded; 差しtせ is the OCR rendering of 差し出せ (recognition error preserved)"
+   "notes": "locked regression on SEGMENTATION against frozen OCR input; ジオル nameplate correctly excluded; 差しtせ is the OCR rendering of 差し出せ (recognition error preserved) | LOCK RETIRED 2026-11-13 by user (content superseded by 金 gold; gold set is the annotation source of truth)"
   },
   {
    "photoId": 1170,

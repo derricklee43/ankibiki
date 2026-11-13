@@ -2,7 +2,6 @@ package com.derricklee.ankidict
 
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -48,71 +47,20 @@ class ExtractionBenchmarkTest {
     }
 
     /**
-     * Locked photos with user gold (round-3 adjudicated): the lock guards SEGMENTATION SHAPE only —
-     * sentence count and per-position correspondence. Content is governed by GoldBenchmarkTest
-     * against the user's 金 text (recognition differences vs frozen blocks are expected and the
-     * strings will never be equal, e.g. 953 parsed マルス…脱中 vs gold ...脱出). Count equality
-     * catches merge/split regressions; per-pair similarity >= 0.6 catches boundary migrations
-     * (a sentence sliding to the wrong neighbor drops one pair's similarity sharply).
+     * Legacy locks: both historical locked photos (953, 1160) were RETIRED 2026-11-13 by the
+     * user — their agent-pinned OCR-faithful content was superseded by the 金 gold set, and no
+     * content lock on frozen local blocks can reproduce the corrected text. The mechanism stays
+     * in place should a legacy fixture ever be re-locked against frozen input; the living
+     * regression locks are GoldBenchmarkTest.goldLockedRegressions over user gold.
      */
-    private fun levenshtein(a: String, b: String): Int {
-        if (a.isEmpty()) return b.length
-        var prev = IntArray(b.length + 1) { it }
-        for (i in 1..a.length) {
-            val cur = IntArray(b.length + 1).also { it[0] = i }
-            for (j in 1..b.length) {
-                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
-            }
-            prev = cur
-        }
-        return prev[b.length]
-    }
-
-    private fun similarity(a: String, b: String): Double {
-        val m = maxOf(a.length, b.length)
-        return if (m == 0) 1.0 else 1.0 - levenshtein(a, b).toDouble() / m
-    }
-
-    private fun loadGold(photoId: Long): List<String>? {
-        val stream = javaClass.getResourceAsStream("/gold_fixtures.json") ?: return null
-        val array = JSONObject(stream.reader(Charsets.UTF_8).readText()).getJSONArray("fixtures")
-        for (i in 0 until array.length()) {
-            val o = array.getJSONObject(i)
-            if (o.getLong("photoId") == photoId) {
-                return o.getJSONArray("gold").let { g -> (0 until g.length()).map(g::getString) }
-            }
-        }
-        return null
-    }
-
     @Test
     fun lockedRegressions_currentParserStillProducesVerifiedSegmentation() {
-        val goldCovered = mutableListOf<Long>()
         for (fixture in loadFixtures().filter { it.assertSegmentation }) {
-            val parsed = parser.parseSentences(fixture.document)
-            val gold = loadGold(fixture.photoId)
-            if (gold == null) {
-                assertEquals(
-                    "segmentation drift on locked photo ${fixture.photoId} (${fixture.category})",
-                    fixture.expected, parsed,
-                )
-            } else {
-                assertEquals(
-                    "sentence count drift on gold-covered locked photo ${fixture.photoId}",
-                    gold.size, parsed.size,
-                )
-                for (i in gold.indices) {
-                    val sim = similarity(gold[i], parsed[i])
-                    assertTrue(
-                        "boundary migration on locked photo ${fixture.photoId} sentence $i " +
-                            "(gold「${gold[i]}」vs parsed「${parsed[i]}」similarity ${"%.2f".format(sim)} < 0.6)",
-                        sim >= 0.6,
-                    )
-                }
-                goldCovered += fixture.photoId
-            }
+            assertEquals(
+                "segmentation drift on locked photo ${fixture.photoId} (${fixture.category})",
+                fixture.expected, parser.parseSentences(fixture.document),
+            )
         }
-        assertEquals("both locked photos must be gold-covered after round-3 adjudication", listOf(953L, 1160L), goldCovered.sorted())
     }
 
     @Test

@@ -172,11 +172,12 @@ rules stay in force.
   FOLLOW-UP (2026-11-13): the overlap prediction proved incomplete — round-3
   adjudication + 金 marking brought 953 and 1160 into the gold set too, and the
   user confirmed his own text over the agent-pinned content (脱出/手当を/差し出せ).
-  Both legacy locks now guard SEGMENTATION SHAPE only (sentence count + per-pair
-  similarity ≥ 0.6 against the user's gold; catches merges, splits, boundary
-  migration) while GoldBenchmarkTest owns content — a lock pinned to frozen local
-  blocks can never reproduce corrected content, shape is what it can and should
-  still guard.
+  Both legacy locks were then RETIRED OUTRIGHT (user decision — "delete outright"):
+  assert_segmentation=false on 953/1160 in the legacy fixture file. Rationale: a
+  content lock on frozen local blocks can never reproduce corrected text; shape
+  guards were offered and declined. The 金 gold set is now the single annotation
+  source of truth, and GoldBenchmarkTest's lock mechanism (promote photo once it
+  passes + user confirms) is the only regression-lock path going forward.
 - **Q3 (scope) — photo level first.** Occurrence-layer checks (the 103 edited
   `item_occurrences.sentence` rows: survival after reprocess, candidate recall
   vs corrected text) deferred to v1.1 after the first gold report exists —

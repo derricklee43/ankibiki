@@ -24,9 +24,10 @@
 > their content (953: nameplate dropped + 脱出/手当を fixed; 1160: 差し出せ vs pinned
 > 差しtせ). Per Q2 gold wins — locks should be downgraded to segmentation-shape checks
 > (sentence count + boundary indices) or retired; pending user decision.
-> **RESOLVED (2026-11-13):** user confirmed own gold for both; locks converted to
-> shape-only guards (count + per-pair similarity ≥0.6 vs gold) — content authority
-> is the gold set. ExtractionBenchmarkTest 3/3 + GoldBenchmarkTest 3/3 green.
+> **RESOLVED (2026-11-13):** user confirmed own gold for both, then ordered both
+> locks RETIRED OUTRIGHT (assert_segmentation=false; a shape-guard intermediate was
+> implemented and explicitly declined). The 金 gold set + GoldBenchmarkTest are now
+> the sole annotation authority; future locks come only from gold photos that pass.
 
 Rev 3 = 25-photo set + harness fixes; rev 4 = expanded to 46. **Rev 5: gold
 cleanup round 3 applied** — 10 stored-vs-Cloud word disagreements adjudicated by
