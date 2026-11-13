@@ -76,7 +76,7 @@
     <string name="btn_refresh_thumbnail">↻ サムネイル更新</string>
     <string name="btn_rescan_photo">再スキャン</string>
     <string name="btn_mark_gold">Mark as gold</string>
-    <string name="btn_gold_marked">Gold ✓</string>
+    <string name="btn_gold_marked">Gold</string>
     <string name="gold_marked_toast">Marked as gold — verified text joins the gold set</string>
     <string name="gold_unmarked_toast">Removed from the gold set</string>
     <string name="photo_rescan_dialog_title">編集済みの写真を再スキャン</string>

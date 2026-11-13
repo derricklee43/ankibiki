@@ -57,8 +57,32 @@ class PhotoDetailActivity : AppCompatActivity() {
     /** Gold state of the photo currently shown; owned by the is_gold column, refreshed on load. */
     private var currentIsGold = false
 
+    /**
+     * Two-state gold button (user spec 2026-11-13): unmarked = outlined, gold border + gold text
+     * "Mark as gold"; marked = background filled gold, text in the previous background color
+     * (theme colorSurface, so light/dark both read correctly), label just "Gold".
+     */
     private fun renderGoldButton() {
-        binding.markGoldButton.setText(if (currentIsGold) R.string.btn_gold_marked else R.string.btn_mark_gold)
+        val gold = androidx.core.content.ContextCompat.getColor(this, R.color.gold)
+        val tv = android.util.TypedValue()
+        theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, tv, true)
+        val surfaceColor = if (tv.resourceId != 0) {
+            androidx.core.content.ContextCompat.getColor(this, tv.resourceId)
+        } else {
+            tv.data
+        }
+        binding.markGoldButton.apply {
+            strokeColor = android.content.res.ColorStateList.valueOf(gold)
+            if (currentIsGold) {
+                backgroundTintList = android.content.res.ColorStateList.valueOf(gold)
+                setTextColor(surfaceColor)
+                setText(R.string.btn_gold_marked)
+            } else {
+                backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.TRANSPARENT)
+                setTextColor(gold)
+                setText(R.string.btn_mark_gold)
+            }
+        }
     }
 
     private val textEditorLauncher = registerForActivityResult(

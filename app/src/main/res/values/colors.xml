@@ -4,6 +4,10 @@
     <color name="tag_chinese_red">#D32F2F</color>
     <color name="tag_japanese_blue">#1976D2</color>
 
+    <!-- Mark-as-gold button: outline+text when unmarked, fill when marked (user spec 2026-11-13).
+         Metallic gold stays legible as text on both light (#fffbff) and dark surfaces. -->
+    <color name="gold">#C99700</color>
+
     <!-- Material You tonal palette generated from source color #37092e
          (@material/material-color-utilities, M3 tonal roles;
           light "primary" is the literal seed per design choice).
