@@ -132,6 +132,8 @@
     <string name="reprocess_sentence_merged_note">\nMerged %1$d duplicate(s) with the existing identical sentence, keeping the most-reviewed state.</string>
     <string name="recovery_restart_manually">Restored. Close and reopen AnkiBiki to load the recovered corpus.</string>
     <string name="wizard_continue">Continue</string>
+    <string name="wizard_other_card_types">Other card types</string>
+    <string name="wizard_last_used">last used</string>
     <string name="wizard_save_template_continue">Save template &amp; continue</string>
     <string name="wizard_confirm_create">確認して作成</string>
     <string name="wizard_deck_title">New card — choose destination</string>

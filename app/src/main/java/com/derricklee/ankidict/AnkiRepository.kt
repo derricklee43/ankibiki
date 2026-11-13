@@ -105,6 +105,9 @@ class AnkiRepository(private val context: Context) {
     fun readNoteFields(noteId: Long): List<String>? =
         runCatching { addContentApi.getNote(noteId)?.fields?.toList() }.getOrNull()
 
+    /** AnkiDroid's remembered "current" note type (last used in Add) — the soft deck/type link. */
+    fun currentModelId(): Long = runCatching { addContentApi.currentModelId }.getOrDefault(-1L)
+
     /** All note types with their field names in ordinal order (spike P3/P4: FIELD_NAMES is truth). */
     fun listModels(): List<AnkiModelInfo> =
         (addContentApi.getModelList()?.entries ?: emptySet()).map { (mid, name) ->

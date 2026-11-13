@@ -16,6 +16,7 @@ import com.derricklee.ankidict.databinding.ActivityCardPreviewBinding
 import com.derricklee.ankidict.databinding.ActivityDeckPickerBinding
 import com.derricklee.ankidict.databinding.ActivityFieldMappingBinding
 import com.derricklee.ankidict.databinding.ItemCardMappingRowBinding
+import com.derricklee.ankidict.databinding.ItemWizardSectionRowBinding
 import com.derricklee.ankidict.databinding.ItemWizardNestedRowBinding
 import com.derricklee.ankidict.databinding.ItemWizardRowBinding
 import com.google.android.material.button.MaterialButton
@@ -25,7 +26,9 @@ import java.util.concurrent.Executors
 
 private sealed interface Row {
     data class Deck(val info: AnkiRepository.AnkiDeckInfo) : Row
-    data class Model(val info: AnkiRepository.AnkiModelInfo) : Row
+    data class CurrentModel(val info: AnkiRepository.AnkiModelInfo) : Row
+    data class OtherToggle(val expanded: Boolean) : Row
+    data class OtherModel(val info: AnkiRepository.AnkiModelInfo) : Row
 }
 
 /** Intent keys shared by the three wizard screens (docs/card-creation-wizard-plan.md). */
@@ -56,6 +59,8 @@ class DeckPickerActivity : AppCompatActivity() {
     private var models: List<AnkiRepository.AnkiModelInfo> = emptyList()
     private var selectedDeck: Long? = null
     private var selectedModel: Long? = null
+    private var currentModelId = -1L
+    private var otherExpanded = false
     private lateinit var adapter: PickAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,6 +86,7 @@ class DeckPickerActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 decks = d; models = m
+                currentModelId = runCatching { ankiRepository.currentModelId() }.getOrDefault(-1L)
                 adapter.rebuild()
             }
         }
@@ -119,23 +125,34 @@ class DeckPickerActivity : AppCompatActivity() {
             val out = mutableListOf<Row>()
             decks.forEach { deck ->
                 out += Row.Deck(deck)
-                if (deck.deckId == selectedDeck) models.forEach { out += Row.Model(it) }
+                if (deck.deckId != selectedDeck) return@forEach
+                val current = models.firstOrNull { it.modelId == currentModelId }
+                if (current != null) out += Row.CurrentModel(current)
+                out += Row.OtherToggle(otherExpanded)
+                if (otherExpanded) {
+                    models.filter { it.modelId != currentModelId }.forEach { out += Row.OtherModel(it) }
+                }
             }
             rows = out
             notifyDataSetChanged()
             updateContinue()
         }
 
-        override fun getItemViewType(position: Int) = if (rows[position] is Row.Deck) 0 else 1
+        override fun getItemViewType(position: Int) = when (rows[position]) {
+            is Row.Deck -> 0
+            is Row.CurrentModel, is Row.OtherModel -> 1
+            is Row.OtherToggle -> 2
+        }
 
         override fun getItemCount() = rows.size
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             val inflater = LayoutInflater.from(parent.context)
-            return if (viewType == 0)
-                DeckHolder(ItemWizardRowBinding.inflate(inflater, parent, false))
-            else
-                ModelHolder(ItemWizardNestedRowBinding.inflate(inflater, parent, false))
+            return when (viewType) {
+                0 -> DeckHolder(ItemWizardRowBinding.inflate(inflater, parent, false))
+                1 -> ModelHolder(ItemWizardNestedRowBinding.inflate(inflater, parent, false))
+                else -> SectionHolder(ItemWizardSectionRowBinding.inflate(inflater, parent, false))
+            }
         }
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
@@ -148,12 +165,26 @@ class DeckPickerActivity : AppCompatActivity() {
                     holder.b.root.setOnClickListener {
                         if (selectedDeck != row.info.deckId) {
                             selectedDeck = row.info.deckId
-                            selectedModel = null // card type belongs to the newly opened deck
+                            // auto-select AnkiDroid's last-used type; user overrides via the
+                            // collapsed "Other card types" section
+                            selectedModel = models.firstOrNull { it.modelId == currentModelId }?.modelId
+                            otherExpanded = false
                         }
                         rebuild()
                     }
                 }
-                is Row.Model -> {
+                is Row.CurrentModel -> {
+                    holder as ModelHolder
+                    holder.b.rowTitle.text = row.info.name
+                    holder.b.rowSubtitle.setText(R.string.wizard_last_used)
+                    holder.b.rowRadio.isChecked = row.info.modelId == selectedModel
+                    holder.b.root.setOnClickListener {
+                        selectedModel = row.info.modelId
+                        notifyDataSetChanged()
+                        updateContinue()
+                    }
+                }
+                is Row.OtherModel -> {
                     holder as ModelHolder
                     holder.b.rowTitle.text = row.info.name
                     holder.b.rowSubtitle.text = "${row.info.fieldNames.size} flds"
@@ -164,11 +195,21 @@ class DeckPickerActivity : AppCompatActivity() {
                         updateContinue()
                     }
                 }
+                is Row.OtherToggle -> {
+                    holder as SectionHolder
+                    holder.b.sectionTitle.setText(R.string.wizard_other_card_types)
+                    holder.b.sectionChevron.rotation = if (row.expanded) 0f else -90f
+                    holder.b.root.setOnClickListener {
+                        otherExpanded = !otherExpanded
+                        rebuild()
+                    }
+                }
             }
         }
 
         private inner class DeckHolder(val b: ItemWizardRowBinding) : RecyclerView.ViewHolder(b.root)
         private inner class ModelHolder(val b: ItemWizardNestedRowBinding) : RecyclerView.ViewHolder(b.root)
+        private inner class SectionHolder(val b: ItemWizardSectionRowBinding) : RecyclerView.ViewHolder(b.root)
     }
 }
 
