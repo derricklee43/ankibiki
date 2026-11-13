@@ -14,6 +14,7 @@
       "legitShortLines": [
         "神剣ファルシオン"
       ],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "一エリス"
       ],
@@ -68,12 +69,15 @@
       "category": "user-corrected-nameplate-prone",
       "gold": [
         "私は…",
-        "私は、陸下の最期のお言葉を伝えるために戻りました。"
+        "私は、陛下の最期のお言葉を伝えるために戻りました。"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [
+        "969-heika"
+      ],
       "nameplateCandidates": [
         "カイン"
       ],
@@ -126,6 +130,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "カイン画"
       ],
@@ -156,7 +161,7 @@
       "gold": [
         "全体危険範囲 閉じるR",
         "敵全員の攻撃範囲表示",
-        "Xボタンで酸全停の攻等を表示できます。"
+        "Xボタンで敵全体の攻撃範囲を表示できます。"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
@@ -165,6 +170,9 @@
         "敵全員の",
         "Xボタンで",
         "攻華範囲表示"
+      ],
+      "appliedAdjudications": [
+        "983-teki-zen-tai"
       ],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
@@ -254,13 +262,16 @@
       "contentUri": "content://media/external/images/media/1133",
       "category": "user-corrected",
       "gold": [
-        "やがて、敵軍の警戒がゆるやかになり絶好の様会訪れるが"
+        "やがて、敵軍の警戒がゆるやかになり絶好の機会が訪れるが"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [
         "絶好の様会訪れる"
+      ],
+      "appliedAdjudications": [
+        "1133-kikai"
       ],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
@@ -303,6 +314,7 @@
       "legitShortLines": [
         "グラの大部隊が"
       ],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "モロドフー"
       ],
@@ -375,6 +387,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "モ口ドフ"
       ],
@@ -446,6 +459,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "モロドフ"
       ],
@@ -501,6 +515,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "モロドア"
       ],
@@ -567,6 +582,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "モロドフ"
       ],
@@ -637,6 +653,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "村人"
       ],
@@ -695,6 +712,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -760,6 +778,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "グラ軍隊長"
       ],
@@ -817,6 +836,7 @@
       "legitShortLines": [
         "おまえたちは"
       ],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "グラ軍隊長"
       ],
@@ -889,6 +909,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         ".",
         "ならずもの"
@@ -988,6 +1009,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "ならずもの("
       ],
@@ -1064,13 +1086,16 @@
       "category": "user-corrected-nameplate-prone",
       "gold": [
         "ま、言い返したくとも",
-        "猿ぐつわをかまされてリゃ無理だわな。",
+        "猿ぐつわをかまされてりゃ無理だわな。",
         "ヘヘヘ"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [
+        "1149-riya"
+      ],
       "nameplateCandidates": [
         "ならずもの。"
       ],
@@ -1154,6 +1179,7 @@
       "legitShortLines": [
         "しか引兵部隊の"
       ],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "マル入"
       ],
@@ -1197,11 +1223,10 @@
     {
       "photoId": 1158,
       "contentUri": "content://media/external/images/media/1158",
-      "category": "user-corrected",
+      "category": "user-corrected-nameplate-prone",
       "gold": [
         "はい。",
-        "アリティアの弓兵部に所霧する。",
-        "ゴードンです。"
+        "アリティアの弓兵部隊に所属するゴードンです。"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
@@ -1209,8 +1234,13 @@
       "legitShortLines": [
         "ゴードン"
       ],
+      "appliedAdjudications": [
+        "1158-gordon"
+      ],
       "nameplateCandidates": [],
-      "ambiguousShortLines": [],
+      "ambiguousShortLines": [
+        "ゴードンです。"
+      ],
       "ocrDocument": {
         "fullText": "はい。\nアリティアの引兵部に所霧する。\nゴードンです。\nゴードン",
         "blocks": [
@@ -1282,13 +1312,16 @@
       "contentUri": "content://media/external/images/media/1159",
       "category": "user-corrected-nameplate-prone",
       "gold": [
-        "不覚にも敵に飾らわれてしまいこのザマに"
+        "不覚にも敵に捕らわれてしまいこのザマに"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [
         "このザマに"
+      ],
+      "appliedAdjudications": [
+        "1159-toraware"
       ],
       "nameplateCandidates": [
         "ゴードン"
@@ -1356,6 +1389,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -1405,6 +1439,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "モロドフ"
       ],
@@ -1475,6 +1510,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -1514,6 +1550,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "マルスミ"
       ],
@@ -1592,13 +1629,16 @@
       "contentUri": "content://media/external/images/media/1284",
       "category": "user-corrected",
       "gold": [
-        "彼らは、付近の村を荒うしたり旅人を帳ったして大変恐れられております。"
+        "彼らは、付近の村を荒らしたり旅人を襲ったりして大変恐れられております。"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [
         "旅人を帳ったして"
+      ],
+      "appliedAdjudications": [
+        "1284-arash-oso"
       ],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
@@ -1665,6 +1705,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "手始縣O¥售空y"
       ],
@@ -1747,6 +1788,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [
         "すしいなであった"
@@ -1788,6 +1830,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "thapte5"
       ],
@@ -1857,6 +1900,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "thapter7"
       ],
@@ -1911,6 +1955,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -1965,6 +2010,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -2019,6 +2065,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "ジュリアン"
       ],
@@ -2104,6 +2151,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "ジュリアンA"
       ],
@@ -2172,6 +2220,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -2227,6 +2276,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "ジュリアン"
       ],
@@ -2310,6 +2360,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "ュリアンィ"
       ],
@@ -2389,12 +2440,15 @@
       "category": "user-corrected",
       "gold": [
         "傭兵には気をつけな。",
-        "奴らは、腕がいいから下手うてば一発て倒されるぜ。"
+        "奴らは、腕がいいから下手ってば一発で倒されるぜ。"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [
+        "1418-tteba-de"
+      ],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -2462,6 +2516,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -2536,13 +2591,16 @@
       "contentUri": "content://media/external/images/media/1420",
       "category": "user-corrected",
       "gold": [
-        "しかしな、こいつは、血を吸い肉を喰らう悪磨の斧じゃ 。",
+        "しかしな、こいつは、血を吸い肉を喰らう悪魔の斧じゃ 。",
         "決して使ってはならぬぞ、よいな!"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [
+        "1420-ma"
+      ],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -2586,6 +2644,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [
         "跡上がると"
@@ -2627,6 +2686,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [
         "素早さが上がると",
@@ -2674,6 +2734,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "ーダ"
       ],
@@ -2762,6 +2823,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -2821,12 +2883,15 @@
       "contentUri": "content://media/external/images/media/1440",
       "category": "user-corrected-nameplate-prone",
       "gold": [
-        "おそらく敵も海幹の軍を出してくるてしょう。"
+        "おそらく敵も迎撃の軍を出してくるでしょう。"
       ],
       "assert_segmentation": false,
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [
+        "1440-geigeki"
+      ],
       "nameplateCandidates": [
         "モ口ドフ"
       ],
@@ -2886,6 +2951,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [],
       "ambiguousShortLines": [],
       "ocrDocument": {
@@ -2951,6 +3017,7 @@
       "sourceBackup": "20261112-225328",
       "nameplateLabels": [],
       "legitShortLines": [],
+      "appliedAdjudications": [],
       "nameplateCandidates": [
         "モ日ドフ/"
       ],

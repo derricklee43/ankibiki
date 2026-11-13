@@ -1,0 +1,18 @@
+{
+  "note": "Gold cleanup round 3 (2026-11-12): user adjudicated stored-vs-Cloud word disagreements; for every item below the user confirmed the Cloud reading matches the actual screen. Applied by scripts/build_gold_fixtures.py (--adjudications) to DB-derived gold; each rule retires itself once the user re-types the line in-app (replacement no longer found). Never touches the device corpus.",
+  "approvedBy": "user (chat, 2026-11-12)",
+  "adjudications": [
+    { "id": "969-heika", "photoId": 969, "replaces": [["陸下の最期", "陛下の最期"]] },
+    { "id": "983-teki-zen-tai", "photoId": 983, "replaces": [["酸全停の攻等", "敵全体の攻撃範囲"]] },
+    { "id": "1133-kikai", "photoId": 1133, "replaces": [["絶好の様会訪れるが", "絶好の機会が訪れるが"]] },
+    { "id": "1149-riya", "photoId": 1149, "replaces": [["かまされてリゃ", "かまされてりゃ"]] },
+    { "id": "1158-gordon", "photoId": 1158,
+      "mergeLines": ["アリティアの弓兵部に所霧する。", "ゴードンです。"],
+      "into": "アリティアの弓兵部隊に所属するゴードンです。" },
+    { "id": "1159-toraware", "photoId": 1159, "replaces": [["敵に飾らわれて", "敵に捕らわれて"]] },
+    { "id": "1284-arash-oso", "photoId": 1284, "replaces": [["村を荒うしたり", "村を荒らしたり"], ["旅人を帳ったして", "旅人を襲ったりして"]] },
+    { "id": "1418-tteba-de", "photoId": 1418, "replaces": [["下手うてば一発て倒される", "下手ってば一発で倒される"]] },
+    { "id": "1420-ma", "photoId": 1420, "replaces": [["喰らう悪磨の斧", "喰らう悪魔の斧"]] },
+    { "id": "1440-geigeki", "photoId": 1440, "replaces": [["敵も海幹の軍", "敵も迎撃の軍"], ["出してくるてしょう", "出してくるでしょう"]] }
+  ]
+}

@@ -116,6 +116,8 @@ def main() -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--mirror", default=None)
     ap.add_argument("--existing", default=None, help="prior gold fixture file to carry reviewed labels from")
+    ap.add_argument("--adjudications", default=str(Path(__file__).resolve().parent.parent / "docs/benchmarks/gold-adjudications.json"),
+                    help="user-approved gold text fixes JSON (applied only while old text still present)")
     args = ap.parse_args()
 
     db = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
@@ -133,6 +135,33 @@ def main() -> int:
                 # user-confirmed content lines — never re-drafted as candidates
                 legit[pid] = f["legitShortLines"]
 
+    adjudications = {}
+    if args.adjudications and Path(args.adjudications).exists():
+        adj = json.loads(Path(args.adjudications).read_text(encoding="utf-8"))
+        for a in adj.get("adjudications", []):
+            adjudications.setdefault(a["photoId"], []).append(a)
+
+    def apply_adjudications(pid: int, gold: list[str]) -> tuple[list[str], list[str]]:
+        """User-approved text fixes (--adjudications JSON, gold cleanup round).
+        Rules retire automatically once the user's in-app text no longer contains
+        the old substring/line — from then on the in-app text is the truth."""
+        applied = []
+        for a in adjudications.get(pid, []):
+            hit = False
+            for frm, to in a.get("replaces", []):
+                new = [g.replace(frm, to) for g in gold]
+                if new != gold:
+                    gold = new
+                    hit = True
+            m = a.get("mergeLines")
+            if m and all(line in gold for line in m):
+                i = min(gold.index(line) for line in m)
+                gold = gold[:i] + [a["into"]] + gold[i + len(m):]
+                hit = True
+            if hit:
+                applied.append(a["id"])
+        return gold, applied
+
     rows = db.execute(
         "SELECT media_store_id, content_uri, extracted_text, ocr_blocks_json "
         "FROM scraped_photos WHERE modified_by_user_flag=1 AND extracted_text IS NOT NULL "
@@ -144,6 +173,7 @@ def main() -> int:
         gold = [l.strip() for l in r["extracted_text"].split("\n") if l.strip()]
         if not gold:
             continue
+        gold, applied_adj = apply_adjudications(r["media_store_id"], gold)
         doc = json.loads(r["ocr_blocks_json"]) if r["ocr_blocks_json"] else None
         if not doc or not doc.get("blocks"):
             print(f"SKIP photo {r['media_store_id']}: no frozen OCR blocks", file=sys.stderr)
@@ -165,6 +195,7 @@ def main() -> int:
             "sourceBackup": Path(args.db).parent.name,
             "nameplateLabels": reviewed.get(pid, []),
             "legitShortLines": confirmed_legit,
+            "appliedAdjudications": applied_adj,
             "nameplateCandidates": cand,
             "ambiguousShortLines": ambig,
             "ocrDocument": doc,

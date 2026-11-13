@@ -80,6 +80,26 @@ the user never sees). It **is** strong enough for its first product form:
   different bar than 海幹→迎撃 (whole-word rewrite).
 - `gate_rows.json` committed for reuse.
 
+## Addendum — post gold-cleanup round 3 (same day)
+
+The user adjudicated all 10 checklist items (every Cloud reading confirmed as the
+screen truth); fixes encoded in `docs/benchmarks/gold-adjudications.json`, applied
+by the generator until self-retired by in-app retyping. Re-running this spike on
+the cleaned gold:
+
+- gateable islands: 59, true fixes now **52**, remaining A_ok: **0**
+- precision: **88% at margin≥0; 96% at margin≥0.10** (coverage 44%)
+- end-to-end gated-substitution sim: exact 21 -> **35**/73 (own rubric),
+  **0 sentences broken** (margin≥0.1: 21 -> 28, 0 broken)
+
+The "66% not auto-apply-grade" verdict above was itself a gold-typo artifact: the
+8 A_ok failures were 7 stale-gold errors + 1 uncertain. Cleaned-gold result: the
+margin>=0.10 subset **meets the ≥95% bar** for gated application — first lever
+in this benchmark to earn it. Recommendation stands to ship as one-tap
+suggestions first (evidence: gate ordering still doesn't separate the margin-0
+tail from the clean head; real-use margin distribution should accumulate before
+silent writes), but spike 003's mission is now calibration, not rescue.
+
 ## Honest framing for the roadmap §2 target
 
 Auto-correction was the user's proposal; data says: *right idea, wrong trust

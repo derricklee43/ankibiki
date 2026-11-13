@@ -113,12 +113,13 @@ metric yet, correction effort measured only via the user-edit-flag proxy.
 Iteration plan against the 46-photo user-corrected gold set (nameplate-
 agnostic scoring; v1 JVM layer built 2026-11-12, rev-4 numbers in
 [docs/benchmarks/2026-11-12-gold-baseline.md](benchmarks/2026-11-12-gold-baseline.md)
-— sentence exact 32/74, segmentation exact 10/46, char acc 0.809, 25 provisional
+— sentence exact 27/73 (cleaned gold), segmentation exact 7/46, char acc 0.794, 25 provisional
 nameplate leaks excluded from headline): [docs/benchmarks/gold-set-iteration-plan.md](benchmarks/gold-set-iteration-plan.md).
 Provider A/B on the 46-photo set (stored == fresh-local; Cloud different but
 complementary, oracle 37/74): [docs/benchmarks/2026-11-12-provider-ab.md](benchmarks/2026-11-12-provider-ab.md).
-Spike 002 — word-level correction gate evaluated on gold (66% raw / ~80% audited
-precision → suggestion-grade, not auto-apply; exposes gold-as-typed typo debt):
+Spike 002 — word-level correction gate evaluated on gold (post-cleanup: 88% precision,
+96% on the margin>=0.1 subset, zero breaks in end-to-end sim — gated subset meets the
+auto-apply bar; ship suggestion-first, then calibrate in spike 003):
 [spikes/002-ocr-plausibility-gate/README.md](../spikes/002-ocr-plausibility-gate/README.md).
 
 Acceptance: establish a baseline and explicit quality targets before claiming

@@ -1,89 +1,84 @@
-# Gold baseline — 46 user-corrected photos — 2026-11-12 (rev 4, set expanded)
+# Gold baseline — 46 user-corrected photos — 2026-11-12 (rev 5, gold cleaned)
 
-Set grew 25 -> 46: 21 newly corrected photos (1397-1443) from fresh backup
-`backups/20261112-225328/mining.db`; no re-edits of the first 25. Harness
-changes since rev 3: (a) candidate drafting + standalone ignores tolerate a
-trailing hallucinated `。`; (b) misread-fragment guard — a short line that is a
-substring of, or within 40% edits of, some gold sentence window is drafted
-AMBIGUOUS (review-only, never ignored) instead of a nameplate candidate —
-prevents OCR misreads of real content (跡上がると for 技が上ると) from being
-auto-ignored. The OLD-25 scores are unchanged by (b) — verified same-run.
-Fixtures: `scripts/build_gold_fixtures.py` + `--existing` (legit verdicts and
-labels persist); scorer: `GoldBenchmarkTest` (JVM, report-only).
+Rev 3 = 25-photo set + harness fixes; rev 4 = expanded to 46. **Rev 5: gold
+cleanup round 3 applied** — 10 stored-vs-Cloud word disagreements adjudicated by
+the user (all 10 confirmed Cloud = screen truth) and encoded as durable rules in
+`gold-adjudications.json`, applied by the generator on every regeneration until
+each one self-retires via an in-app retype. Gold sentence total 74 -> 73
+(1158 two lines merged into 「アリティアの弓兵部隊に所属するゴードンです。」).
+
+The headline DECREASED and that is the point: correcting gold removes the free
+credit the old pipeline got for coincidentally reproducing local-OCR typos
+(リゃ, てしょう, 所霧...). These numbers measure distance to *correct* text.
 
 ## Headline (nameplate noise excluded)
 
-- Sentence exact: **32/74** = 43.2%
-- Mean char accuracy: **0.809**
-- Segmentation exact: **10/46** photos
-- Correct set, character distance left: 27 photos; wrong set after cleaning: 9 photos (963, 969, 975, 1137, 1158, 1397, 1408, 1416, 1417)
+- Sentence exact: **27/73** = 37.0%
+- Mean char accuracy: **0.794**
+- Segmentation exact: **7/46** photos (1136, 1138, 1140, 1145, 1410, 1411, 1443)
+- Correct set, character distance left: 30 photos
+- Wrong sentence set after cleaning: 9 photos (963, 969, 975, 1137, 1158, 1397, 1408, 1416, 1417)
 - Leaked nameplate lines ignored: 14 standalone + 11 inline
+- Real errors: 4 missed, 13 false extras
 
-| Group | Sentence exact | Seg-exact photos | Avg char acc | Missed | Extras | Leaks ignored |
-|---|---|---|---|---|---|---|
-| OLD-25 (rev-3 harness) | 22/43 (51%) | 6/25 | 0.856 | 2 | 8 | 17 |
-| NEW-21 (1397-1443) | 10/31 (32%) | 4/21 | 0.753 | 2 | 4 | 8 |
-
-Loss anatomy (all 42 non-exact gold sentences): 32 sit on photos whose
-sentence SET is already correct (recognition distance on frozen mining OCR);
-9 photos have a wrong set even after cleaning. The NEW-21 group
-scores notably worse than the OLD-25 — it is narration-heavy (one sentence
-across 3-4 OCR blocks, and 1397->1398 shows a single narration spanning two
-PHOTOS), which the block-stitching rules were not tuned for. Also first
-Chinese-tagged photo in gold (1397) — note its extracted_text is Japanese
-narration; the language tag looks wrong and is a corpus correction, not a
-parser issue.
+Loss anatomy: 36 of the 46 non-exact sentences sit on
+correct-set photos (recognition-bound on frozen local blocks); the rest are the
+wrong-set photos. Spike-002 re-run on cleaned gold: the word-level plausibility
+gate now measures **96% precision, zero breaks at margin>=0.10** (23 true fixes,
+coverage 44%) and the end-to-end simulation of gated substitutions lifts exact
+21 -> 35 under its own rubric with **0 sentences broken**. Auto-apply threshold
+met for the gated subset — first time any lever has.
 
 ## Per-photo results
 
-| Photo | Group | Exact/gold | Char acc | Seg exact | Missed | Extras | NP leaks |
+| Photo | Category | Exact/gold | Char acc | Seg exact | Missed | Extras | NP leaks |
 |---|---|---|---|---|---|---|---|
-| 963 | old | 0/1 | 0.000 | — | 1 | 3 | 1 |
-| 969 | old | 1/2 | 0.760 | — | 0 | 1 | 1 |
-| 975 | old | 0/1 | 0.000 | — | 1 | 2 | 0 |
-| 983 | old | 2/3 | 0.967 | — | 0 | 0 | 0 |
-| 1133 | old | 0/1 | 0.923 | — | 0 | 0 | 0 |
-| 1135 | old | 1/2 | 0.952 | — | 0 | 0 | 1 |
-| 1136 | old | 3/3 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1137 | old | 1/2 | 0.875 | — | 0 | 1 | 1 |
-| 1138 | old | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1139 | old | 0/1 | 0.969 | — | 0 | 0 | 1 |
-| 1140 | old | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1142 | old | 2/4 | 0.917 | — | 0 | 0 | 0 |
-| 1143 | old | 1/2 | 0.955 | — | 0 | 0 | 1 |
-| 1145 | old | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1147 | old | 0/1 | 0.968 | — | 0 | 0 | 1 |
-| 1148 | old | 1/3 | 0.896 | — | 0 | 0 | 1 |
-| 1149 | old | 3/3 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1157 | old | 0/1 | 0.600 | — | 0 | 0 | 1 |
-| 1158 | old | 2/3 | 0.978 | — | 0 | 1 | 0 |
-| 1159 | old | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1164 | old | 0/1 | 0.962 | — | 0 | 0 | 0 |
-| 1166 | old | 0/1 | 0.912 | — | 0 | 0 | 1 |
-| 1174 | old | 0/1 | 0.880 | — | 0 | 0 | 0 |
-| 1278 | old | 1/2 | 0.957 | — | 0 | 0 | 1 |
-| 1284 | old | 0/1 | 0.941 | — | 0 | 0 | 0 |
-| 1397 | new | 0/1 | 0.000 | — | 1 | 0 | 1 |
-| 1398 | new | 0/1 | 0.654 | — | 0 | 0 | 0 |
-| 1405 | new | 0/1 | 0.500 | — | 0 | 0 | 0 |
-| 1406 | new | 0/1 | 0.429 | — | 0 | 0 | 0 |
-| 1408 | new | 0/1 | 0.000 | — | 1 | 2 | 0 |
-| 1409 | new | 0/1 | 0.630 | — | 0 | 0 | 0 |
-| 1410 | new | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1411 | new | 2/2 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1412 | new | 1/2 | 0.958 | — | 0 | 0 | 0 |
-| 1416 | new | 1/2 | 0.717 | — | 0 | 1 | 1 |
-| 1417 | new | 0/2 | 0.753 | — | 0 | 1 | 1 |
-| 1418 | new | 1/2 | 0.938 | — | 0 | 0 | 0 |
-| 1419 | new | 1/3 | 0.920 | — | 0 | 0 | 0 |
-| 1420 | new | 1/2 | 0.962 | — | 0 | 0 | 0 |
-| 1421 | new | 0/1 | 0.737 | — | 0 | 0 | 0 |
-| 1422 | new | 0/1 | 0.917 | — | 0 | 0 | 0 |
-| 1423 | new | 0/2 | 0.912 | — | 0 | 0 | 1 |
-| 1430 | new | 0/1 | 0.865 | — | 0 | 0 | 0 |
-| 1440 | new | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
-| 1441 | new | 0/2 | 0.913 | — | 0 | 0 | 0 |
-| 1443 | new | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
+| 963 | user-corrected-nameplate-prone | 0/1 | 0.000 | — | 1 | 3 | 1 |
+| 969 | user-corrected-nameplate-prone | 1/2 | 0.740 | — | 0 | 1 | 1 |
+| 975 | user-corrected-nameplate-prone | 0/1 | 0.000 | — | 1 | 2 | 0 |
+| 983 | menu-or-ui | 1/3 | 0.887 | — | 0 | 0 | 0 |
+| 1133 | user-corrected | 0/1 | 0.852 | — | 0 | 0 | 0 |
+| 1135 | user-corrected-nameplate-prone | 1/2 | 0.952 | — | 0 | 0 | 1 |
+| 1136 | user-corrected-nameplate-prone | 3/3 | 1.000 | ✓ | 0 | 0 | 1 |
+| 1137 | user-corrected-nameplate-prone | 1/2 | 0.875 | — | 0 | 1 | 1 |
+| 1138 | user-corrected-nameplate-prone | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
+| 1139 | user-corrected-nameplate-prone | 0/1 | 0.969 | — | 0 | 0 | 1 |
+| 1140 | user-corrected-nameplate-prone | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
+| 1142 | user-corrected | 2/4 | 0.917 | — | 0 | 0 | 0 |
+| 1143 | user-corrected-nameplate-prone | 1/2 | 0.955 | — | 0 | 0 | 1 |
+| 1145 | user-corrected-nameplate-prone | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
+| 1147 | user-corrected-nameplate-prone | 0/1 | 0.968 | — | 0 | 0 | 1 |
+| 1148 | user-corrected-nameplate-prone | 1/3 | 0.896 | — | 0 | 0 | 1 |
+| 1149 | user-corrected-nameplate-prone | 2/3 | 0.981 | — | 0 | 0 | 1 |
+| 1157 | user-corrected-nameplate-prone | 0/1 | 0.600 | — | 0 | 0 | 1 |
+| 1158 | user-corrected-nameplate-prone | 1/2 | 0.795 | — | 0 | 2 | 0 |
+| 1159 | user-corrected-nameplate-prone | 0/1 | 0.947 | — | 0 | 0 | 1 |
+| 1164 | user-corrected | 0/1 | 0.962 | — | 0 | 0 | 0 |
+| 1166 | user-corrected-nameplate-prone | 0/1 | 0.912 | — | 0 | 0 | 1 |
+| 1174 | user-corrected | 0/1 | 0.880 | — | 0 | 0 | 0 |
+| 1278 | user-corrected-nameplate-prone | 1/2 | 0.957 | — | 0 | 0 | 1 |
+| 1284 | user-corrected | 0/1 | 0.857 | — | 0 | 0 | 0 |
+| 1397 | user-corrected-nameplate-prone | 0/1 | 0.000 | — | 1 | 0 | 1 |
+| 1398 | user-corrected-nameplate-prone | 0/1 | 0.654 | — | 0 | 0 | 0 |
+| 1405 | user-corrected-nameplate-prone | 0/1 | 0.500 | — | 0 | 0 | 0 |
+| 1406 | user-corrected-nameplate-prone | 0/1 | 0.429 | — | 0 | 0 | 0 |
+| 1408 | user-corrected | 0/1 | 0.000 | — | 1 | 2 | 0 |
+| 1409 | user-corrected | 0/1 | 0.630 | — | 0 | 0 | 0 |
+| 1410 | user-corrected-nameplate-prone | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
+| 1411 | user-corrected-nameplate-prone | 2/2 | 1.000 | ✓ | 0 | 0 | 1 |
+| 1412 | user-corrected | 1/2 | 0.958 | — | 0 | 0 | 0 |
+| 1416 | user-corrected-nameplate-prone | 1/2 | 0.717 | — | 0 | 1 | 1 |
+| 1417 | user-corrected-nameplate-prone | 0/2 | 0.753 | — | 0 | 1 | 1 |
+| 1418 | user-corrected | 1/2 | 0.896 | — | 0 | 0 | 0 |
+| 1419 | user-corrected | 1/3 | 0.920 | — | 0 | 0 | 0 |
+| 1420 | user-corrected | 1/2 | 0.942 | — | 0 | 0 | 0 |
+| 1421 | user-corrected-nameplate-prone | 0/1 | 0.737 | — | 0 | 0 | 0 |
+| 1422 | user-corrected-nameplate-prone | 0/1 | 0.917 | — | 0 | 0 | 0 |
+| 1423 | user-corrected-nameplate-prone | 0/2 | 0.912 | — | 0 | 0 | 1 |
+| 1430 | user-corrected | 0/1 | 0.865 | — | 0 | 0 | 0 |
+| 1440 | user-corrected-nameplate-prone | 0/1 | 0.857 | — | 0 | 0 | 1 |
+| 1441 | user-corrected | 0/2 | 0.913 | — | 0 | 0 | 0 |
+| 1443 | user-corrected-nameplate-prone | 1/1 | 1.000 | ✓ | 0 | 0 | 1 |
 
 ## Failure detail + stage classification
 
@@ -92,7 +87,7 @@ parser issue.
 - parsed: ["世界でただ1人の。", "神剣ファルシオン", "鎌承者となるのです。", "一エリス"]
 
 **969** — parser/segmentation-bound (set wrong even after cleaning)
-- gold: ["私は…", "私は、陸下の最期のお言葉を伝えるために戻りました。"]
+- gold: ["私は…", "私は、陛下の最期のお言葉を伝えるために戻りました。"]
 - parsed: ["カイン私は…", "私は、陸下の最期のお言葉を", "伝えるために戻りました。"]
 
 **975** — parser/segmentation-bound (set wrong even after cleaning)
@@ -100,11 +95,11 @@ parser issue.
 - parsed: ["カイン画王子…", "無念です!"]
 
 **983** — recognition-bound (set correct; character errors only)
-- gold: ["全体危険範囲 閉じるR", "敵全員の攻撃範囲表示", "Xボタンで酸全停の攻等を表示できます。"]
+- gold: ["全体危険範囲 閉じるR", "敵全員の攻撃範囲表示", "Xボタンで敵全体の攻撃範囲を表示できます。"]
 - parsed: ["全体危険範囲閉じるR", "敵全員の攻華範囲表示", "Xボタンで酸全停の攻等を表示できます。"]
 
 **1133** — recognition-bound (set correct; character errors only)
-- gold: ["やがて、敵軍の警戒がゆるやかになり絶好の様会訪れるが"]
+- gold: ["やがて、敵軍の警戒がゆるやかになり絶好の機会が訪れるが"]
 - parsed: ["やて、敵軍の警戒がゆるやかになり絶好の様会訪れる"]
 
 **1135** — recognition-bound (set correct; character errors only)
@@ -135,13 +130,21 @@ parser issue.
 - gold: ["たった数日でこのザマだ。", "アリティアも大したことねえな。", "悔しかったらなんとか言ってみな。"]
 - parsed: ["たった教てこのザマだ。", "アリティアも大したことねえな。", "ならずもの(", "毎しかったらなんとか言ってみな。"]
 
+**1149** — recognition-bound (set correct; character errors only)
+- gold: ["ま、言い返したくとも", "猿ぐつわをかまされてりゃ無理だわな。", "ヘヘヘ"]
+- parsed: ["ま、言い返したくとも", "ならずもの。", "猿ぐつわをかまされてリゃ無理だわな。", "ヘヘヘ"]
+
 **1157** — recognition-bound (set correct; character errors only)
 - gold: ["君はたしか弓兵部隊の"]
 - parsed: ["マル入", "しか引兵部隊の"]
 
 **1158** — parser/segmentation-bound (set wrong even after cleaning)
-- gold: ["はい。", "アリティアの弓兵部に所霧する。", "ゴードンです。"]
+- gold: ["はい。", "アリティアの弓兵部隊に所属するゴードンです。"]
 - parsed: ["はい。", "アリティアの引兵部に所霧する。", "ゴードンです。", "ゴードン"]
+
+**1159** — recognition-bound (set correct; character errors only)
+- gold: ["不覚にも敵に捕らわれてしまいこのザマに"]
+- parsed: ["不覚にも敵に飾らわれてしまいこのザマに", "ゴードン"]
 
 **1164** — recognition-bound (set correct; character errors only)
 - gold: ["本隊に追いつかれた時のため囮の備えをしておきました。"]
@@ -160,7 +163,7 @@ parser issue.
 - parsed: ["マルスミ愛けた恩は、これからの戦いて返していけばいい。", "行こうカシム。"]
 
 **1284** — recognition-bound (set correct; character errors only)
-- gold: ["彼らは、付近の村を荒うしたり旅人を帳ったして大変恐れられております。"]
+- gold: ["彼らは、付近の村を荒らしたり旅人を襲ったりして大変恐れられております。"]
 - parsed: ["彼うば、付近の村を荒うしたり旅人を帳ったして大変恐れられております。"]
 
 **1397** — parser/segmentation-bound (set wrong even after cleaning)
@@ -200,7 +203,7 @@ parser issue.
 - parsed: ["秋は、オレが後できっと取返す。", "だから、今は", "ュリアンィ", "選げることだけを考えろよ!"]
 
 **1418** — recognition-bound (set correct; character errors only)
-- gold: ["傭兵には気をつけな。", "奴らは、腕がいいから下手うてば一発て倒されるぜ。"]
+- gold: ["傭兵には気をつけな。", "奴らは、腕がいいから下手ってば一発で倒されるぜ。"]
 - parsed: ["傭兵には気をつけな。", "契うは、腕がいいから下手うてば一発て剛されるぜ。"]
 
 **1419** — recognition-bound (set correct; character errors only)
@@ -208,7 +211,7 @@ parser issue.
 - parsed: ["こんな山典まてで来てくれたんじゃ。", "土商に、この斧やろう。", "どうじゃ、立派なもんじゃろ。"]
 
 **1420** — recognition-bound (set correct; character errors only)
-- gold: ["しかしな、こいつは、血を吸い肉を喰らう悪磨の斧じゃ 。", "決して使ってはならぬぞ、よいな!"]
+- gold: ["しかしな、こいつは、血を吸い肉を喰らう悪魔の斧じゃ 。", "決して使ってはならぬぞ、よいな!"]
 - parsed: ["し加しな、こいつは、血を吸い内を喰らう悪磨の斧じゃ。", "決して使ってはならぬぞ、よいな!"]
 
 **1421** — recognition-bound (set correct; character errors only)
@@ -227,46 +230,63 @@ parser issue.
 - gold: ["お前が命をかけてまでおれが必要だというのなら仕方がない、力を貸してやろう。"]
 - parsed: ["お前が命を加けてきでおれが必要だというのなら仕方がない、してやろう。"]
 
+**1440** — recognition-bound (set correct; character errors only)
+- gold: ["おそらく敵も迎撃の軍を出してくるでしょう。"]
+- parsed: ["おそらく敵も海幹の軍を出してくるてしょう。", "モ口ドフ"]
+
 **1441** — recognition-bound (set correct; character errors only)
 - gold: ["グルニア、ドルーア、グラ...いずれにせよ正規の軍隊が相手だ。", "気をひきしめていかないと。"]
 - parsed: ["グルニア、ドルーア、グラいずれにせよ正規の軍隊が相手だ。", "気をひきしていかないと。"]
 
-## Review round 2 — new photos' drafted strings (verdicts pending)
+## Label review state
 
-Provisional ignores (counted as nameplate leaks until you confirm or reclassify):
+legit verdicts (round 1+2) frozen in `legitShortLines`; round-2 candidate list
+re-drafted against cleaned gold below; `nameplateLabels` still empty (all
+current ignores are provisional). Round-3 text adjudications: see
+`gold-adjudications.json` (10 rules, all applied).
 
-- 1397: `手始縣O¥售空y`
-- 1405: `thapte5`
-- 1406: `thapter7`
-- 1410: `ジュリアン`
-- 1411: `ジュリアンA`
-- 1416: `ジュリアン`
-- 1417: `ュリアンィ`
-- 1423: `ーダ`
-- 1440: `モ口ドフ`
-- 1443: `モ日ドフ/`
+- 963 candidates: `一エリス`
+- 969 candidates: `カイン`
+- 975 candidates: `カイン画`
+- 1135 candidates: `モロドフー`
+- 1136 candidates: `モ口ドフ`
+- 1137 candidates: `モロドフ`
+- 1138 candidates: `モロドア`
+- 1139 candidates: `モロドフ`
+- 1140 candidates: `村人`
+- 1143 candidates: `グラ軍隊長`
+- 1145 candidates: `グラ軍隊長`
+- 1147 candidates: `.`, `ならずもの`
+- 1148 candidates: `ならずもの(`
+- 1149 candidates: `ならずもの。`
+- 1157 candidates: `マル入`
+- 1159 candidates: `ゴードン`
+- 1166 candidates: `モロドフ`
+- 1278 candidates: `マルスミ`
+- 1397 candidates: `手始縣O¥售空y`
+- 1405 candidates: `thapte5`
+- 1406 candidates: `thapter7`
+- 1410 candidates: `ジュリアン`
+- 1411 candidates: `ジュリアンA`
+- 1416 candidates: `ジュリアン`
+- 1417 candidates: `ュリアンィ`
+- 1423 candidates: `ーダ`
+- 1440 candidates: `モ口ドフ`
+- 1443 candidates: `モ日ドフ/`
 
-Ambiguous short lines (NOT ignored anywhere — nameplate vs misread-fragment call):
+## Targets
 
-- 1398: `すしいなであった`
-- 1405: `つの頃ら`
-- 1406: `おそううになった。`
-- 1410: `来てるっていうし`
-- 1417: `だから、今は`
-- 1421: `跡上がると`
-- 1422: `素早さが上がると`
-- 1422: `敵の攻幹を`
-- 1423: `剣十ナバール。`
-- 1440: `おそらく敵も`
-- 1443: `敵と戦う前に`
-
-Frozen so far (round 1, LEGIT, never re-draftable): 963/神剣ファルシオン, 983/敵全員の, 983/Xボタンで, 983/攻華範囲表示, 1133/絶好の様会訪れる, 1135/グラの大部隊が, 1145/おまえたちは, 1157/しか引兵部隊の, 1158/ゴードン, 1159/このザマに, 1284/旅人を帳ったして
+- Lock photos to `assert_segmentation=true` when a fix passes AND gold confirmed final.
+- Next lever (spike 003): gate upgrades; gated-subset auto-apply is now evidence-backed
+  but should ship as suggestions first while margin calibration accumulates real-use data.
 
 ## Reproducing
 
 ```
 python3 scripts/build_gold_fixtures.py --db backups/20261112-225328/mining.db \
   --out app/src/test/resources/gold_fixtures.json \
-  --existing app/src/test/resources/gold_fixtures.json
+  --existing app/src/test/resources/gold_fixtures.json \
+  --mirror app/src/androidTest/assets/gold_fixtures.json
 ./gradlew :app:testDebugUnitTest --tests "*GoldBenchmark*"
+python3 spikes/002-ocr-plausibility-gate/scripts/gate_report.py
 ```
