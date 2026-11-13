@@ -121,6 +121,12 @@ Spike 002 — word-level correction gate evaluated on gold (post-cleanup: 88% pr
 96% on the margin>=0.1 subset, zero breaks in end-to-end sim — gated subset meets the
 auto-apply bar; ship suggestion-first, then calibrate in spike 003):
 [spikes/002-ocr-plausibility-gate/README.md](../spikes/002-ocr-plausibility-gate/README.md).
+Spike 003 — gate upgrades: dictionary-anchored band ∪ glyph-confusable band with
+nameplate islands excluded = 36/36 (100% precision, 69% coverage) on cleaned gold;
+S002's margin band is subsumed. Rollout verdict: ship as one-tap suggestions with
+per-island evidence logging; revisit silent-apply at ~200 samples with ≤1 rejection;
+nameplate exclusion should ship first or jointly:
+[spikes/003-gate-upgrades/README.md](../spikes/003-gate-upgrades/README.md).
 
 Acceptance: establish a baseline and explicit quality targets before claiming
 accuracy improvements. Distinguish OCR spelling, layout grouping, tokenization,
