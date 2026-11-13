@@ -1,13 +1,127 @@
-# Spike 004 — speaker-nameplate exclusion (DESIGN, pending execution)
+# Spike 004 — speaker-nameplate exclusion (SPIKED 2026-11-13: auto-exclusion FAILS its bars; verdict below)
 
-Status: design only — no probe has run yet. Successor to the "Parked ideas"
-entry in docs/roadmap.md (guardrails below are binding on this design).
-Inputs are all committed assets: `gold_fixtures.json` (126 photos, user 金
-gold), `legitShortLines` verdict ledger, nameplate candidates CONFIRMED by
-review round 4 (2026-11-13: all 81 occurrences, user verdict "every instance
-looked fine") — `nameplateLabels` is populated across 79 photos, Phase 0
-ground truth is unblocked. Provider A/B artifact (46 photos, 3 readers)
-supplies geometry; legacy 9-fixture set remains for report context.
+Status: **executed** 2026-11-13 — `scripts/spike004.py` + `results.json` are the
+run of record (offline: 126-photo fixtures, gold_run9 scorer output incl. the
+per-line inline-merge truth the design called its reference implementation,
+provider A/B geometry, JMdict asset). Headline summary:
+
+- **Standalone flagging — no variant passes the registered bar.** Best
+  zero-casualty recall is A2 (recurrence lexicon): recall 0.46, precision
+  **1.00, zero LEGIT casualties, zero noise** — but bar is ≥0.90. A3 bootstrap
+  reaches 0.56 with 1 casualty. The incumbent **A0 proxy flagged 4 LEGIT
+  content lines (ヘヘヘ, 神剣ファルシオン, マルス王子。, 剣十ナバール。) — if it
+  ever became an exclusion input it would delete real dialogue; this is the
+  spike's most actionable negative finding.**
+- **Inline excision — fails.** Gold-free H9 rule: 22/27 recall, precision
+  0.69, 1 casualty (`1269 マルス王子。` — exactly the shape the design said to
+  fear: a title-vocative indistinguishable from a label merge). Bar was ≥0.95
+  with zero casualties → inline excision stays suggestion-only.
+- **Auto-exclusion: NOT GO.** Per the pre-registered fallback: manual strip +
+  the shipped human-confirmed claims ledger remain the mechanism; the idea
+  stays parked for automatic policy.
+
+## Results (run of record)
+
+Phase-0 truth universe: standalone NAMEPLATE 48 (the scorer's 38 exact-match
+leaks plus 10 OCR-mangled label variants within ≤2 edits), inline merges 27
+(scorer-emitted per-line list), LEGIT 81, NOISE 132.
+
+Solo diagnostics (flagged lines over all 126 photos; recall out of 48):
+
+| signal | flagged | recall | casualties | noise | precision |
+|---|---|---|---|---|---|
+| H1 geometry (stored blocks) | 21 | 0.35 | 1 | 3 | 0.81 |
+| H1 geometry (cloud, 44 photos) | 9 | 0.17 | 0 | 1 | 0.89 |
+| H2 shape | 51 | 0.77 | 3 | 11 | 0.72 |
+| H3 recurrence K≥2 | 22 | 0.46 | **0** | **0** | **1.00** |
+| H4 head-recurrence K≥2 | 20 | 0.08 | 0 | 16 | 0.20 |
+| H5 katakana | 23 | 0.46 | 1 | 0 | 0.96 |
+| H6 OOV | 6 | 0.10 | 1 | 0 | 0.83 |
+| H7 reader-disagreement (44) | 7 | 0.10 | 2 | 0 | 0.71 |
+
+Variants (standalone):
+
+| variant | flagged | recall | casualties | noise | precision |
+|---|---|---|---|---|---|
+| A0 shipped proxy | 32 | 0.58 | **4** | 0 | 0.88 |
+| A1 geometry-only | 21 | 0.35 | 1 | 3 | 0.81 |
+| A2 lexicon K=2 | 22 | 0.46 | 0 | 0 | 1.00 |
+| A2 lexicon K=3 | 20 | 0.42 | 0 | 0 | 1.00 |
+| A3 bootstrap K=2 | 31 | 0.56 | 1 | 3 | 0.87 |
+| A3 bootstrap K=3 | 30 | 0.54 | 1 | 3 | 0.87 |
+| A5 scoped K=2 | 41 | 0.48 | 0 | 18 | 0.56 |
+
+Inline (separate decision point, over all 181 sentences, truth = 27):
+
+| mode | recall | precision | casualties | noise FP |
+|---|---|---|---|---|
+| H9 gold-free (a∨b ∨ c∧¬dict) | 22/27 | 0.69 | 1 | 9 |
+| H9a/b tiers only | 1/27 | 0.50 | 0 | 1 |
+| H9 ∧ A3 lexicon | 21/27 | 0.68 | 1 | 9 |
+
+Effort-lift secondary metric: 44 of 75 leaked lines would be auto-caught →
+31 remain for manual strip (target ≤10: **missed**).
+
+## Predictions vs results (all pre-registered above, before the run)
+
+- *"Corpus recurrence is the single strongest unused signal"* — **CONFIRMED,
+  emphatically**: H3/A2 is the only signal with perfect precision and zero
+  casualties.
+- *"Any variant omitting recurrence misses the class labels"* — **CONFIRMED**:
+  ならずもの is caught ONLY via recurrence (K=2 lexicon member); 村人 (single
+  occurrence) is caught by nothing offline.
+- *"H2/H5/H6/H9c predicted to fail solo casualty audit"* — **CONFIRMED** for
+  H2/H5/H6 (all hit ヘヘヘ; H2 also hit 神剣ファルシオン and しか引兵部隊の).
+- *"H9a/b predicted safe unambiguous"* — **REFUTED in part**: with the corpus
+  compound-boundary guards the run added (王は…, 神剣ファルシオン continuation
+  shapes), true case-collision tier-a hits collapse to 1/27 — the design's
+  5/27 measurement over-counted: several "case collisions" are katakana
+  proper nouns continuing the cut token. Tier b (はい-class) survives cleanly.
+- *"Cloud reads nameplate geometry cleaner than local"* — **REFUTED**: cloud
+  H1 recall 0.17 vs stored 0.35 — cloud paragraphs absorb plates into blocks,
+  destroying standalone-ness.
+- *"The removal test itself protects content"* — **mostly true (1 casualty in
+  181) but not enough to gate on**: マルス王子。 shows title-vocatives collide
+  with label-merges at the surface, exactly the design's stated worry.
+
+## Deviations recorded (honest ledger)
+
+1. Length gate ≤4 → ≤6: the design's own examples (モロドフ, グラ軍隊長) are
+   5-6 chars; ≤4 was self-contradictory. Run used ≤6.
+2. H4 offline proxy: "recurrence as a glued head" needed a production-shaped
+   definition; run used remainder-matches-gold (≥0.6 sim) as the offline stand
+   in for gold-free remainder plausibility. H4's 0.20 solo precision partly
+   reflects that proxy's looseness.
+3. A5 cluster proxy is DEGENERATE on committed data: all 126 photos fall in a
+   single photoId-gap cluster (contiguous MediaStore ids), so "collection-
+   scoped lexicon" could not be tested — cross-media bleed is UNMEASURED, not
+   zero. A5's table row is A2 + unscoped H4 noise and should be read as
+   "untested", not "tested and failed". Production A5 needs real collection
+   metadata (folder/deck), which the corpus does not store yet.
+4. Inline truth switched from my reconstruction (25) to the scorer's own
+   per-line output (27) — design had named the scorer as reference; the test
+   gained an `inlineMergeTexts` field to expose it (benchmark output
+   unchanged: 73/181).
+
+## What the data DOES support (not a promotion — proposal for a written A6)
+
+- The shipped **claims ledger** is the mechanism the corpus actually wants:
+  offline detectors saturate at ~0.55 recall because half of leaks are
+  one-off or OCR-mangled strings; the human ruling catches exactly what no
+  string-level detector can, and every ruling trains the next round.
+- Candidate **A6 = fuzzy recurrence**: cluster the standalone shape pool by
+  edit-distance ≤2 before counting K (would recover モ口ドフ/モ日ドフ/マル入/
+  ュリアンィ-class manglings, ~10 of the 26 missed lines in this corpus).
+  Must be written here with its zero-casualty argument BEFORE being measured;
+  not run in this spike.
+- Immediate safe follow-up for the gate (no policy change): replace the
+  A0-proxy string source with the recurrence lexicon ∪ ledger-confirmed
+  strings — A0's 4 content casualties would otherwise propagate into the
+  auto-apply gate's exclusion list (it currently only drops *fixes* there,
+  but the roadmap says this policy replaces it as gate input — this spike
+  says: replace it with A2+ledger, not with A0).
+- Production-go remains BLOCKED twice over: no variant met its bar, AND the
+  menu-control coverage gap (983 excluded) still stands.
 
 ## Problem and binding guardrails (from roadmap "Parked ideas")
 

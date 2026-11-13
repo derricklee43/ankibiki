@@ -1,0 +1,276 @@
+{
+ "phase0": {
+  "nameplate_standalone": 48,
+  "inline": 27,
+  "legit": 81,
+  "noise": 132
+ },
+ "solo": {
+  "H1_geom_stored": {
+   "name": "H1_geom_stored",
+   "flagged": 21,
+   "hits": 17,
+   "recall": 0.354,
+   "casualties": 1,
+   "noise": 3,
+   "precision": 0.81,
+   "casualty_examples": [
+    "1149:ヘヘヘ"
+   ]
+  },
+  "H1_geom_cloud44": {
+   "name": "H1_geom_cloud44",
+   "flagged": 9,
+   "hits": 8,
+   "recall": 0.167,
+   "casualties": 0,
+   "noise": 1,
+   "precision": 0.889,
+   "casualty_examples": []
+  },
+  "H2_shape": {
+   "name": "H2_shape",
+   "flagged": 51,
+   "hits": 37,
+   "recall": 0.771,
+   "casualties": 3,
+   "noise": 11,
+   "precision": 0.725,
+   "casualty_examples": [
+    "963:神剣ファルシオン",
+    "1157:しか引兵部隊の",
+    "1149:ヘヘヘ"
+   ]
+  },
+  "H3_recur_K2": {
+   "name": "H3_recur_K2",
+   "flagged": 22,
+   "hits": 22,
+   "recall": 0.458,
+   "casualties": 0,
+   "noise": 0,
+   "precision": 1.0,
+   "casualty_examples": []
+  },
+  "H4_headrecur_K2": {
+   "name": "H4_headrecur_K2",
+   "flagged": 20,
+   "hits": 4,
+   "recall": 0.083,
+   "casualties": 0,
+   "noise": 16,
+   "precision": 0.2,
+   "casualty_examples": []
+  },
+  "H5_katakana": {
+   "name": "H5_katakana",
+   "flagged": 23,
+   "hits": 22,
+   "recall": 0.458,
+   "casualties": 1,
+   "noise": 0,
+   "precision": 0.957,
+   "casualty_examples": [
+    "1149:ヘヘヘ"
+   ]
+  },
+  "H6_oov": {
+   "name": "H6_oov",
+   "flagged": 6,
+   "hits": 5,
+   "recall": 0.104,
+   "casualties": 1,
+   "noise": 0,
+   "precision": 0.833,
+   "casualty_examples": [
+    "1149:ヘヘヘ"
+   ]
+  },
+  "H7_disagree44": {
+   "name": "H7_disagree44",
+   "flagged": 7,
+   "hits": 5,
+   "recall": 0.104,
+   "casualties": 2,
+   "noise": 0,
+   "precision": 0.714,
+   "casualty_examples": [
+    "1149:ヘヘヘ",
+    "1157:しか引兵部隊の"
+   ]
+  }
+ },
+ "variants": {
+  "A0_proxy": {
+   "name": "A0_proxy",
+   "flagged": 32,
+   "hits": 28,
+   "recall": 0.583,
+   "casualties": 4,
+   "noise": 0,
+   "precision": 0.875,
+   "casualty_examples": [
+    "963:神剣ファルシオン",
+    "1269:マルス王子。",
+    "1149:ヘヘヘ",
+    "1423:剣十ナバール。"
+   ]
+  },
+  "A1_geom": {
+   "name": "A1_geom",
+   "flagged": 21,
+   "hits": 17,
+   "recall": 0.354,
+   "casualties": 1,
+   "noise": 3,
+   "precision": 0.81,
+   "casualty_examples": [
+    "1149:ヘヘヘ"
+   ]
+  },
+  "A2_lex_K2": {
+   "name": "A2_lex_K2",
+   "flagged": 22,
+   "hits": 22,
+   "recall": 0.458,
+   "casualties": 0,
+   "noise": 0,
+   "precision": 1.0,
+   "casualty_examples": []
+  },
+  "A2_lex_K3": {
+   "name": "A2_lex_K3",
+   "flagged": 20,
+   "hits": 20,
+   "recall": 0.417,
+   "casualties": 0,
+   "noise": 0,
+   "precision": 1.0,
+   "casualty_examples": []
+  },
+  "A3_boot_K2": {
+   "name": "A3_boot_K2",
+   "flagged": 31,
+   "hits": 27,
+   "recall": 0.562,
+   "casualties": 1,
+   "noise": 3,
+   "precision": 0.871,
+   "casualty_examples": [
+    "1149:ヘヘヘ"
+   ]
+  },
+  "A3_boot_K3": {
+   "name": "A3_boot_K3",
+   "flagged": 30,
+   "hits": 26,
+   "recall": 0.542,
+   "casualties": 1,
+   "noise": 3,
+   "precision": 0.867,
+   "casualty_examples": [
+    "1149:ヘヘヘ"
+   ]
+  },
+  "A5_scoped_K2": {
+   "name": "A5_scoped_K2",
+   "flagged": 41,
+   "hits": 23,
+   "recall": 0.479,
+   "casualties": 0,
+   "noise": 18,
+   "precision": 0.561,
+   "casualty_examples": []
+  }
+ },
+ "inline": {
+  "H9_gold_free": {
+   "name": "H9_gold_free",
+   "recall": "22/27",
+   "precision": 0.688,
+   "casualties": 1,
+   "noise_fp": 9,
+   "casualty_examples": [
+    "1269:マルス王子。:マルス"
+   ],
+   "noise_examples": [
+    "969:カイン私は…:カイン",
+    "974:ファルシオン継承者として:ファルシオン",
+    "975:カイン画王子…:カイン",
+    "977:カインー主命とはいえ:カインー",
+    "980:、ジェイガ王子!:ジェイガ",
+    "1001:ジオルだとくそっ!:ジオル",
+    "1014:「マルス王子よ。:マルス",
+    "1397:手始縣O¥售空y:手始縣",
+    "1443:モ日ドフ/:モ日"
+   ],
+   "missed": [
+    "968:カインなんのこれしき。",
+    "1135:モロドフーグラの大部隊が後るから迫ってきておりほす。",
+    "1140:村人ぐずぐずしてないで、全員先に進んだ方がいい。",
+    "1254:リスならば、わずかじゃがしからも兵をお出ししよう。",
+    "1279:オグマーシーダ様貴方の身は我々がお守り致します。"
+   ]
+  },
+  "H9a_b_only": {
+   "name": "H9a_b_only",
+   "recall": "1/27",
+   "precision": 0.5,
+   "casualties": 0,
+   "noise_fp": 1,
+   "casualty_examples": [],
+   "noise_examples": [
+    "969:カイン私は…:カイン"
+   ],
+   "missed": [
+    "953:マルスその傷でグラから脱中してきたのか?",
+    "955:カイン無論です",
+    "957:モドフーあなたは脱出しなさい。",
+    "968:カインなんのこれしき。",
+    "982:ジェイガン]そこては、いろいると役に立っ情報が手にはいるかも知れませんぞ。",
+    "985:ジェイガン王子、ほとんどのグラ軍が城内に集中しているとはいえかなり外にも残っていますな。",
+    "1003:マルス『きっと』じゃだめだ。",
+    "1004:マルスだから、今は思いっきりこの停しさにひたるんだ。",
+    "1005:マルスぼくは絶対に忘れない。",
+    "1006:マルスそして、絶対に帰ってきてみせる。",
+    "1017:シーダマルスさま、会えてよかった。",
+    "1135:モロドフーグラの大部隊が後るから迫ってきておりほす。",
+    "1137:モロドフここから北へ抜けましょう。",
+    "1138:モロドアそのカギを1つ入手しましたのでお渡ししておきます。"
+   ]
+  },
+  "H9_and_A3lex": {
+   "name": "H9_and_A3lex",
+   "recall": "21/27",
+   "precision": 0.677,
+   "casualties": 1,
+   "noise_fp": 9,
+   "casualty_examples": [
+    "1269:マルス王子。:マルス"
+   ],
+   "noise_examples": [
+    "969:カイン私は…:カイン",
+    "974:ファルシオン継承者として:ファルシオン",
+    "975:カイン画王子…:カイン",
+    "977:カインー主命とはいえ:カインー",
+    "980:、ジェイガ王子!:ジェイガ",
+    "1001:ジオルだとくそっ!:ジオル",
+    "1014:「マルス王子よ。:マルス",
+    "1397:手始縣O¥售空y:手始縣",
+    "1443:モ日ドフ/:モ日"
+   ],
+   "missed": [
+    "968:カインなんのこれしき。",
+    "1135:モロドフーグラの大部隊が後るから迫ってきておりほす。",
+    "1136:モ口ドフはい。",
+    "1140:村人ぐずぐずしてないで、全員先に進んだ方がいい。",
+    "1254:リスならば、わずかじゃがしからも兵をお出ししよう。",
+    "1279:オグマーシーダ様貴方の身は我々がお守り致します。"
+   ]
+  }
+ },
+ "clusters": [
+  126
+ ],
+ "cross_cluster": []
+}

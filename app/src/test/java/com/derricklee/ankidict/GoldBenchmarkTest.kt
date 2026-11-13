@@ -137,6 +137,7 @@ class GoldBenchmarkTest {
         val segmentationExact: Boolean,
         val parsed: List<String>,
         val ignoredTexts: List<String>,
+        val inlineMergeTexts: List<String>,
     )
 
     /** Standalone labels tolerate trailing punctuation (ならずもの。) — a leaked
@@ -153,6 +154,7 @@ class GoldBenchmarkTest {
         val leaksStandalone = parsed.filter { p -> matchesIgnore(p, ignores) }
         val pool = mutableListOf<Pair<String, String?>>() // normalized text + stripped inline label
         var inlineMerges = 0
+        val inlineTexts = mutableListOf<String>()
         for (p in parsed) {
             if (matchesIgnore(p, ignores)) continue // standalone nameplate leak, already counted
             val merged = ignores.firstOrNull { label ->
@@ -161,6 +163,7 @@ class GoldBenchmarkTest {
             }
             if (merged != null) {
                 inlineMerges++
+                inlineTexts += p
                 pool += p.removePrefix(merged) to merged
             } else {
                 pool += p to null
@@ -187,6 +190,7 @@ class GoldBenchmarkTest {
             segmentationExact = segmentationExact,
             parsed = parsed,
             ignoredTexts = leaksStandalone,
+            inlineMergeTexts = inlineTexts,
         )
     }
 
@@ -219,7 +223,7 @@ class GoldBenchmarkTest {
                 .put("segmentationExact", s.segmentationExact).put("missingGold", s.missingGold)
                 .put("falseExtras", s.falseExtras).put("nameplateLeaksIgnored", s.nameplateLeaks)
                 .put("inlineNameplateMerges", s.inlineNameplateMerges)
-                .put("ignoredTexts", JSONArray(s.ignoredTexts)).put("parsed", JSONArray(s.parsed)).toString())
+                .put("ignoredTexts", JSONArray(s.ignoredTexts)).put("inlineMergeTexts", JSONArray(s.inlineMergeTexts)).put("parsed", JSONArray(s.parsed)).toString())
         }
         println(JSONObject().put("metric", "BENCHMARK_GOLD_SUMMARY").put("fixtures", scores.size)
             .put("sentenceExact", "$exactSent/$goldSent").put("sentenceExactRate", exactSent.toDouble() / goldSent)

@@ -351,6 +351,22 @@ The 81 round-4 verdicts were seeded as confirmed 'correct' on the phone
 per-string detector y/n data accruing with normal use. Auto-exclusion
 (no per-photo ruling) remains PARKED pending the spike's go thresholds.
 
+**Spike 004 EXECUTED 2026-11-13 — auto-exclusion NOT GO.** All variants
+measured against the pre-registered bars on the 126-photo human-truth set:
+best zero-casualty offline recall is the recurrence lexicon (A2) at 0.46
+(precision 1.00) vs the ≥0.90 bar; gold-free inline excision hit 0.69
+precision with 1 casualty (マルス王子。 — title-vocative/label-merge shape
+collision) vs the ≥0.95 bar. The incumbent A0 proxy flagged 4 genuine
+content lines — it must NOT become the exclusion input (roadmap shipping
+note amended: replace it with A2-recurrence ∪ ledger-confirmed strings when
+the gate's upstream input lands). Recall saturates because ~half of leaks
+are one-off or OCR-mangled strings — exactly what the shipped claims ledger
+catches and no string detector can. Verdict, tables, predictions-vs-results
+and recorded deviations: [spikes/004-nameplate-exclusion/README.md](../spikes/004-nameplate-exclusion/README.md).
+Manual strip + ledger rulings remain the mechanism; A6 (fuzzy recurrence)
+is written up as a proposal but unmeasured. Production-go blocked twice:
+bars missed AND the menu-control coverage gap stands.
+
 Shipping note (2026-11-13, amended same day): AUTOMATIC exclusion stays parked —
 nothing is dropped by nameplate reasoning alone; the only hides that ship are
 behind the user's own 正しい verdict (v8 claims ledger above).
