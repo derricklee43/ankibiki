@@ -138,11 +138,22 @@ rules stay in force.
 
 ## Answered questions (user, 2026-11-12)
 
-- **Q1 (gold authority) — scored exactly as typed.** Recognition typos the
-  user left in (`所霧` on 1158, `様会` on 1133, `帳った` on 1284) are part of
-  the target: the pipeline is "right" when it reproduces the user's text,
-  typos included. To raise the ceiling, correct more in-app and rerun the
-  generator — gold stays derived, never hand-edited.
+- **Q1 (gold authority) — scored exactly as typed.** Mechanically unchanged, but
+  the user set the record straight (2026-11-12): during correction passes he
+  mostly stripped nameplates and did NOT catch every character typo — surviving
+  misreads like `所霧`, `様会`, `陛下→陸下` are **misses, not endorsements**.
+  Consequences, recorded so no future round misreads them:
+  - As-typed gold is the *floor* of correctness, not the ceiling; a "failure"
+    measured against it may be the pipeline reproducing a typo-free truth that
+    the stale gold punishes (round 3 proved this happens systematically).
+  - The adjudication loop (`gold-adjudications.json`) is the sanctioned way to
+    raise the ceiling between in-app re-edit passes; rules self-retire when the
+    user retypes.
+  - When reporting metrics against this gold, state the floor caveat whenever
+    exact-match numbers are quoted; do not interpret low exactness as
+    "user chose this text."
+  To raise the ceiling in-app: correct more photos (retype from the screen) and
+  rerun the generator — gold stays derived, never hand-edited.
 - **Q2 (segmentation truth) — the user's line breaks ARE the sentence
   boundaries.** Gold supersedes the old agent-made `expected` on overlapping
   photos 963 and 1158 (locks 953/1160 unaffected). Implemented: the scorer's

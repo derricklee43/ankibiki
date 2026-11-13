@@ -8,8 +8,10 @@ each one self-retires via an in-app retype. Gold sentence total 74 -> 73
 (1158 two lines merged into 「アリティアの弓兵部隊に所属するゴードンです。」).
 
 The headline DECREASED and that is the point: correcting gold removes the free
-credit the old pipeline got for coincidentally reproducing local-OCR typos
-(リゃ, てしょう, 所霧...). These numbers measure distance to *correct* text.
+credit the old pipeline got for reproducing local-OCR typos that survived the
+nameplate-only correction passes (the user confirmed these were misses, not
+chosen text — as-typed gold is a correctness floor, not a ceiling). These
+numbers measure distance to *correct* text.
 
 ## Headline (nameplate noise excluded)
 
