@@ -1,7 +1,11 @@
 # Gold-set iteration plan — parsing quality vs user-corrected text
 
-Status: PLAN (no code yet). Approved direction; open questions at the end
-must be answered before the build step starts.
+Status: v1 BUILT 2026-11-12. Steps 1–5 implemented for the JVM layer
+(`scripts/build_gold_fixtures.py`, `gold_fixtures.json`, `GoldBenchmarkTest`,
+first report `2026-11-12-gold-baseline.md`). Pending: the step-2 nameplate
+label review (report has the confirm/reject table), the device live-layer
+pass over the gold fixtures, and the v1.1 occurrence layer (deferred per Q3).
+Q1–Q3 answered by the user 2026-11-12 — see §Answered questions.
 
 ## Why this exists
 
@@ -129,25 +133,19 @@ leak counter. No production parser code changes flow from this plan; the
 flag-only guardrail, opt-in per-photo policy, and raw-blocks-authoritative
 rules stay in force.
 
-## Open questions
+## Answered questions (user, 2026-11-12)
 
-- **Q1 — how authoritative is gold-as-typed?** Several corrected texts keep
-  recognition typos (`所霧` on 1158 where the true line is 所属; `様会` for
-  機会 on 1133; `帳った` for 謀った on 1284). Do you want the scorer to
-  measure "did the pipeline output exactly what you typed" (typos included —
-  simple, unambiguous, but means you must re-edit to raise the ceiling), or
-  will you do a second cleanup pass on the 25 so gold is fully correct text
-  first (higher ceiling, one extra review round)?
-- **Q2 — do your `\n` breaks define sentence boundaries?** On 1158 you kept
-  the OCR's mid-sentence split (`…所霧する。` / `ゴードンです。`) while the old
-  agent-made fixture expected one merged sentence. If gold wins, the scorer
-  treats the split as correct and the old `expected` for 963/1158 is
-  superseded by gold (locks 953/1160 remain, unaffected). Confirm gold
-  boundaries take precedence, or that on 1158 the split was just not edited
-  rather than an endorsement.
-- **Q3 — scope: photo-level only for v1?** The backup also has 103 edited
-  `item_occurrences.sentence` rows (word-view sentences, downstream of
-  parsing + candidate extraction). v1 benchmarks the parsing pipeline at
-  photo level; occurrence-level checks (edited sentence retained after
-  reprocess, candidate recall against your corrected text) as v1.1. OK to
-  defer the occurrence layer to a second phase?
+- **Q1 (gold authority) — scored exactly as typed.** Recognition typos the
+  user left in (`所霧` on 1158, `様会` on 1133, `帳った` on 1284) are part of
+  the target: the pipeline is "right" when it reproduces the user's text,
+  typos included. To raise the ceiling, correct more in-app and rerun the
+  generator — gold stays derived, never hand-edited.
+- **Q2 (segmentation truth) — the user's line breaks ARE the sentence
+  boundaries.** Gold supersedes the old agent-made `expected` on overlapping
+  photos 963 and 1158 (locks 953/1160 unaffected). Implemented: the scorer's
+  segmentation-exact criterion is set equality with the user's splits after
+  nameplate-agnostic cleaning.
+- **Q3 (scope) — photo level first.** Occurrence-layer checks (the 103 edited
+  `item_occurrences.sentence` rows: survival after reprocess, candidate recall
+  vs corrected text) deferred to v1.1 after the first gold report exists —
+  which it now does (`2026-11-12-gold-baseline.md`).
