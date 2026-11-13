@@ -69,13 +69,26 @@ reference implementation — 27 known instances).
 | H4 | **Corpus recurrence (inline-prefix)**: string repeatedly occurs glued at the head of an utterance (カイン私は…, モ口ドフはい…) | 27 instances incl. 1136/1138/1145 | none observed; a verb stem can't fake prefix-recurrence across unrelated sentences |
 | H5 | **Katakana-only short line** | most names are katakana | ヘヘヘ, ならずもの(plain), 村人 (class label, katakana-free!) — weak, auxiliary feature only |
 | H6 | **Dictionary-absence (OOV)**: not a JMdict headword and headword-anchoring fails (spike-003 lexicon available) | モロドフ ∉辞書 | ならずもの/村人 ∈辞書 (class labels — THEY LEAK TOO and must be excludable); 弓兵部 ∉辞書 (game term content) — cannot stand alone, H5-like auxiliary |
-| H7 | **Reader disagreement**: local leaks a standalone line where cloud merges/omits it or vice versa | provider A/B covers 46/127 photos only | coverage gap; auxiliary/cross-check only |
+| H7 | **Reader disagreement**: local leaks a standalone line where cloud merges/omits it or vice versa | artifact covers only 46 of the set's photos | coverage gap; auxiliary/cross-check only |
 | H8 | **First-block-of-photo position**: nameplates cluster top-of-dialogue-region; measured as vertical rank within the flow region | cloud 963 B2 一エリス below utterances — CONTRADICTS top-position prior (nameplate position varies with text direction) | weak; include as a logged feature, don't gate on it |
+| H9 | **Grammatical detachment of a leading/trailing noun** (user-proposed 2026-11-13): a name glued to an utterance has no connecting particle and no punctuation, and the sentence remains grammatical without it. Three tiers, measured on this corpus's 27 known inline merges: **H9a case collision** (5/27) — remainder begins noun+は/が/も, so the sentence already has its own subject (モドフーあなたは脱出しなさい; マルスぼくは絶対に忘れない): unambiguous. **H9b self-contained remainder** (2/27) — remainder begins はい/なあに-class that cannot attach to a preceding noun (モ口ドフはい。; グラ軍隊長なあに…): unambiguous. **H9c bare dangling noun** (20/27) — remainder grammatical without it (カイン無論です; マルスだから、今は) but NOT safe alone: genuine vocatives (マリー、行くな without punctuation) and noun-subject openers (村人だから…) match identically. H9c is usable only ANDed with H6-OOV of the exact token — which fires precisely on names in this corpus (カイン/ジェイガン/マルス ∉ JMdict) and correctly refuses class labels (村人/王子 ∈ dict — those need H3/H4 recurrence, consistent with the class-label finding). Universal guard: the removal test itself protects content (ゴードンです。 minus ゴードン is ungrammatical → no variant fires). | all 27 inline-merge instances accounted for by tiers (5+2+20); trailing mirrors exist in principle (label after 。/」) — same removal test, none observed merged in-set yet | H9c without OOV (vocatives, subject-nouns); Kuromoji OOV is unreliable for names — use exact-token dictionary presence, not tokenizer unknown-tags |
+
+**Production role of H9 (no-gold excision rule)**: in Phase 3/4 the inline
+merge decision must be made WITHOUT gold (gold is benchmark-side truth; production
+has only the text). The gold-free excision rule: cut leading token T when
+(H9a ∨ H9b) ∨ (H9c ∧ T is not a JMdict word ∧ len(T) ≤ 4 ∧ T katakana-or-kanji).
+The spike's inline-excision precision test (the 27 instances) is exactly a
+measurement of this rule; H9a/b predicted safe, H9c∧OOV predicted to carry the
+20-instance bulk — result decides whether inline excision ships at all or stays
+suggestion-only.
 
 **Class-label finding to respect**: ならずもの / 村人 are dictionary words,
-not katakana, and appear inside utterances' same register — only H1/H3/H4
-recognition can catch them. Any variant that omits recurrence (A1 below) will
-miss them; this is a predicted result the spike must verify, not discover.
+not katakana, and appear inside utterances' same register — H9c∧OOV cannot
+excise them (OOV fails) and H1 may miss them; only H3/H4 recurrence recognizes
+them as labels (H9a/H9b remain usable on them IF the remainder is case-marked,
+since those tiers don't require OOV). Any variant that omits recurrence
+(A1 below) will miss them; this is a predicted result the spike must verify,
+not discover.
 
 ## Policy application (after flags exist)
 
