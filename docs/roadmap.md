@@ -326,6 +326,12 @@ running DEMOTE/DROP over the fixtures plus menu-style photos, measuring what
 exclusion would win and what legitimate content it would damage. Proceed only
 if the wins are real and menu/short-line casualties are zero.
 
+Spike DESIGN written 2026-11-13 (execution pending candidate review round 4):
+heuristics H1–H8 enumerated with corpus evidence and counterexamples, variants
+A1–A5 (geometry-only / corpus lexicon / hybrid bootstrap / feature-scored /
+collection opt-in), zero-casualty gate on photo 983, LLM-detection explicitly
+rejected — see [spikes/004-nameplate-exclusion/README.md](../spikes/004-nameplate-exclusion/README.md).
+
 Shipping note (2026-11-13): the policy itself stays parked — nothing has been
 flipped to DEMOTE/DROP and no corpus text is dropped by nameplate reasoning.
 The auto-applying correction gate (roadmap §2) does ship a *provisional
