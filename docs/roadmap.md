@@ -117,6 +117,9 @@ agnostic scoring; v1 JVM layer built 2026-11-12, rev-4 numbers in
 nameplate leaks excluded from headline): [docs/benchmarks/gold-set-iteration-plan.md](benchmarks/gold-set-iteration-plan.md).
 Provider A/B on the 46-photo set (stored == fresh-local; Cloud different but
 complementary, oracle 37/74): [docs/benchmarks/2026-11-12-provider-ab.md](benchmarks/2026-11-12-provider-ab.md).
+Spike 002 — word-level correction gate evaluated on gold (66% raw / ~80% audited
+precision → suggestion-grade, not auto-apply; exposes gold-as-typed typo debt):
+[spikes/002-ocr-plausibility-gate/README.md](../spikes/002-ocr-plausibility-gate/README.md).
 
 Acceptance: establish a baseline and explicit quality targets before claiming
 accuracy improvements. Distinguish OCR spelling, layout grouping, tokenization,
