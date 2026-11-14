@@ -347,6 +347,16 @@ Prefer incremental changes over a wholesale architecture migration.
       equivalent language support.
 - [ ] Make deck/note-type configuration less collection-specific if the app is
       intended for anyone beyond its current personal setup.
+- [ ] **Revisit `modified_by_user_flag`** (user doubt 2026-11-13: "not sure it is
+      useful anymore"). After schema v10 its job split: `is_manual` owns word-editor
+      row provenance (the only reconcile protection) and `is_gold` owns the
+      finalizing stamp. What remains on the old flag is a mushy "text is
+      user-authored" signal — rescan confirmation prompts, `sentenceModified`
+      inference in occurrence inserts, and the photo-level edit protection.
+      Audit consumers; likely collapse toward per-sentence authorship only, or
+      retire in favor of deriving authorship (text != raw OCR hash). Caveats:
+      existing §1 contracts pin some behaviors, and bundles carry the column —
+      any retirement needs a migration ceremony, not just deletion.
 
 These should follow demonstrated learning-workflow needs, not expand the scope
 at the expense of data trust and extraction quality.
