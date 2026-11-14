@@ -31,7 +31,6 @@ import android.provider.OpenableColumns
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 private const val PERMISSION_REQUEST_CODE = 1
@@ -58,10 +57,10 @@ class MainActivity : AppCompatActivity() {
 
     private val searchHandler = Handler(Looper.getMainLooper())
     private var pendingSearch: Runnable? = null
-    private val searchExecutor = Executors.newSingleThreadExecutor()
-    private val syncExecutor = Executors.newSingleThreadExecutor()
-    private val miningExecutor = Executors.newSingleThreadExecutor()
-    private val scanExecutor = Executors.newSingleThreadExecutor()
+    private val searchExecutor = AppIo.io
+    private val syncExecutor = AppIo.pipeline
+    private val miningExecutor = AppIo.io
+    private val scanExecutor = AppIo.pipeline
     private val searchGeneration = AtomicInteger(0)
 
     // Corpus recovery (docs/recovery.md): export/restore of the self-verifying bundle.
@@ -386,6 +385,23 @@ class MainActivity : AppCompatActivity() {
             recoveryPopup?.dismiss()
             startActivity(Intent(this, GoldDashboardActivity::class.java))
         }
+        // a11y capture health (roadmap D1): read-only status row — a silent WebView
+        // selection-capture regression must surface here, not as an "app is broken" debug day
+        val captureRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
+        captureRow.root.isClickable = false
+        captureRow.root.setOnClickListener(null)
+        val health = A11yCaptureHealth
+        val time = if (health.lastSuccessAt > 0)
+            java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US).format(java.util.Date(health.lastSuccessAt)) else null
+        captureRow.actionLabel.text = buildString {
+            when {
+                health.triggerCount == 0 -> append(getString(R.string.capture_health_none))
+                health.lastStatus == CaptureStatus.FRESH -> append(getString(R.string.capture_health_ok, health.freshCount, health.triggerCount))
+                else -> append(getString(R.string.capture_health_degraded, health.freshCount, health.triggerCount))
+            }
+            if (time != null) append(" — ${getString(R.string.capture_health_last, time)}")
+            health.ankiPackageVersion?.let { append(" · AnkiDroid $it") }
+        }
         bubbleRow.toggleSwitch.isChecked =
             settingsRepository.isFloatingBubbleEnabled() && Settings.canDrawOverlays(this)
         bubbleRow.toggleSwitch.setOnCheckedChangeListener { buttonView, isChecked ->
@@ -576,10 +592,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         pendingSearch?.let { searchHandler.removeCallbacks(it) }
-        searchExecutor.shutdownNow()
         syncExecutor.shutdown()
-        miningExecutor.shutdownNow()
-        scanExecutor.shutdownNow()
         adapter.stopAudio()
         super.onDestroy()
     }

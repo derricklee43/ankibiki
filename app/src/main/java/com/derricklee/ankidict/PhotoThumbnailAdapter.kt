@@ -10,7 +10,6 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.derricklee.ankidict.databinding.ItemPhotoThumbnailBinding
-import java.util.concurrent.Executors
 
 class PhotoThumbnailAdapter(
     private val horizontalStrip: Boolean = false,
@@ -80,6 +79,6 @@ class PhotoThumbnailAdapter(
     }
 
     companion object {
-        private val thumbnailExecutor = Executors.newFixedThreadPool(3)
+        private val thumbnailExecutor = AppIo.thumbnails
     }
 }

@@ -7,7 +7,6 @@ import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.derricklee.ankidict.databinding.ActivityTextEditorBinding
-import java.util.concurrent.Executors
 
 /**
  * Full-screen text editor opened from the pencil buttons on the photo-detail and
@@ -24,7 +23,7 @@ import java.util.concurrent.Executors
 class TextEditorActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityTextEditorBinding
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.pipeline
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,7 +72,6 @@ class TextEditorActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        ioExecutor.shutdownNow()
         super.onDestroy()
     }
 

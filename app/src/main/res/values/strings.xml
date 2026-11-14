@@ -121,6 +121,11 @@
     <string name="dashboard_bench_source">記録 %1$s — 出典 %2$s — 静的記録でありライブOCRではありません</string>
     <string name="dashboard_record_missing">ベンチマーク記録が見つかりません（資産なし）</string>
     <string name="dashboard_open">金ダッシュボード</string>
+    <!-- A11y capture health (roadmap D1, 2026-11-14) -->
+    <string name="capture_health_none">選択キャプチャ: まだ発動履歴がありません</string>
+    <string name="capture_health_ok">選択キャプチャ: 正常 (%1$d/%2$d 回)</string>
+    <string name="capture_health_degraded">選択キャプチャ: 低下 — 通知がタップより古いです (正常 %1$d/%2$d 回)</string>
+    <string name="capture_health_last">最終成功 %1$s</string>
     <string name="photo_rescan_dialog_title">編集済みの写真を再スキャン</string>
     <string name="photo_rescan_warning">手動で編集したテキストがあります。承認すると写真からテキストを再抽出し、手動の編集と単語・文法の出現データを置き換えます。</string>
     <string name="photo_rescan_skip_explanation">テキスト抽出をスキップすると、サムネイルのみ更新します。テキストと編集済みの状態は保持されます。</string>

@@ -12,7 +12,6 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 import com.derricklee.ankidict.databinding.ActivitySentenceDetailBinding
 import com.derricklee.ankidict.databinding.ItemSentenceChipBinding
-import java.util.concurrent.Executors
 
 /**
  * The "single sentence view": sentence-centered screen where the photo is an
@@ -31,7 +30,7 @@ class SentenceDetailActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivitySentenceDetailBinding
     private lateinit var miningRepository: MiningRepository
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
 
     private var photoId = -1L
     private var sentence = ""
@@ -307,7 +306,6 @@ class SentenceDetailActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        ioExecutor.shutdownNow()
         miningRepository.close()
         super.onDestroy()
     }

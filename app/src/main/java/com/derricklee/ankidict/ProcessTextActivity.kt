@@ -13,7 +13,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.derricklee.ankidict.databinding.ActivityProcessTextBinding
 import com.derricklee.ankidict.databinding.ItemProcessTextKanjiBinding
-import java.util.concurrent.Executors
 
 private const val READ_WRITE_PERMISSION = "com.ichi2.anki.permission.READ_WRITE_DATABASE"
 
@@ -36,7 +35,7 @@ class ProcessTextActivity : AppCompatActivity() {
     private lateinit var dictionaryRepository: DictionaryRepository
     private lateinit var idsRepository: IdsRepository
     private lateinit var heisigRadicalRepository: HeisigRadicalRepository
-    private val lookupExecutor = Executors.newSingleThreadExecutor()
+    private val lookupExecutor = AppIo.io
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,7 +102,6 @@ class ProcessTextActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        lookupExecutor.shutdownNow()
         super.onDestroy()
     }
 

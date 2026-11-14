@@ -9,7 +9,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import com.derricklee.ankidict.databinding.ActivityPhotoLibraryBinding
-import java.util.concurrent.Executors
 
 private const val MEDIA_PERMISSION_REQUEST_CODE = 100
 
@@ -18,7 +17,7 @@ class PhotoLibraryActivity : AppCompatActivity() {
     private lateinit var binding: ActivityPhotoLibraryBinding
     private lateinit var miningRepository: MiningRepository
     private lateinit var adapter: PhotoThumbnailAdapter
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
     private var currentPhotos: List<ScrapedPhoto> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,7 +68,6 @@ class PhotoLibraryActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        ioExecutor.shutdownNow()
         super.onDestroy()
     }
 

@@ -6,7 +6,6 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityClaimsQueueBinding
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -24,7 +23,9 @@ class ClaimsQueueActivity : AppCompatActivity() {
     private lateinit var dictionaryRepository: DictionaryRepository
     private lateinit var shinjitaiRepository: ShinjitaiRepository
     private lateinit var hskRepository: HskRepository
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
+    // rulings mutate the corpus (inline excisions reprocess whole photos): serial pipeline lane
+    private val rulingExecutor = AppIo.pipeline
     private val rulingInProgress = AtomicBoolean(false)
     private lateinit var adapter: ClaimsQueueAdapter
     /** Built once per visit: parsing the shipped gate lexicon is expensive; enrichment reuses it. */
@@ -64,7 +65,6 @@ class ClaimsQueueActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        ioExecutor.shutdownNow()
     }
 
     private fun loadPending() {
@@ -101,7 +101,7 @@ class ClaimsQueueActivity : AppCompatActivity() {
     private fun rule(row: MiningRepository.PendingNameplateClaim, correct: Boolean) {
         if (!rulingInProgress.compareAndSet(false, true)) return
         adapter.actionsEnabled = false
-        ioExecutor.execute {
+        rulingExecutor.execute {
             var failure: Exception? = null
             try {
                 NameplateRuling.apply(

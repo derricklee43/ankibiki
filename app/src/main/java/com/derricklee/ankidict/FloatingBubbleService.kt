@@ -32,7 +32,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.derricklee.ankidict.databinding.ActivityProcessTextBinding
 import com.derricklee.ankidict.databinding.ItemProcessTextKanjiBinding
-import java.util.concurrent.Executors
 import kotlin.math.abs
 
 private const val CHANNEL_ID = "ankibiki_floating_bubble"
@@ -58,7 +57,7 @@ class FloatingBubbleService : Service() {
     private var bubbleView: View? = null
     private var popupView: View? = null
     private var clipChangedListener: ClipboardManager.OnPrimaryClipChangedListener? = null
-    private val lookupExecutor = Executors.newSingleThreadExecutor()
+    private val lookupExecutor = AppIo.io
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -85,7 +84,6 @@ class FloatingBubbleService : Service() {
     override fun onDestroy() {
         dismissPopup()
         removeBubble()
-        lookupExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -320,6 +318,16 @@ class FloatingBubbleService : Service() {
         val cjkClip = clipText.takeIf { it.any(::isCjkCharacter) }
         val (a11yText, a11yTimestamp) = AnkiAccessibilityService.getLastSelectionWithTimestamp()
         val cjkA11y = a11yText?.takeIf { it.any(::isCjkCharacter) }
+
+        // D1 capture-health: classify the a11y selection against the trigger clock BEFORE
+        // source arbitration decides the answer — the health ledger tracks the a11y path,
+        // not whether some other source happened to rescue this particular lookup.
+        A11yCaptureHealth.recordTrigger(System.currentTimeMillis(), a11yTimestamp)
+        if (A11yCaptureHealth.ankiPackageVersion == null) {
+            runCatching {
+                packageManager.getPackageInfo("com.ichi2.anki", 0).versionName
+            }.getOrNull()?.let { A11yCaptureHealth.noteAnkiVersion(it) }
+        }
 
         return when {
             cjkClip != null && cjkA11y != null -> {

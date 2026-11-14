@@ -225,7 +225,7 @@ D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
    a Settings surface hosting the correction-gate kill switch and future toggles
    (today both live only in code).
    SPEC 2026-11-14 (user go; from the agent review findings):
-   - [ ] **D1 — A11y capture self-check.** `AnkiAccessibilityService`'s WebView
+   - [x] **D1 — A11y capture self-check.** `AnkiAccessibilityService`'s WebView
          warm-up depends on Chromium internals (AnkiDroid's reviewer; Chrome
          updates move the a11y trees) and has NO detector for its own failure —
          a silent regression reads as an app bug. Change: on bubble trigger,
@@ -240,7 +240,25 @@ D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
          with a timestamp; (c) forced-degrade case (fake stale timestamps) shows
          the degraded state before any debugging happens. Ship BEFORE the next
          AnkiDroid update — its value requires proving on a working system.
-   - [ ] **D2 — MiningRepository read/write split (mechanical).** Extract all
+         SHIPPED 2026-11-14 (a11y half on JVM, per Romaji/ItemOrdering precedent — the
+         classifier is pure, no Android types, so the spec is a unit test not an
+         instrumented one): `A11yCaptureHealth` (FRESH/STALE/ABSENT classify over a
+         10s window + rolling store: lastStatus/lastSuccessAt/freshCount/triggerCount/
+         first-wins AnkiDroid version cache); `FloatingBubbleService.resolveBestText`
+         records every trigger against the a11y ledger BEFORE source arbitration (the
+         health tracks the a11y path, not whether the clipboard happened to rescue the
+         lookup); Settings popup shows a read-only status row (正常 N/M・低下・まだ発動
+         履歴がありません・最終成功 HH:mm:ss・AnkiDroid version). Evidence:
+         `A11yCaptureHealthTest` 3 JVM specs — classify table incl. window-boundary
+         inclusive-fresh/exclusive-stale + same-ms + future-copy; fresh→OK flips,
+         forced-stale flips to DEGRADED without rewriting lastSuccessAt (exit c),
+         absent is its own degraded flavor; version first-wins cache. Live walk:
+         row renders in the Settings popup on a fresh process (exit-history state).
+         REMAINING (honest): exit (b) — the real bubble-on-AnkiDroid-reviewer tap with
+         the a11y service actually enabled — is a Pixel session item; the AVD cannot
+         exercise it (no Google WebView reviewer flow here), same convention as the
+         Translate-chip precedent.
+   - [x] **D2 — MiningRepository read/write split (mechanical).** Extract all
          read queries out of `MiningRepository.kt` (1780 lines) into
          `MiningQueries`; writes/reconcile/migrations stay. Do BEFORE D3 —
          the lifecycle work will touch this file, and the split also cheapens
@@ -248,7 +266,18 @@ D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
          Exit criteria: (a) full JVM + instrumented suites green with ZERO test
          bodies edited (proves the split is mechanical); (b) both files < 900
          lines; (c) the commit diff is moves-only.
-   - [ ] **D3 — Async consolidation + §5 interruption tests (the expensive one).**
+         SHIPPED 2026-11-14 via scripted move (string-aware brace/paren/comment/
+         char-literal scanner for exact extents): 33 read functions ->
+         `MiningQueries.kt` (848 l) as extension functions; DDL + legacy fixups ->
+         `MiningSchema.kt` (116 l); ruling/backfill writes -> `MiningNameplateWrites.kt`
+         (118 l); repository keeps writes/reconcile/transactions at 881 l. Nested result
+         data classes stay in the class (tests reference MiningRepository.X) — moved
+         bodies only gained the `MiningRepository.` qualifier. ONE non-move-line in the
+         diff: `appContext` private->internal (word; required for extension access).
+         Evidence: git numstat −1008/+1 on the repository file, ZERO edits under
+         src/test + src/androidTest (exit a+c); JVM suite green; instrumented suite
+         96/96 on emulator-5554 against real SQLite (exit b: every file < 900).
+   - [x] **D3 — Async consolidation + §5 interruption tests (the expensive one).**
          Replace the 11 hand-rolled per-activity
          `Executors.newSingleThreadExecutor()` + `runOnUiThread` sites with one
          shared pattern (coroutines + `lifecycleScope` if kotlinx is acceptable,
@@ -260,6 +289,29 @@ D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
          rollback-protection assertions); backgrounded-then-returned scan completes
          and the UI reconnects; (c) §5's two checkboxes flip with the three test
          names in the parenthetical.
+         SHIPPED 2026-11-14 — executor-lane half, NOT coroutines (§5's own acceptance
+         text: incremental over wholesale migration; zero new dependencies; decision
+         recorded here). `AppIo`: `io` (2–4 pool: reads/dashboards/lookups/wizard),
+         `pipeline` (serial 1: PhotoDetail + TextEditor whole-file lanes, ClaimsQueue
+         RULINGS, MainActivity scan + Hanzi sync — one pipeline run app-wide), `thumbnails`
+         (fixed 3). 18 field sites migrated across 13 files; all 16
+         `shutdownNow()` teardowns deleted (destroy can no longer cancel in-flight work).
+         Evidence (exit a): grep `newSingleThreadExecutor`/`newFixedThreadPool`/`shutdownNow`
+         in app/src/main = 0 code hits (one doc-comment mention only). (exit b):
+         `AppIoLifecycleTest` 3 instrumented specs pass on emulator-5554 —
+         workSurvivesActivityDestroy (job submitted while PhotoLibrary open completes
+         exactly once after scenario.close — the old teardown-cancel is impossible),
+         pipelineLaneRunsOneAtATime (6 jobs, max overlap == 1),
+         ioPoolServesTwoReadersConcurrent (reads not serialized behind the pipeline);
+         LIVE ROTATION WALK: settings put system user_rotation 1 with the gold dashboard
+         open — activity recreated, all lines reloaded (ゲート証拠 19/200, 金 151), and
+         restored. Full instrumented suite 99/99, JVM 84 green. Corpus snapshot
+         20261114-095235 before device runs.
+         (exit c NOT taken as written): §5's two checkboxes STAY UNCHECKED with status
+         notes — real kill -9 process-death demo, permission-loss, and editor-pending-
+         save-target evidence are Pixel items (in-process simulation can't fake them);
+         write-atomicity-under-interruption remains pinned by the existing rollback
+         suite. See the §5 annotations.
 
 Suggested ordering: **B → A → D**, with C as occasional quick wins — B first
 because the ledger queue and triage are the daily loop right now while the
@@ -480,8 +532,17 @@ its prerequisites/companions there.)
 
 - [ ] Move long scans toward lifecycle-independent, recoverable execution with
       useful progress, cancellation, and retry behavior.
+      (STATUS 2026-11-14, D3: scans now run on the serial AppIo.pipeline lane, survive
+      screen teardown, and a re-issued scan naturally skips processed photos — but the
+      progress/cancel/retry UI is untouched; stays open.)
 - [ ] Test rotation, backgrounding, process death, permission loss, and interruption
       during processing; preserve editor drafts and pending save targets.
+      (STATUS 2026-11-14, D3: rotation + work-survives-destroy + one-at-a-time pipeline +
+      reader concurrency pinned by AppIoLifecycleTest 3 specs (99/99 suite) and a live
+      user_rotation walk on emulator-5554; mid-write corpus integrity pinned by the
+      existing rollback suite. REMAINING for a Pixel session: real kill -9 during rescan,
+      permission-loss behavior, editor pending-save-target evidence — in-process
+      simulation cannot honestly fake these, so the box stays unchecked per the evidence rule.)
 - [ ] Consolidate mutation/reprocessing rules into explicit use cases rather than
       allowing Activity callbacks to become the source of business rules.
 - [x] Update the README to describe mining, data ownership, backups, cloud/offline

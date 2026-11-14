@@ -13,7 +13,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
 import com.derricklee.ankidict.databinding.ActivityPhotoDetailBinding
-import java.util.concurrent.Executors
 
 class PhotoDetailActivity : AppCompatActivity() {
 
@@ -25,7 +24,7 @@ class PhotoDetailActivity : AppCompatActivity() {
     private lateinit var miningPipelineRunner: MiningPipelineRunner
     private lateinit var pagerAdapter: PhotoPageAdapter
 
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.pipeline
 
     private var photoIds: MutableList<Long> = mutableListOf()
     private var currentIndex: Int = 0
@@ -284,7 +283,6 @@ class PhotoDetailActivity : AppCompatActivity() {
         tearingDown = true
         rescanDialog?.dismiss()
         rescanDialog = null
-        ioExecutor.shutdownNow()
         super.onDestroy()
     }
 

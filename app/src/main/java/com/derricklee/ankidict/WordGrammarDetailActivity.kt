@@ -10,7 +10,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityWordGrammarDetailBinding
 import com.derricklee.ankidict.databinding.ItemMatchedSentenceBinding
-import java.util.concurrent.Executors
 
 class WordGrammarDetailActivity : AppCompatActivity() {
 
@@ -24,7 +23,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     private lateinit var ankiCardService: AnkiCardService
     private lateinit var miningPipelineRunner: MiningPipelineRunner
     private lateinit var photosAdapter: PhotoThumbnailAdapter
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
 
     private var occurrenceId: Long = -1L
     private var languageTag: LanguageTag = LanguageTag.JAPANESE
@@ -180,7 +179,6 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        ioExecutor.shutdownNow()
         super.onDestroy()
     }
 

@@ -22,7 +22,6 @@ import com.derricklee.ankidict.databinding.ItemWizardRowBinding
 import com.google.android.material.button.MaterialButton
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.concurrent.Executors
 
 private sealed interface Row {
     data class Deck(val info: AnkiRepository.AnkiDeckInfo) : Row
@@ -54,7 +53,7 @@ class DeckPickerActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityDeckPickerBinding
     private lateinit var ankiRepository: AnkiRepository
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
     private var decks: List<AnkiRepository.AnkiDeckInfo> = emptyList()
     private var models: List<AnkiRepository.AnkiModelInfo> = emptyList()
     private var selectedDeck: Long? = null
@@ -112,7 +111,6 @@ class DeckPickerActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        ioExecutor.shutdownNow()
         super.onDestroy()
     }
 
@@ -219,7 +217,7 @@ class FieldMappingActivity : AppCompatActivity() {
     private lateinit var binding: ActivityFieldMappingBinding
     private lateinit var ankiRepository: AnkiRepository
     private lateinit var miningRepository: MiningRepository
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
 
     private var deckId = -1L
     private var deckName = ""
@@ -402,7 +400,6 @@ class FieldMappingActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        ioExecutor.shutdownNow()
         miningRepository.close()
         super.onDestroy()
     }
@@ -414,7 +411,7 @@ class CardPreviewActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCardPreviewBinding
     private lateinit var ankiRepository: AnkiRepository
     private lateinit var miningRepository: MiningRepository
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
     private var writing = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -558,7 +555,6 @@ class CardPreviewActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        ioExecutor.shutdownNow()
         miningRepository.close()
         super.onDestroy()
     }

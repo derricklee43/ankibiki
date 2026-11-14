@@ -7,7 +7,6 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.derricklee.ankidict.databinding.ActivityGoldDashboardBinding
 import org.json.JSONObject
-import java.util.concurrent.Executors
 
 /**
  * Gold dashboard (roadmap B2, user spec 2026-11-14): the corpus's quality scoreboard in one
@@ -20,7 +19,7 @@ class GoldDashboardActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityGoldDashboardBinding
     private lateinit var miningRepository: MiningRepository
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,7 +37,6 @@ class GoldDashboardActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        ioExecutor.shutdownNow()
     }
 
     private fun loadStats() {

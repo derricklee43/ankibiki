@@ -9,7 +9,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityExtractedListBinding
 import com.google.android.material.chip.Chip
 import com.google.android.material.tabs.TabLayout
-import java.util.concurrent.Executors
 
 class ExtractedListActivity : AppCompatActivity() {
 
@@ -20,7 +19,7 @@ class ExtractedListActivity : AppCompatActivity() {
     private lateinit var miningRepository: MiningRepository
     private lateinit var adapter: ExtractedOccurrenceAdapter
     private lateinit var wordAdapter: WordDefinitionAdapter
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = AppIo.io
 
     private var itemType: ItemType = ItemType.WORD
     private var languageTag: LanguageTag = LanguageTag.JAPANESE
@@ -138,7 +137,6 @@ class ExtractedListActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        ioExecutor.shutdownNow()
         super.onDestroy()
     }
 
