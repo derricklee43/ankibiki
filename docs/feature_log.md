@@ -289,6 +289,60 @@ roadmap's §5 status notes, which remain live).
       bubble/a11y service in the privacy section + its Settings self-check row, and the
       MiningQueries/MiningSchema split & AppIo lanes in Architecture.)
 
+## 2026-11-13 · Claims ledger v8 + inline merge proposals v9 (shipped slices of the still-parked nameplate policy)
+
+The exclusion POLICY remains parked (spike 004: NOT GO); these are the mechanisms that
+shipped under it, moved from the roadmap's Parked ideas on 2026-11-14. The claims queue
+that drains them is the Track B B1 entry above.
+
+**First slice SHIPPED 2026-11-13 (user-specified UX): the human-confirmed
+claims ledger, schema v8** — guardrails honored: the parser only flags
+(the mining proxy's drafts that leak into the sentence list become PENDING
+`nameplate_claims` rows; drafting deletes nothing), the user's 正しい/違う
+verdict in the photo detail view is the opt-in (正しい hides the plate line
+for good: stripped from display text, occurrence rows dropped, and filtered
+from every future mine/rescan via `hiddenNameplateCores`; 違う keeps the line
+and never re-claims), and raw blocks stay authoritative (table is fully
+re-derivable; deleting it loses no truth). A one-shot startup backfill
+re-derives pending rows for photos mined before v8 from their stored blocks.
+The 81 round-4 verdicts were seeded as confirmed 'correct' on the phone
+(ledger: 82 correct + 8 pending); first live ruling captured on-device
+(#1407 `アプ`). This is also the production label stream spike 004 asked for:
+`SELECT text, verdict FROM nameplate_claims WHERE verdict IS NOT NULL` is
+per-string detector y/n data accruing with normal use. Auto-exclusion
+(no per-photo ruling) remains PARKED pending the spike's go thresholds.
+
+**Second slice SHIPPED same day (user: "wasn't H9 supposed to count?"):
+merge PROPOSALS in the ledger, schema v9.** The spike's suggestion-grade
+finding — H9v2 (22/27 recall, 0.815 precision, ZERO casualties) — now runs
+at mining: inline plate merges become PENDING claims with the sentence, the
+proposed cut, and the resulting remainder; 正しい excises through the normal
+reconciled text-edit path (word occurrences rebuilt, and every future
+rescan re-applies the cut via hiddenInlineClaims — hidden for good), 違う
+keeps the sentence and never re-proposes. Non-destructive until ruled (G1),
+user click is the policy (G2), claims re-derive from stored blocks (G3).
+Port: `NameplateInlineRule.kt` — verbatim from the spike run of record
+parity spec `NameplateInlineRuleTest` (10 corpus cases incl. the guards);
+inline lifecycle + v8→v9 migration covered by 20/20 instrumented tests;
+backfill (v9 prefs pass) proposes for already-mined photos — verified live
+(18 inline proposals; first live 違う click on #1280 オグマー persisted with
+text intact). Gate input swapped per spike verdict: plate-adjacency now =
+recurrence lexicon ∪ ledger-confirmed (`nameplateGateStrings`), NOT the A0
+proxy. Remaining known-noise cost of suggestion grade: prefix-duplicate
+proposals on tier-c pairs (グラ軍/グラ軍隊) and clause-ambiguous titles —
+each is one 違う click, each click is a label.
+
+## 2026-11-10/13 · §2 slices — labeled fixtures + regression discipline
+
+Two boxes completed inside the still-parked benchmark section (2026-11-14 move):
+
+- [x] Label expected sentence boundaries and useful word/grammar candidates.
+- [x] Keep regression fixtures for discovered failures and repeat a real-image
+      rescan when changing recognition or layout handling.
+
+(Their evidence is the committed fixture set + baseline reports cited in the roadmap's §2
+v1-status prose; the boxes themselves carried no parenthetical.)
+
 ## 2026-11-10→14 · §1 trust foundation complete — recovery + safe reprocessing
 
 All three checkboxes of each subsection verified; the recovery off-device copy was

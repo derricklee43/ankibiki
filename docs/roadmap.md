@@ -68,9 +68,9 @@ re-entry protocol. Parked items, biggest lever first:
    phantom-`。` guard + wrap stitching; target = segmentation beyond 31/126).
 2. **`gate_score.py`** — score `ocr_corrections` against marked gold; 19 applied
    samples already accruing toward the ~200-sample auto-apply checkpoint.
-   (Checkpoint view SHIPPED 2026-11-14 with B2: Settings → 金ダッシュボード renders
-   the accruing N/200 + applied/rejected/excluded breakdown live from `ocr_corrections`;
-   the scoring script itself is still parked.)
+   (The checkpoint view itself is already on-device: Settings → 金ダッシュボード renders
+   the accruing N/200 + applied/rejected/excluded breakdown (see docs/feature_log.md,
+   track B). This parked item is the scoring SCRIPT — still parked.)
 3. **Claims ledger** — 20 pending 正しい/違う rulings, H9v2 merge proposals,
    then the A6 fuzzy-recurrence revisit. (Spike 004 verdict: auto-exclusion NOT GO;
    manual strip + rulings is the mechanism.)
@@ -85,23 +85,22 @@ A. **Card-making loop** (§4 extension): an "add to existing note" path (append
    validation against the real collection in a device session.
    (The batch "create cards" proposal was pulled by user 2026-11-14 — see Parked ideas.)
 
-B. **Review & organization UX** — ✅ COMPLETE 2026-11-13/14 (sentence word editor,
-   出現/単語 tab split, claims queue B1, gold dashboard B2, library filters B3; the stale
-   grid-wide facet was cut by the user at spec time). Full evidence:
-   [docs/feature_log.md](feature_log.md).
+B. **Review & organization UX** — shipped 2026-11-13/14 in full (sentence word editor,
+   出現/単語 tab split, claims queue, gold dashboard, library filters). No open items;
+   evidence: [docs/feature_log.md](feature_log.md).
 
 C. **Lookup upgrades** (from Secondary): less collection-specific deck/note-type
    configuration (conditional — only if the app is meant to outlive this collection).
 
-   (✅ whole-word lookup + romaji/pinyin/fuzzy search DONE 2026-11-13/14 — evidence in
-   [the feature log](feature_log.md); also closed the Secondary whole-word item there.)
+   (the shipped halves of this track — whole-word lookup, romaji/pinyin/fuzzy search —
+   are recorded in [docs/feature_log.md](feature_log.md); only the config item stays here.)
 
 D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
    a Settings surface hosting the correction-gate kill switch and future toggles
    (today both live only in code).
 
-   (✅ D1 a11y capture self-check + D2 repository split + D3 async lanes SHIPPED 2026-11-14
-   — evidence in [the feature log](feature_log.md). REMAINING here: the Settings surface
+   (D1 a11y capture self-check, D2 repository split, D3 async lanes shipped 2026-11-14 —
+   recorded in [docs/feature_log.md](feature_log.md). REMAINING here: the Settings surface
    hosting the correction-gate kill switch toggle — today it lives only in code.)
 
 Suggested ordering (refreshed 2026-11-14: B and D's specced items shipped; the log
@@ -111,7 +110,7 @@ mining loop. C's config item and D's settings-surface toggle are small condition
 
 ## 1. Finish the trust foundation — highest priority
 
-> ✅ COMPLETE 2026-11-12→14. Recovery (in-app export/restore + off-device bundle copies,
+> Complete 2026-11-12→14. Recovery (in-app export/restore + off-device bundle copies,
 > re-cut 2026-11-14) and safe reprocessing (atomic edits, triage-preserving reconcile,
 > explicit communication) shipped with full evidence in
 > [docs/feature_log.md](feature_log.md) — including the 金 = finalizing-stamp semantics
@@ -132,10 +131,13 @@ prerequisite.
 > freezes under docs/extraction-pipeline-state.md; the gate keeps auto-applying
 > and accruing audit rows passively while it sleeps.
 
+(Completed §2 boxes — boundary/candidate labeling and regression-fixture
+discipline — live in [docs/feature_log.md](feature_log.md). After this note the
+section lists only what is still open, as parked.)
+
 - [ ] Build a small, representative, appropriately licensed or private fixture
       set from actual use: game dialogue, speaker labels, menus, furigana, unusual
       punctuation, poor photos, line wraps, and Japanese/Chinese examples.
-- [x] Label expected sentence boundaries and useful word/grammar candidates.
 - [ ] Track recognition errors, sentence segmentation, candidate precision/recall,
       and the manual correction effort required to obtain useful study material.
       (recognition/segmentation/char-distance tracked in the gold harness; still missing:
@@ -143,8 +145,6 @@ prerequisite.
       to explicit 金 marks + ocr_corrections rows, 2026-11-13; marks NOT seeded at v7 —
       gold era starts from zero by user decision, committed fixtures remain the baseline
       until re-marking drives the next regeneration)
-- [x] Keep regression fixtures for discovered failures and repeat a real-image
-      rescan when changing recognition or layout handling.
 
 v1 status (2026-11-10): nine labeled fixtures and a two-layer benchmark are in
 place — see [the baseline report](benchmarks/2026-11-10-extraction-baseline.md).
@@ -198,14 +198,14 @@ Passing implementation tests is necessary but is not an accuracy benchmark.
 
 ## 3. Make correction and failures understandable
 
-> ✅ COMPLETE 2026-11-10/13: provider display, raw-OCR section, reprocess preview,
+> Complete 2026-11-10/13: provider display, raw-OCR section, reprocess preview,
 > stale-chip semantics (false positives killed by the would-refresh-change-anything
 > predicate) — evidence + recorded follow-ups (single intent dialog; preview on the
 > sentence-editor path) in [docs/feature_log.md](feature_log.md).
 
 ## 4. Complete a minimal card-creation workflow
 
-> ✅ COMPLETE 2026-11-12: four-screen wizard (picker → per-(deck,model) template →
+> Complete 2026-11-12: four-screen wizard (picker → per-(deck,model) template →
 > confirm → read-back), schema v5 `card_templates`, gateway E2E 5/5 on emulator with
 > real AnkiDroid 2.25.3 — full record (with its intro repaired from git history) in
 > [docs/feature_log.md](feature_log.md).
@@ -242,17 +242,12 @@ proven in real use, not in-process.)
       loss + editor pending-save-target remain open; box stays unchecked.)
 - [ ] Consolidate mutation/reprocessing rules into explicit use cases rather than
       allowing Activity callbacks to become the source of business rules.
-- [x] Update the README — ✅ refreshed 2026-11-14 after the feature sprint; the dated
-      coverage record lives in [docs/feature_log.md](feature_log.md).
 
 Acceptance: interrupted work can be resumed or safely retried without corrupting
 or duplicating data, and a fresh checkout has a documented path to a working build.
 Prefer incremental changes over a wholesale architecture migration.
 
 ## Secondary improvements
-
-- [x] Single word view sentence ordering (2026-11-12) — shipped with the wizard's
-      `sentence_ranks`; record in [docs/feature_log.md](feature_log.md).
 
 - [ ] Evaluate Japanese grammar catalogue coverage and Chinese segmentation quality
       against the benchmark; do not imply that a language-routing interface means
@@ -340,22 +335,11 @@ recorded coverage gap — photo 983 excluded from the set by user decision),
 LLM-detection explicitly rejected — see
 [spikes/004-nameplate-exclusion/README.md](../spikes/004-nameplate-exclusion/README.md).
 
-**First slice SHIPPED 2026-11-13 (user-specified UX): the human-confirmed
-claims ledger, schema v8** — guardrails honored: the parser only flags
-(the mining proxy's drafts that leak into the sentence list become PENDING
-`nameplate_claims` rows; drafting deletes nothing), the user's 正しい/違う
-verdict in the photo detail view is the opt-in (正しい hides the plate line
-for good: stripped from display text, occurrence rows dropped, and filtered
-from every future mine/rescan via `hiddenNameplateCores`; 違う keeps the line
-and never re-claims), and raw blocks stay authoritative (table is fully
-re-derivable; deleting it loses no truth). A one-shot startup backfill
-re-derives pending rows for photos mined before v8 from their stored blocks.
-The 81 round-4 verdicts were seeded as confirmed 'correct' on the phone
-(ledger: 82 correct + 8 pending); first live ruling captured on-device
-(#1407 `アプ`). This is also the production label stream spike 004 asked for:
-`SELECT text, verdict FROM nameplate_claims WHERE verdict IS NOT NULL` is
-per-string detector y/n data accruing with normal use. Auto-exclusion
-(no per-photo ruling) remains PARKED pending the spike's go thresholds.
+The two SHIPPED slices of this policy — the human-confirmed claims ledger
+(schema v8) and the inline merge proposals (schema v9), with the spike-driven
+gate-input swap — moved to [docs/feature_log.md](feature_log.md) on 2026-11-14;
+the queue screen built on them is the track B claims-queue entry there. What
+remains parked here is the AUTOMATIC exclusion policy and its verdict record.
 
 **Spike 004 EXECUTED 2026-11-13 — auto-exclusion NOT GO.** All variants
 measured against the pre-registered bars on the 126-photo human-truth set:
@@ -373,29 +357,9 @@ Manual strip + ledger rulings remain the mechanism; A6 (fuzzy recurrence)
 is written up as a proposal but unmeasured. Production-go blocked twice:
 bars missed AND the menu-control coverage gap stands.
 
-**Second slice SHIPPED same day (user: "wasn't H9 supposed to count?"):
-merge PROPOSALS in the ledger, schema v9.** The spike's suggestion-grade
-finding — H9v2 (22/27 recall, 0.815 precision, ZERO casualties) — now runs
-at mining: inline plate merges become PENDING claims with the sentence, the
-proposed cut, and the resulting remainder; 正しい excises through the normal
-reconciled text-edit path (word occurrences rebuilt, and every future
-rescan re-applies the cut via hiddenInlineClaims — hidden for good), 違う
-keeps the sentence and never re-proposes. Non-destructive until ruled (G1),
-user click is the policy (G2), claims re-derive from stored blocks (G3).
-Port: `NameplateInlineRule.kt` — verbatim from the spike run of record
-parity spec `NameplateInlineRuleTest` (10 corpus cases incl. the guards);
-inline lifecycle + v8→v9 migration covered by 20/20 instrumented tests;
-backfill (v9 prefs pass) proposes for already-mined photos — verified live
-(18 inline proposals; first live 違う click on #1280 オグマー persisted with
-text intact). Gate input swapped per spike verdict: plate-adjacency now =
-recurrence lexicon ∪ ledger-confirmed (`nameplateGateStrings`), NOT the A0
-proxy. Remaining known-noise cost of suggestion grade: prefix-duplicate
-proposals on tier-c pairs (グラ軍/グラ軍隊) and clause-ambiguous titles —
-each is one 違う click, each click is a label.
-
 Shipping note (2026-11-13, amended same day): AUTOMATIC exclusion stays parked —
 nothing is dropped by nameplate reasoning alone; the only hides that ship are
-behind the user's own 正しい verdict (v8 claims ledger above).
+behind the user's own 正しい verdict (v8 claims ledger — see docs/feature_log.md).
 The auto-applying correction gate (roadmap §2) does ship a *provisional
 exclusion proxy* (`OcrCorrectionPass.draftNameplateStrings`: short,
 katakana-bearing, hiragana-free, punctuation-free lines): it only routes
