@@ -35,9 +35,30 @@ local pipeline. Every evaluated island, applied or not, is logged to the `ocr_co
 audit table (reversible per write). Kill switch: `PipelineConfig.ocrCorrectionEnabled`.
 
 **Gold standard:** marking a photo 金 (its button, filled when set) is the *only* thing that
-makes it benchmark gold — membership is declared, not inferred from edits. The JVM harness
+makes it benchmark gold — membership is declared, not inferred from edits. Marking is also
+the finalizing stamp: a gold photo's accepted text is never touched by automatic passes —
+rescans skip it and word re-derivation refuses to coerce it. The JVM harness
 (`GoldBenchmarkTest`) scores sentence-exact / segmentation / char-accuracy against the marked
 set; iteration plan + baselines live in [docs/benchmarks/](docs/benchmarks/).
+
+**Review & organize surfaces (2026-11-13/14):** the word list splits into 出現 (the inbox —
+unseen occurrences, the place you triage) and 単語 (the dictionary shelf — one row per learned
+word with reading, meaning, frequency; kana gojūon order for Japanese, toneless-pinyin
+alphabet for Chinese). Search accepts kanji/kana, romaji (`kaizoku` → 海賊) and pinyin, with
+bounded typo tolerance on romaji only. The single-sentence view carries a word editor whose
+rows are provenance-marked (`is_manual`): your added/renamed occurrences survive
+reprocessing; auto-derived ones never overwrite them. The photo library grid filters by
+未読 / 金 / 日本語 / 中国語. Settings → 金ダッシュボード shows the accrued gate evidence
+against the ~200-sample rollout checkpoint, gold counts, a correction-effort proxy, and the
+last recorded benchmark as a static table — nothing there runs OCR.
+
+**Nameplate claims (ledger, schema v8/v9):** speaker-nameplate lines the proxy suspects are
+never auto-deleted; they surface as pending claims (standalone lines, or inline merge
+proposals with the suggested cut). Ruling 正しい hides the plate for good (stripped from the
+display text, occurrence rows dropped, filtered from every future rescan); 違う keeps the
+line and never re-suggests it. The claims queue screen (badge with the pending count on the
+採掘 tab) rules them without hunting photos, and deep-links the owning photo. Every verdict
+accrues as the production label data the parked auto-exclusion policy needs.
 
 ## Cloud processing & privacy
 
@@ -45,6 +66,13 @@ With a Cloud Vision key configured, each mined Japanese photo's image bytes are 
 Google Cloud Vision (DOCUMENT_TEXT_DETECTION) once at mining time — ~1 request/photo, 1,000
 free per month. Without the key, nothing leaves the device. The photo view always shows which
 provider produced the text, and gate corrections are annotated in the stored document note.
+
+The optional floating lookup bubble (Settings toggle) pairs with an accessibility service
+that observes text selections in other apps — it exists so you can tap a word in AnkiDroid's
+reviewer WebView and get a lookup without copying. Selected text is read on-device into the
+local dictionary only; nothing is uploaded. Because Chromium internals can shift under it,
+the Settings popup carries a self-check row (選択キャプチャ) that reports whether the capture
+pipeline is still delivering, with the last success time and the AnkiDroid version.
 
 ## Project direction
 
@@ -100,9 +128,15 @@ work**, and Android deletes it on uninstall — an instrumented test once wiped 
   type's fields get restructured in Anki later, only its adapter needs to change.
 - `DictionaryRepository` — exact-match lookups against the bundled offline dictionary.
 - `SearchService` — merges both sources per query: your exact Anki matches, then dictionary
-  exact matches, then everything else from your decks, interleaved so no single source (or, for
-  multi-character CJK queries, no single character) buries the rest.
+  exact matches, then everything else from your decks, interleaved so no single source buries
+  the rest. Multi-character CJK queries look up the WHOLE compound first (海賊 reaches the
+  word tables), then keep the per-character exploration path.
 - `AudioRepository` — Chinese pronunciation audio, keyed by character.
+- `MiningRepository` + `MiningQueries` / `MiningSchema` — the corpus DB; writes, reconciliation
+  and transactions live in the repository, read queries and DDL are split out alongside it.
+- `AppIo` — process-wide IO lanes replacing per-screen executors: `io` for reads, a serial
+  `pipeline` lane for scans/rescans/reprocesses/rulings (one corpus-mutating run app-wide),
+  `thumbnails` for image decode. In-flight work survives screen teardown by design.
 
 ## Data pipelines
 

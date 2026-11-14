@@ -585,7 +585,12 @@ its prerequisites/companions there.)
       processing, build prerequisites, and the limitations of supported languages.
       (2026-11-13 housekeeping pass: README now covers the mining pipeline, the cloud
       correction gate + upload transparency, gold marking, kill switch, and the
-      Japanese/Chinese asymmetry.)
+      Japanese/Chinese asymmetry. Refreshed 2026-11-14 after the feature sprint: + the
+      出現/単語 tab split & list search (romaji/pinyin/fuzzy), sentence word editor &
+      is_manual provenance, gold-as-finalizing-stamp, library filters, gold dashboard,
+      the nameplate claims ledger + claims queue, whole-word lookup rule, the floating
+      bubble/a11y service in the privacy section + its Settings self-check row, and the
+      MiningQueries/MiningSchema split & AppIo lanes in Architecture.)
 
 Acceptance: interrupted work can be resumed or safely retried without corrupting
 or duplicating data, and a fresh checkout has a documented path to a working build.
