@@ -57,6 +57,52 @@ class ExtractionTransparencyTest {
     }
 
     @Test
+    fun derivedWordsStale_zeroCandidateSentencesNeverFlag() {
+        // 「はい。」 / 「・ですか?」 (photos 1136/1142/1158/1144/1168, user report 2026-11-13):
+        // sentences that produce no word/grammar candidates can never have row keys.
+        // The old raw-lines set comparison flagged them PERMANENTLY, chip included.
+        val parsed = setOf("はい。", "信義に厚い方でもあります。")
+        val rows = setOf("信義に厚い方でもあります。")
+        val withCands = setOf("信義に厚い方でもあります。") // はい。 yields nothing
+        assertFalse(ExtractionStatus.derivedWordsStale(parsed, rows, withCands))
+    }
+
+    @Test
+    fun derivedWordsStale_textOnlySaveStillFlags() {
+        // The case the chip exists for: new parsed sentence with candidates has no rows.
+        val parsed = setOf("許してください。")
+        val rows = setOf("シーダ様…") // old keys (photo 1273 shape)
+        val withCands = setOf("許してください。")
+        assertTrue(ExtractionStatus.derivedWordsStale(parsed, rows, withCands))
+    }
+
+    @Test
+    fun derivedWordsStale_orphanRowKeysFlag() {
+        // Rows reference a sentence the current text no longer parses to.
+        assertTrue(
+            ExtractionStatus.derivedWordsStale(
+                parsedSentences = setOf("A。"),
+                rowSentences = setOf("A。", "B。"),
+                sentencesWithCandidates = setOf("A。"),
+            ),
+        )
+    }
+
+    @Test
+    fun derivedWordsStale_mergedLineFreshlyReprocessedDoesNotFlag() {
+        // 970/1156 shape: display line merges sentences; rows are keyed by the PARSED
+        // pieces; refresh is a no-op, so the parsed-set comparison (not raw lines) stays quiet.
+        val parsedPieces = setOf("最期!?", "じゃあ、やっぱり父上は...")
+        assertFalse(
+            ExtractionStatus.derivedWordsStale(
+                parsedSentences = parsedPieces,
+                rowSentences = parsedPieces,
+                sentencesWithCandidates = parsedPieces,
+            ),
+        )
+    }
+
+    @Test
     fun preview_reportsKeptAddedRemovedAndHistoryAtRisk() {
         val kept = sentenceRows("A。", seen = 3)
         val droppedTriaged = sentenceRows("B。", seen = 1, deleted = 2, edited = true)

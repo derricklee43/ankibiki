@@ -44,6 +44,7 @@ class PhotoDetailActivity : AppCompatActivity() {
     private var tearingDown = false
     private var lastLoadedDocument: OcrDocument? = null
     private var lastLoadedRows: List<ExtractionStatus.SentenceRows> = emptyList()
+    private var lastDerivedStale = false
     private var rawOcrVisible = false
 
     private fun updateActionAvailability() {
@@ -368,6 +369,7 @@ class PhotoDetailActivity : AppCompatActivity() {
         lastLoadedPhotoUri = ""
         lastLoadedDocument = null
         lastLoadedRows = emptyList()
+        lastDerivedStale = false
         binding.extractedTextDisplay.text = ""
         bindTransparencyViews()
         updateActionAvailability()
@@ -377,6 +379,11 @@ class PhotoDetailActivity : AppCompatActivity() {
                 val text = photo?.extractedText.orEmpty()
                 val rows = miningRepository.getOccurrenceSentenceRows(mediaId)
                 val document = OcrDocument.fromJsonString(photo?.ocrBlocksJson)
+                val derivedStale = miningPipelineRunner.derivedWordsStale(
+                    tag = photo?.languageTag ?: LanguageTag.NA,
+                    text = text,
+                    rowSentences = rows.map { it.sentence }.toSet(),
+                )
                 val claims = miningRepository.nameplateClaims(mediaId)
                 val inlineRemainders = HashMap<Long, String>()
                 if (claims.any { it.contextSentence.isNotEmpty() }) {
@@ -397,6 +404,7 @@ class PhotoDetailActivity : AppCompatActivity() {
                     lastLoadedPhotoUri = resolvedUri
                     lastLoadedRows = rows
                     lastLoadedDocument = document
+                    lastDerivedStale = derivedStale
                     currentIsGold = photo?.isGold == true
                     renderGoldButton()
                     binding.extractedTextDisplay.text =
@@ -583,7 +591,7 @@ class PhotoDetailActivity : AppCompatActivity() {
             if (raw.isNotEmpty() && raw == lastLoadedText) " " + getString(R.string.raw_ocr_same_as_display) else ""
         applyRawOcrVisibility()
         binding.staleWordsChip.visibility =
-            if (lastLoadedText.isNotBlank() && ExtractionStatus.isStale(lastLoadedText.lines(), lastLoadedRows)) {
+            if (lastLoadedText.isNotBlank() && lastDerivedStale) {
                 View.VISIBLE
             } else {
                 View.GONE

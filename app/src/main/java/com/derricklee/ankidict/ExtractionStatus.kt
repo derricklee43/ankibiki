@@ -16,10 +16,27 @@ object ExtractionStatus {
     )
 
     /**
-     * Derived words are stale when the sentences the display text is built from
-     * no longer match the sentence keys stored on the occurrence rows — the state
-     * a text-only save intentionally leaves behind ("text saved; words stale").
+     * Derived words are stale when refreshing them WOULD CHANGE something:
+     * a sentence the current text parses to yields candidates but has no rows
+     * (text saved without reprocessing), or rows reference sentences the current
+     * text no longer parses to (stale keys). A display line that yields NO
+     * candidates at all (e.g. 「はい。」 — nothing to derive) can never have row keys,
+     * so it must not flag — the old raw-line-vs-keys set comparison did, which
+     * left a permanently-unclearable chip on zero-candidate and merged-line edits
+     * (user report 2026-11-13: 1136/1144/1158/1168/970/1156).
+     *
+     * @param parsedSentences sentences the CURRENT display text re-parses to (refresh target)
+     * @param rowSentences distinct sentence keys on this photo's occurrence rows
+     * @param sentencesWithCandidates subset of [parsedSentences] that would produce ≥1 word/grammar
      */
+    fun derivedWordsStale(
+        parsedSentences: Set<String>,
+        rowSentences: Set<String>,
+        sentencesWithCandidates: Set<String>,
+    ): Boolean =
+        sentencesWithCandidates.any { it !in rowSentences } || rowSentences.any { it !in parsedSentences }
+
+    /** Legacy raw-lines comparison — kept for reference; prefer [derivedWordsStale] via the runner. */
     fun isStale(displaySentences: List<String>, rows: Collection<SentenceRows>): Boolean =
         displaySentences.filter { it.isNotBlank() }.toSet() != rows.map { it.sentence }.toSet()
 

@@ -624,6 +624,21 @@ class MiningPipelineRunner(
             ?.takeIf { it.isNotEmpty() } ?: lines
     }
 
+    /**
+     * Truth for the 導出した単語が古い chip: would reprocessing this display text actually
+     * change the derived rows? Re-parses the text with the photo's pipeline (exactly what the
+     * refresh would do) and checks candidate-bearing sentences against the stored row keys —
+     * so zero-candidate lines (「はい。」) and merged-line edits never leave a permanent flag.
+     */
+    fun derivedWordsStale(tag: LanguageTag, text: String, rowSentences: Set<String>): Boolean {
+        val effective = if (tag == LanguageTag.NA) LanguageTag.JAPANESE else tag
+        val config = pipelineConfigs[effective] ?: pipelineConfigs[LanguageTag.JAPANESE]
+            ?: return rowSentences != text.lines().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        val parsed = parsePhotoText(config, text).toSet()
+        val withCandidates = parsed.filter { analyzeCandidates(config, it).isNotEmpty() }.toSet()
+        return ExtractionStatus.derivedWordsStale(parsed, rowSentences, withCandidates)
+    }
+
     companion object {
         fun createDefault(
             context: Context,

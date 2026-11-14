@@ -223,6 +223,17 @@ explicitly warning which removed sentences were hand-edited or carry
 reviewed/deleted history. Follow-ups: fold the editor's intent modal and the
 impact preview into one dialog; add the same preview to the sentence-level
 editor path (still post-hoc toasts only).
+Chip semantics tightened 2026-11-13 (user report: 導出した単語が古い showing on
+some cards): the old raw-lines-vs-row-keys set comparison flagged PERMANENTLY
+whenever a display line yields no candidates (「はい。」) or merges sentences whose
+parsed pieces already have rows — refresh couldn't clear it. The chip now asks
+the pipeline "would a refresh change anything?": re-parses the text and flags
+only when a candidate-bearing parsed sentence lacks rows or rows key sentences
+the text no longer parses to. Pure predicate pinned in
+ExtractionTransparencyTest; end-to-end in StaleChipSemanticsInstrumentedTest;
+verified against the live corpus copy (2026-11-13, backup 174002): the
+「はい。」-class and merged-line false positives (1136/1273/970/1156) are quiet,
+genuine text-only saves still flag and clear on refresh.
 
 Acceptance: the user can explain what happened to a photo and why its results
 changed without inspecting database JSON or developer logs. Any quality indicator
