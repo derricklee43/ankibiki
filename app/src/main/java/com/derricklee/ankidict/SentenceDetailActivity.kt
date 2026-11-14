@@ -64,8 +64,16 @@ class SentenceDetailActivity : AppCompatActivity() {
         TextLocales.apply(binding.sentenceText, languageTag)
 
         if (photoId >= 0L) {
-            binding.editWordsButton.visibility = View.VISIBLE
-            binding.editWordsButton.setOnClickListener { if (!editorBusy) openEditor() }
+            binding.amendSentenceButton.visibility = View.VISIBLE
+            binding.amendSentenceButton.setOnClickListener {
+                textEditorLauncher.launch(
+                    TextEditorActivity.newSentenceIntent(
+                        context = this,
+                        sentence = sentence,
+                        confirmTitle = getString(R.string.amend_sentence_dialog_title),
+                    ),
+                )
+            }
             binding.wordEditorAddButton.setOnClickListener { addEditorRow(null, null, "") }
             binding.wordEditorCancelButton.setOnClickListener { closeEditor() }
             binding.wordEditorSaveButton.setOnClickListener { saveEditor() }
@@ -73,6 +81,48 @@ class SentenceDetailActivity : AppCompatActivity() {
 
         loadParsedWords()
         loadPhoto()
+    }
+
+    /** Amend result (port from the word view pencil, user UI tweak 2026-11-13). */
+    private val textEditorLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode != RESULT_OK) return@registerForActivityResult
+        val newSentence = result.data?.getStringExtra(TextEditorActivity.RESULT_TEXT)
+            ?: return@registerForActivityResult
+        val reprocessWords = result.data
+            ?.getBooleanExtra(TextEditorActivity.RESULT_REPROCESS_WORDS, true) ?: true
+        amendSentence(newSentence, reprocessWords)
+    }
+
+    private fun amendSentence(newSentence: String, reprocessWords: Boolean) {
+        val oldSentence = sentence
+        val trimmed = newSentence.trim()
+        if (trimmed.isEmpty() || photoId < 0L) return
+        ioExecutor.execute {
+            val summary = pipelineRunner().reprocessAmendedSentence(
+                photoId = photoId,
+                oldSentence = oldSentence,
+                newSentence = trimmed,
+                reprocessWords = reprocessWords,
+            )
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                sentence = trimmed
+                binding.sentenceText.text = trimmed
+                val message = if (summary.wordsReprocessed) {
+                    getString(R.string.reprocess_sentence_toast,
+                        summary.keptCandidates, summary.addedCandidates, summary.removedCandidates) +
+                        if (summary.mergedDuplicates > 0)
+                            getString(R.string.reprocess_sentence_merged_note, summary.mergedDuplicates)
+                        else ""
+                } else {
+                    getString(R.string.text_saved_toast)
+                }
+                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                loadParsedWords()
+            }
+        }
     }
 
     private fun loadParsedWords() {
@@ -101,6 +151,19 @@ class SentenceDetailActivity : AppCompatActivity() {
                     }
                     binding.wordChipGroup.addView(chip)
                 }
+                // 編集: word-list editor entry, chip-styled like the words but in the
+                // primary color (user UI tweak 2026-11-13: "same styling except the text
+                // and border color ... pink, the primary color").
+                val editorChipBinding = ItemSentenceChipBinding.inflate(
+                    layoutInflater, binding.wordChipGroup, false,
+                )
+                val editorChip: Chip = editorChipBinding.root
+                editorChip.text = getString(R.string.word_editor_edit)
+                val primary = resolvePrimaryColor()
+                editorChip.setTextColor(primary)
+                editorChip.chipStrokeColor = android.content.res.ColorStateList.valueOf(primary)
+                editorChip.setOnClickListener { if (!editorBusy) openEditor() }
+                binding.wordChipGroup.addView(editorChip)
             }
         }
     }
@@ -229,6 +292,17 @@ class SentenceDetailActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /** colorPrimary from the theme (Material3 dynamic; pink on this device's palette). */
+    private fun resolvePrimaryColor(): Int {
+        val tv = android.util.TypedValue()
+        theme.resolveAttribute(com.google.android.material.R.attr.colorPrimary, tv, true)
+        return if (tv.resourceId != 0) {
+            androidx.core.content.ContextCompat.getColor(this, tv.resourceId)
+        } else {
+            tv.data
         }
     }
 

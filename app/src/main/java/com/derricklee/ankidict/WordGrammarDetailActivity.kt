@@ -37,24 +37,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     private var currentDetail: ExtractedItemDetail? = null
     private var currentKanjiTrees: List<DecompositionNode> = emptyList()
 
-    // The sentence whose pencil button opened the editor (editor result dispatch).
-    private var pendingAmend: MatchedSentence? = null
-
-    private val textEditorLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult(),
-    ) { result ->
-        if (result.resultCode == RESULT_OK) {
-            val matched = pendingAmend
-            pendingAmend = null
-            val newSentence = result.data?.getStringExtra(TextEditorActivity.RESULT_TEXT)
-                ?: return@registerForActivityResult
-            val reprocessWords = result.data
-                ?.getBooleanExtra(TextEditorActivity.RESULT_REPROCESS_WORDS, true) ?: true
-            if (matched != null) {
-                applyAmendedSentence(matched, newSentence, reprocessWords)
-            }
-        }
-    }
+    // Sentence editing lives in the sentence view now (user UI tweak 2026-11-13).
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -310,7 +293,8 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             row.sentenceText.text = "• ${matched.sentence}"
             TextLocales.apply(row.sentenceText, languageTag)
             // Sentences stay plain selectable text; the buttons on the right carry the
-            // explicit affordances: open-in-new -> single sentence view, pencil -> editor.
+            // explicit affordances: open-in-new -> single sentence view. Sentence editing
+            // moved there too (user UI tweak 2026-11-13).
             row.sentenceViewButton.setOnClickListener {
                 val anchorPhotoId = if (matched.photoId >= 0L) matched.photoId
                 else detail.photos.firstOrNull()?.mediaStoreId ?: -1L
@@ -320,16 +304,6 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                         photoId = anchorPhotoId,
                         sentence = matched.sentence,
                         languageTag = detail.languageTag,
-                    ),
-                )
-            }
-            row.editSentenceButton.setOnClickListener {
-                pendingAmend = matched
-                textEditorLauncher.launch(
-                    TextEditorActivity.newSentenceIntent(
-                        context = this,
-                        sentence = matched.sentence,
-                        confirmTitle = getString(R.string.amend_sentence_dialog_title),
                     ),
                 )
             }
@@ -343,41 +317,6 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             row.moveUpButton.setOnClickListener { moveSentence(matched.sentence, up = true) }
             row.moveDownButton.setOnClickListener { moveSentence(matched.sentence, up = false) }
             binding.sentencesContainer.addView(row.root)
-        }
-    }
-
-    private fun applyAmendedSentence(
-        matched: MatchedSentence,
-        newSentence: String,
-        reprocessWords: Boolean,
-    ) {
-        val photoId = if (matched.photoId >= 0L) {
-            matched.photoId
-        } else {
-            currentDetail?.photos?.firstOrNull()?.mediaStoreId ?: return
-        }
-        ioExecutor.execute {
-            val summary = miningPipelineRunner.reprocessAmendedSentence(
-                photoId = photoId,
-                oldSentence = matched.sentence,
-                newSentence = newSentence,
-                reprocessWords = reprocessWords,
-            )
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                // Communicate reconciliation outcome (roadmap §1 safe reprocessing).
-                val message = if (summary.wordsReprocessed) {
-                    getString(R.string.reprocess_sentence_toast,
-                        summary.keptCandidates, summary.addedCandidates, summary.removedCandidates) +
-                        if (summary.mergedDuplicates > 0)
-                            getString(R.string.reprocess_sentence_merged_note, summary.mergedDuplicates)
-                        else ""
-                } else {
-                    getString(R.string.text_saved_toast)
-                }
-                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-                loadDetail()
-            }
         }
     }
 

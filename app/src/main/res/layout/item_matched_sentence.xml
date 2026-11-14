@@ -75,23 +75,7 @@
         app:iconPadding="0dp"
         app:iconSize="20dp" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/editSentenceButton"
-        style="@style/Widget.Material3.Button.TonalButton"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
-        android:layout_marginStart="4dp"
-        android:contentDescription="@string/btn_edit_sentence"
-        android:insetLeft="0dp"
-        android:insetTop="0dp"
-        android:insetRight="0dp"
-        android:insetBottom="0dp"
-        android:minWidth="0dp"
-        android:minHeight="0dp"
-        android:padding="10dp"
-        app:icon="@drawable/ic_edit_pencil"
-        app:iconGravity="textStart"
-        app:iconPadding="0dp"
-        app:iconSize="20dp" />
+    <!-- 2026-11-13: per-sentence pencil moved to the sentence view (user UI tweak);
+         rows now carry open-in-new + ordering affordances only. -->
 
 </LinearLayout>

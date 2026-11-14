@@ -25,17 +25,6 @@
             android:padding="8dp"
             android:src="@drawable/ic_arrow_back" />
 
-        <!-- Sentence word editor entry (user feature 2026-11-13): edits THIS sentence's
-             occurrence rows (rename/delete/add), never the definitions or other sentences. -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/editWordsButton"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="@string/word_editor_edit"
-            android:visibility="gone" />
-
     </LinearLayout>
 
     <ScrollView
@@ -85,6 +74,23 @@
                 android:layout_marginTop="14dp"
                 android:textIsSelectable="true"
                 android:textSize="18sp" />
+
+            <!-- 3b. Sentence text editor (port from the word view pencil, user UI tweak
+                 2026-11-13): edits THIS sentence's text via amend + safe reprocess. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/amendSentenceButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/amend_sentence_dialog_title"
+                    android:visibility="gone" />
+            </LinearLayout>
 
             <!-- 4. Word editor table (replaces chips while editing): one row per occurrence. -->
             <LinearLayout
