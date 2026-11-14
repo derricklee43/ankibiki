@@ -48,9 +48,10 @@ provider produced the text, and gate corrections are annotated in the stored doc
 
 ## Project direction
 
-See [the improvement roadmap](docs/roadmap.md) — current status, a prioritized "next up"
-queue, and acceptance criteria covering extraction quality, the nameplate policy, the
-gate's annotation scoreboard, lifecycle reliability, and more. Historical designs:
+See [the improvement roadmap](docs/roadmap.md) — status tracks, acceptance criteria,
+and the parked/active split. The text-processing pipeline is **parked** as of
+2026-11-13; [docs/extraction-pipeline-state.md](docs/extraction-pipeline-state.md)
+is the snapshot + re-entry kit for when it resumes. Historical designs:
 [photo mining](docs/saikutsu-photo-mining-plan.md),
 [card wizard](docs/card-creation-wizard-plan.md),
 [Chinese word/hanzi sync](docs/chinese-word-hanzi-sync-plan.md).

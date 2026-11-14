@@ -47,33 +47,47 @@ This roadmap complements those designs rather than replacing them.
 - Lifecycle robustness (§5) is untouched: long scans are not resumable; rotation,
   backgrounding, and process-death behavior are untested.
 
-## Next up (prioritized unfinished work, 2026-11-13)
+## Status tracks (2026-11-13: user parked text processing to build features)
 
-Roughly biggest-lever-first; each item's acceptance detail lives in its home section.
+### ⏸ PARKED — extraction & text processing
 
-1. **Stitching fixes for the 9 wrong-set photos** (§2): phantom-`。` guard + wrapped-sentence
-   stitching in `CjkSentenceParser` — the biggest single move for headline sentence-exact and
-   segmentation. Target: wrong-set photos become correct-set without regressing locked fixtures.
-2. **Grow the gold set + gate scoreboard** (§2): mark more photos 金, regenerate fixtures from
-   the marked backup (`build_gold_fixtures.py` selects `is_gold=1`), then a `gate_score.py`
-   joining `ocr_corrections` rows against marked gold — checkpoints at ~50/100/200 applied
-   samples; at ~200 with ≤1 rejection, revisit the silent-apply vs suggestion-layer call.
-3. **Nameplate-exclusion experiment** (Parked ideas): benchmark-side DEMOTE/DROP over fixtures
-   + menu-style photos; wins must be real and menu casualties zero. Ships first or jointly with
-   any suggestion UX; replaces the gate's over-excluding proxy. Second-biggest segmentation lever.
-4. **Close the §2 fixture gaps**: menu/furigana/Chinese examples in the fixture set + a
-   wrong-candidate (precision) metric + correction-effort measure now that gold marks exist.
-5. **§5 lifecycle reliability**: resumable/recoverable long scans, rotation/background/process-
-   death/permission-loss tests, draft preservation; consolidate mutation rules into explicit
-   use cases (README item done 2026-11-13).
-6. **Wizard finishing tail** (§4): media-embed path walked in UI + validation against the real
-   collection (pending device session).
-7. **Settings surface** (new): expose the correction-gate kill switch + a gold-mark view; today
-   both live in code/DB only.
-8. **Chinese gate** (backlog, deliberately last): port the gate to a CC-CEDICT evidence base
-   only after the Japanese track's ~200-sample verdict, so the second port starts measured.
-9. **Secondary improvements** list below (whole-word CJK lookup, grammar-coverage evaluation,
-   less collection-specific deck config) — follow demonstrated needs, not scope.
+User decision 2026-11-13: the pipeline work freezes here until un-parked.
+**docs/extraction-pipeline-state.md** is the single re-entry kit: measured
+state, decision log, gated invariants, backlog with entry points, and the
+re-entry protocol. Parked items, biggest lever first:
+
+1. **Stitching fixes** for parser-bound photos (`CjkSentenceParser`:
+   phantom-`。` guard + wrap stitching; target = segmentation beyond 31/127).
+2. **`gate_score.py`** — score `ocr_corrections` against marked gold; 19 applied
+   samples already accruing toward the ~200-sample auto-apply checkpoint.
+3. **Claims ledger** — 20 pending 正しい/違う rulings, H9v2 merge proposals,
+   then the A6 fuzzy-recurrence revisit. (Spike 004 verdict: auto-exclusion NOT GO;
+   manual strip + rulings is the mechanism.)
+4. **Fixture gaps** — menu/furigana/Chinese examples + wrong-candidate precision
+   metric + correction-effort measure.
+5. **Chinese gate port** (CC-CEDICT evidence base; deliberately last).
+
+### 🟢 ACTIVE — feature tracks (proposals; pick what fits the itch)
+
+A. **Card-making loop** (§4 extension): batch "create cards" from the unseen
+   list (the wizard is one-word-at-a-time today); an "add to existing note"
+   path (append a newly mined sentence to a card that already exists); wizard
+   validation against the real collection in a device session.
+B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
+   language), a claims-queue screen to drain pending nameplate rulings in batches,
+   bulk photo ops (mark, ignore, delete), and a gold dashboard (marks count,
+   headline trend line).
+C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
+   CJK queries while keeping the character-exploration path; less
+   collection-specific deck/note-type configuration.
+D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
+   a Settings surface hosting the correction-gate kill switch and future toggles
+   (today both live only in code).
+
+Suggested ordering: **B → A → D**, with C as occasional quick wins — B first
+because the ledger queue and triage are the daily loop right now while the
+pipeline side is frozen, and A turns the 126-photo corpus into study material,
+which is the point of all of it.
 
 ## 1. Finish the trust foundation — highest priority
 
@@ -137,6 +151,10 @@ a stored record; the first-class sentence table above is what makes the model
 literal.
 
 ## 2. Establish an extraction-quality benchmark
+
+> **PARKED 2026-11-13** (user) — everything in this section and its child reports
+> freezes under docs/extraction-pipeline-state.md; the gate keeps auto-applying
+> and accruing audit rows passively while it sleeps.
 
 - [ ] Build a small, representative, appropriately licensed or private fixture
       set from actual use: game dialogue, speaker labels, menus, furigana, unusual
