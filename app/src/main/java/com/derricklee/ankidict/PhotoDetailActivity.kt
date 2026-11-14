@@ -44,6 +44,7 @@ class PhotoDetailActivity : AppCompatActivity() {
     private var tearingDown = false
     private var lastLoadedDocument: OcrDocument? = null
     private var lastLoadedRows: List<ExtractionStatus.SentenceRows> = emptyList()
+    private var lastLoadedTag: LanguageTag = LanguageTag.JAPANESE
     private var lastDerivedStale = false
     private var rawOcrVisible = false
 
@@ -404,6 +405,8 @@ class PhotoDetailActivity : AppCompatActivity() {
                     lastLoadedPhotoUri = resolvedUri
                     lastLoadedRows = rows
                     lastLoadedDocument = document
+                    lastLoadedTag = photo?.languageTag?.takeIf { it != LanguageTag.NA } ?: LanguageTag.JAPANESE
+                    TextLocales.apply(binding.extractedTextDisplay, lastLoadedTag)
                     lastDerivedStale = derivedStale
                     currentIsGold = photo?.isGold == true
                     renderGoldButton()
@@ -580,6 +583,7 @@ class PhotoDetailActivity : AppCompatActivity() {
 
     /** Provider line, raw-OCR section, and stale-words chip for the currently loaded photo (roadmap §3). */
     private fun bindTransparencyViews() {
+        TextLocales.apply(binding.rawOcrText, lastLoadedTag)
         val document = lastLoadedDocument
         val providerLabel = ExtractionStatus.describeProvider(document)
         binding.ocrSourceText.text = getString(

@@ -37,6 +37,7 @@ class SentenceDetailActivity : AppCompatActivity() {
 
         binding.backButton.setOnClickListener { finish() }
         binding.sentenceText.text = sentence
+        TextLocales.apply(binding.sentenceText, languageTag)
 
         loadParsedWords(photoId, sentence, languageTag)
         loadPhoto(photoId)

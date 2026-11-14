@@ -128,12 +128,16 @@ class SearchResultAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(entry: DictionaryEntry) {
+            val tag = if (entry is DictionaryEntry.ChineseWord) LanguageTag.CHINESE else LanguageTag.JAPANESE
             when (entry) {
                 is DictionaryEntry.Kanji -> bindKanji(entry)
                 is DictionaryEntry.Radical -> bindRadical(entry)
                 is DictionaryEntry.JapaneseWord -> bindJapaneseWord(entry)
                 is DictionaryEntry.ChineseWord -> bindChineseWord(entry)
             }
+            // System Translate chip in the long-press toolbar needs the text's locale declared.
+            TextLocales.apply(binding.dictHeadwordText, tag)
+            TextLocales.apply(binding.dictReadingText, tag)
         }
 
         private fun bindKanji(entry: DictionaryEntry.Kanji) {

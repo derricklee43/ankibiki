@@ -109,6 +109,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
 
         binding.backButton.setOnClickListener { finish() }
         binding.targetExpressionText.text = expression
+        TextLocales.apply(binding.targetExpressionText, languageTag)
 
         binding.kanjiRevealButton.setOnClickListener {
             isKanjiRevealed = true
@@ -307,6 +308,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         for (matched in items) {
             val row = ItemMatchedSentenceBinding.inflate(layoutInflater, binding.sentencesContainer, false)
             row.sentenceText.text = "• ${matched.sentence}"
+            TextLocales.apply(row.sentenceText, languageTag)
             // Sentences stay plain selectable text; the buttons on the right carry the
             // explicit affordances: open-in-new -> single sentence view, pencil -> editor.
             row.sentenceViewButton.setOnClickListener {
