@@ -100,6 +100,26 @@ data class ExtractedOccurrenceRow(
     fun formatFrequencyColumn(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }
 
+/**
+ * One canonical word/grammar for the Words (definition) tab: unique per
+ * (languageTag, itemType, expression) — the `extracted_items` primary key.
+ * [occurrenceId] is the most recent live occurrence (tap target for the detail view),
+ * or -1 when the item has none on a kept photo.
+ */
+data class WordDefinitionRow(
+    val occurrenceId: Long,
+    val languageTag: LanguageTag,
+    val itemType: ItemType,
+    val expression: String,
+    val kana: String?,
+    val meaning: String,
+    val occurrenceCount: Int,
+    val levelBadge: String?,
+    val corpusRank: Int?,
+) {
+    fun formatFrequencyColumn(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
+}
+
 data class MatchedSentence(
     val occurrenceId: Long,
     val photoId: Long,

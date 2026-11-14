@@ -8,17 +8,23 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.derricklee.ankidict.databinding.ActivityExtractedListBinding
 import com.google.android.material.chip.Chip
+import com.google.android.material.tabs.TabLayout
 import java.util.concurrent.Executors
 
 class ExtractedListActivity : AppCompatActivity() {
 
+    /** Occurrences = the review inbox (one row per sentence hit). Words = gojūon-sorted definitions. */
+    private enum class ListTab { OCCURRENCES, WORDS }
+
     private lateinit var binding: ActivityExtractedListBinding
     private lateinit var miningRepository: MiningRepository
     private lateinit var adapter: ExtractedOccurrenceAdapter
+    private lateinit var wordAdapter: WordDefinitionAdapter
     private val ioExecutor = Executors.newSingleThreadExecutor()
 
     private var itemType: ItemType = ItemType.WORD
     private var languageTag: LanguageTag = LanguageTag.JAPANESE
+    private var currentTab: ListTab = ListTab.OCCURRENCES
 
     // Tri-state togglable sort directions (DESC -> ASC -> OFF)
     // Default: sort by occurrence count descending first, then date descending.
@@ -64,17 +70,71 @@ class ExtractedListActivity : AppCompatActivity() {
                 ),
             )
         }
+        wordAdapter = WordDefinitionAdapter { row ->
+            startActivity(
+                WordGrammarDetailActivity.newIntent(
+                    context = this,
+                    occurrenceId = row.occurrenceId,
+                    languageTag = row.languageTag,
+                    itemType = row.itemType,
+                    expression = row.expression,
+                ),
+            )
+        }
 
         binding.occurrencesRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.occurrencesRecyclerView.adapter = adapter
         binding.backButton.setOnClickListener { finish() }
 
+        setupTabs()
         setupSortAndFilterChips()
     }
 
     override fun onResume() {
         super.onResume()
-        loadOccurrences()
+        loadActiveTab()
+    }
+
+    private fun setupTabs() {
+        binding.listTabs.addTab(
+            binding.listTabs.newTab().setText(getString(R.string.tab_occurrences)),
+        )
+        binding.listTabs.addTab(
+            binding.listTabs.newTab().setText(
+                when (itemType) {
+                    ItemType.WORD -> getString(R.string.col_word)
+                    ItemType.GRAMMAR -> getString(R.string.col_grammar)
+                },
+            ),
+        )
+        binding.listTabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) = selectTab(if (tab.position == 0) ListTab.OCCURRENCES else ListTab.WORDS)
+            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
+            override fun onTabReselected(tab: TabLayout.Tab) = Unit
+        })
+    }
+
+    private fun selectTab(tab: ListTab) {
+        currentTab = tab
+        // Chips (sort overrides + visibility partitions) are inbox triage tools; the Words
+        // tab pins gojūon order and ACTIVE+HIDDEN membership by spec (user 2026-11-13).
+        binding.sortAndFilterScrollView.visibility = if (tab == ListTab.OCCURRENCES) View.VISIBLE else View.GONE
+        binding.colSecondHeader.text = when (tab) {
+            ListTab.OCCURRENCES -> getString(R.string.col_deck)
+            ListTab.WORDS -> getString(R.string.col_definition)
+        }
+        binding.occurrencesRecyclerView.adapter = when (tab) {
+            ListTab.OCCURRENCES -> adapter
+            ListTab.WORDS -> wordAdapter
+        }
+        loadActiveTab()
+    }
+
+    private fun loadActiveTab() {
+        when (currentTab) {
+            ListTab.OCCURRENCES -> loadOccurrences()
+            ListTab.WORDS -> loadWords()
+        }
     }
 
     override fun onDestroy() {
@@ -122,18 +182,34 @@ class ExtractedListActivity : AppCompatActivity() {
     /** Last rows fetched from the repository (unfiltered); search renders against these. */
     private var lastRows: List<ExtractedOccurrenceRow> = emptyList()
 
+    /** Same for the Words tab; repository order (gojūon) is preserved — search never re-ranks there. */
+    private var lastWordRows: List<WordDefinitionRow> = emptyList()
+
     private fun renderRows() {
         val query = binding.searchEditText.text?.toString().orEmpty()
-        val rows = if (query.isBlank()) {
-            lastRows
-        } else {
-            lastRows.mapNotNull { row ->
-                ItemSearch.searchTier(row.expression, row.kana, query)?.let { tier -> row to tier }
-            }.sortedBy { it.second } // exact matches first, typo-tolerant romaji below
-                .map { it.first }
+        when (currentTab) {
+            ListTab.OCCURRENCES -> {
+                val rows = if (query.isBlank()) {
+                    lastRows
+                } else {
+                    lastRows.mapNotNull { row ->
+                        ItemSearch.searchTier(row.expression, row.kana, query)?.let { tier -> row to tier }
+                    }.sortedBy { it.second } // exact matches first, typo-tolerant romaji below
+                        .map { it.first }
+                }
+                adapter.submitList(rows)
+                binding.emptyOccurrencesText.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+            }
+            ListTab.WORDS -> {
+                val rows = if (query.isBlank()) {
+                    lastWordRows
+                } else {
+                    lastWordRows.filter { ItemSearch.matches(it.expression, it.kana, query) }
+                }
+                wordAdapter.submitList(rows)
+                binding.emptyOccurrencesText.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+            }
         }
-        adapter.submitList(rows)
-        binding.emptyOccurrencesText.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun cycleDirection(current: SortDirection, defaultFirst: SortDirection): SortDirection {
@@ -204,6 +280,17 @@ class ExtractedListActivity : AppCompatActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 lastRows = rows
                 renderRows() // keeps the active search query applied across refreshes
+            }
+        }
+    }
+
+    private fun loadWords() {
+        ioExecutor.execute {
+            val rows = miningRepository.getCanonicalItemDefinitions(languageTag, itemType)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                lastWordRows = rows
+                renderRows()
             }
         }
     }

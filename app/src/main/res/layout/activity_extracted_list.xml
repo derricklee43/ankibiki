@@ -34,6 +34,14 @@
 
     </LinearLayout>
 
+    <!-- Occurrences (inbox) / Words (definition) tabs — user spec 2026-11-13 -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/listTabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:tabGravity="fill"
+        app:tabMode="fixed" />
+
     <!-- Word search: kanji expression / kana reading / romaji (any variant) / toneless pinyin.
          Pure matcher is Romaji.kt ItemSearch; filters below stay AND-combined with the query. -->
     <EditText
@@ -49,8 +57,10 @@
         android:maxLines="1"
         android:textSize="15sp" />
 
-    <!-- Togglable Sort (Descending / Ascending / Off) & Visibility Partition Filters (Active / Hidden / Archive) -->
+    <!-- Togglable Sort (Descending / Ascending / Off) & Visibility Partition Filters (Active / Hidden / Archive).
+         Occurrences tab only — the Words tab pins gojūon order and ACTIVE+HIDDEN membership. -->
     <HorizontalScrollView
+        android:id="@+id/sortAndFilterScrollView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:scrollbars="none">
@@ -138,6 +148,7 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/colSecondHeader"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="2"

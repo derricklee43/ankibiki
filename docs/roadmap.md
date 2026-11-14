@@ -88,6 +88,18 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
    **Gold = finalizing stamp** (same day): rescan hidden AND refused in code
    (`rescanPhoto` -> SKIPPED), word re-derivation coerced text-only on both
    reprocess paths, stale chip suppressed. 7 instrumented specs; 73/73 suite.)
+   (SHIPPED 2026-11-13: **word list page split into Occurrences/Words tabs** —
+   user-specified inbox model: the 出現 tab is the inbox (既読/非表示/アーカイブ
+   unchanged; hiding skips the inbox, the Words tab still lists the word); the 単語/
+   文法 tab shows one row per canonical item (word + reading + meaning + frequency),
+   kana gojūon order for JP / toneless pinyin alphabet for ZH, HIDDEN included,
+   ARCHIVED excluded, sort+visibility chips hidden there while search still filters.
+   Tap opens the existing word detail via the newest live occurrence (-1 when none —
+   guarded). `ItemOrdering` is a hand-rolled weight table (deterministic JVM ==
+   device, unlike Collator); `getCanonicalItemDefinitions` joins MAX(id) over
+   KEEP-photo occurrences. 11 JVM specs + 4 instrumented specs; full unit suite +
+   77/77 emulator suite green; live walkthrough verified on emulator-5554, including
+   gojūon order over the real corpus and the zero-occurrence tap path.)
 C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
    CJK queries while keeping the character-exploration path; less
    collection-specific deck/note-type configuration.

@@ -127,6 +127,8 @@
     <string name="filter_active">通常</string>
     <string name="filter_hidden">非表示</string>
     <string name="filter_archived">アーカイブ</string>
+    <string name="tab_occurrences">出現</string>
+    <string name="col_definition">読み・意味</string>
     <string name="recovery_export_label">Export corpus backup (bundle)</string>
     <string name="recovery_restore_label">Restore corpus from bundle</string>
     <string name="recovery_export_progress">Exporting corpus backup…</string>

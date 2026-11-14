@@ -1168,6 +1168,75 @@ class MiningRepository(
     }
 
     /**
+     * Words (definition) tab — user spec 2026-11-13: exactly one row per canonical item,
+     * HIDDEN items included, ARCHIVED items excluded. SQLite's BINARY collation cannot do
+     * gojūon/pinyin order, so the list comes back unsorted from SQL and [ItemOrdering] is
+     * applied here. `occurrenceId` is the newest live occurrence on a KEPT photo (detail-view
+     * tap target, mirrors getActiveOccurrences' state filter), -1 when none exists.
+     */
+    fun getCanonicalItemDefinitions(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+    ): List<WordDefinitionRow> {
+        val sql = """
+            SELECT
+                i.expression,
+                i.kana,
+                i.meaning,
+                i.level_badge,
+                i.corpus_rank,
+                (
+                    SELECT COUNT(*)
+                    FROM item_occurrences o2
+                    JOIN scraped_photos p2 ON o2.photo_id = p2.media_store_id
+                    WHERE o2.language_tag = i.language_tag
+                      AND o2.item_type = i.item_type
+                      AND o2.expression = i.expression
+                      AND o2.state IN ('UNSEEN', 'SEEN')
+                      AND p2.status = 'KEEP'
+                ) AS occurrence_count,
+                IFNULL(l.latest_id, -1)
+            FROM extracted_items i
+            LEFT JOIN (
+                SELECT o.language_tag AS lt, o.item_type AS it, o.expression AS ex,
+                       MAX(o.id) AS latest_id
+                FROM item_occurrences o
+                JOIN scraped_photos p ON o.photo_id = p.media_store_id
+                WHERE o.state IN ('UNSEEN', 'SEEN') AND p.status = 'KEEP'
+                GROUP BY o.language_tag, o.item_type, o.expression
+            ) l
+              ON l.lt = i.language_tag AND l.it = i.item_type AND l.ex = i.expression
+            WHERE i.language_tag = ? AND i.item_type = ?
+              AND i.visibility_state != 'ARCHIVED'
+        """.trimIndent()
+
+        val results = mutableListOf<WordDefinitionRow>()
+        readableDatabase.rawQuery(sql, arrayOf(languageTag.name, itemType.name)).use { cursor ->
+            while (cursor.moveToNext()) {
+                results.add(
+                    WordDefinitionRow(
+                        occurrenceId = cursor.getLong(6),
+                        languageTag = languageTag,
+                        itemType = itemType,
+                        expression = cursor.getString(0),
+                        kana = cursor.getStringOrNull(1),
+                        meaning = cursor.getString(2) ?: "",
+                        occurrenceCount = cursor.getInt(5),
+                        levelBadge = cursor.getStringOrNull(3),
+                        corpusRank = cursor.getIntOrNull(4),
+                    ),
+                )
+            }
+        }
+        return results.sortedWith { a, b ->
+            ItemOrdering.compare(
+                languageTag, a.kana, a.expression,
+                b.kana, b.expression,
+            )
+        }
+    }
+
+    /**
      * Loads the full detail for a canonical word/grammar entry along with all linked photos and
      * matched original sentences from non-deleted occurrences (`UNSEEN` or `SEEN`).
      */
