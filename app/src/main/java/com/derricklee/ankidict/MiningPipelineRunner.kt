@@ -92,6 +92,11 @@ class MiningPipelineRunner(
         if (decision == PhotoRescanDecision.CANCEL) return PhotoRescanResult.CANCELLED
         if (decision == PhotoRescanDecision.SKIP_TEXT_EXTRACTION) return PhotoRescanResult.SKIPPED
         val originalPhoto = miningRepository.getPhoto(candidate.mediaStoreId)
+        if (originalPhoto?.isGold == true) {
+            // Gold is the finalizing stamp (user 2026-11-13): a rescan would replace the text
+            // and derived occurrences it attests to — refuse at the code level, UI hides too.
+            return PhotoRescanResult.SKIPPED
+        }
         if (originalPhoto?.modifiedByUserFlag == true && decision != PhotoRescanDecision.ACCEPT) {
             return PhotoRescanResult.CONFIRMATION_REQUIRED
         }
@@ -328,6 +333,86 @@ class MiningPipelineRunner(
         )
     }
 
+    /**
+     * Sentence word editor apply (user feature 2026-11-13): the editor renders this sentence's
+     * occurrence list as an editable table (word input + delete, 追加 row); this diffs the final
+     * rows against the stored set — renames re-key preserving review state, dropped rows are
+     * SOFT-deleted (recoverable: re-adding the word restores them), new words are free-form
+     * (user decision: no grounding requirement) and get canonical definitions like mined words.
+     * Manual rows survive later reprocessing (modified flag).
+     */
+    data class WordEditorRow(
+        val originalType: ItemType?,
+        val originalExpression: String?,
+        val expression: String,
+    )
+
+    fun saveSentenceWords(photoId: Long, sentence: String, rows: List<WordEditorRow>): Int {
+        val photo = miningRepository.getPhoto(photoId)
+        val effectiveTag = if (photo == null || photo.languageTag == LanguageTag.NA) {
+            LanguageTag.JAPANESE
+        } else {
+            photo.languageTag
+        }
+        val config = pipelineConfigs[effectiveTag] ?: pipelineConfigs[LanguageTag.JAPANESE]
+            ?: error("No pipeline config for $effectiveTag")
+        val finalRows = rows.map { it.copy(expression = it.expression.trim()) }
+            .filter { it.expression.isNotEmpty() }
+        // Snapshot before writes (reads during a transaction can lag the connection).
+        val activeBefore = miningRepository.getSentenceCandidates(photoId, sentence)
+        val originals = finalRows.filter { it.originalExpression != null }
+        val additions = finalRows.filter { it.originalExpression == null }
+        // Consumed = names the editor still accounts for (kept or renamed-away); everything
+        // else that was active is what the user deleted.
+        val consumed = originals.mapNotNull { it.originalExpression }.toSet()
+        val currents = originals.map { it.expression }.toSet()
+        return miningRepository.inTransaction {
+            var changes = 0
+            for (row in originals) {
+                val type = row.originalType ?: continue
+                val old = row.originalExpression ?: continue
+                if (old == row.expression) continue
+                ensureCanonicalItemExists(
+                    config, type,
+                    NormalizedCandidate(expression = row.expression, surfaceForm = row.expression),
+                )
+                miningRepository.updateOccurrenceExpression(photoId, sentence, old, row.expression)
+                changes++
+            }
+            for (candidate in activeBefore) {
+                val expr = candidate.expression
+                if (expr in consumed || expr in currents) continue
+                miningRepository.setOccurrenceStateForExpression(photoId, sentence, expr, OccurrenceState.DELETED)
+                changes++
+            }
+            for (row in additions) {
+                val states = miningRepository.occurrenceStatesForExpression(photoId, sentence, row.expression)
+                if (states.any { it != OccurrenceState.DELETED.name }) continue
+                ensureCanonicalItemExists(
+                    config, ItemType.WORD,
+                    NormalizedCandidate(expression = row.expression, surfaceForm = row.expression),
+                )
+                if (OccurrenceState.DELETED.name in states) {
+                    // Re-adding a soft-deleted word restores it instead of duplicating rows.
+                    miningRepository.setOccurrenceStateForExpression(
+                        photoId, sentence, row.expression, OccurrenceState.UNSEEN,
+                    )
+                } else {
+                    miningRepository.insertOccurrence(
+                        languageTag = effectiveTag,
+                        itemType = ItemType.WORD,
+                        expression = row.expression,
+                        photoId = photoId,
+                        sentence = sentence,
+                        isManual = true,
+                    )
+                }
+                changes++
+            }
+            changes
+        }
+    }
+
     private fun ensureCanonicalItemExists(
         config: PipelineConfig,
         itemType: ItemType,
@@ -437,7 +522,10 @@ class MiningPipelineRunner(
         val addedSentences = (newSet - oldSet).toList()
 
         // Extraction may throw; do it BEFORE any write so a failure changes nothing at all.
-        val shouldReprocess = reprocessWords && config != null
+        // Gold photos never re-derive words (finalizing stamp, user 2026-11-13): text edits
+        // on a gold photo save text-only and the curated occurrence set stays exactly as it is.
+        val goldPhoto = miningRepository.getPhoto(mediaStoreId)?.isGold == true
+        val shouldReprocess = reprocessWords && config != null && !goldPhoto
         val addedPlans = if (shouldReprocess) {
             addedSentences.map { sentence ->
                 sentence to analyzeCandidates(config!!, sentence)
@@ -495,13 +583,15 @@ class MiningPipelineRunner(
         val preFlags = miningRepository.getSentenceModificationFlags(photoId)
         val sentenceModified = oldSentence != trimmedNew ||
             preFlags[trimmedNew] == true || preFlags[oldSentence] == true
-        if (!reprocessWords) {
+        val photo = miningRepository.getPhoto(photoId)
+        // Gold is the finalizing stamp (user 2026-11-13): never re-derive words on a gold photo;
+        // a text amendment there saves text-only, preserving the curated occurrence set.
+        if (!reprocessWords || photo?.isGold == true) {
             miningRepository.updateSentenceText(photoId, oldSentence, trimmedNew)
             return SentenceReprocessSummary(textSaved = true, wordsReprocessed = false,
                 keptCandidates = 0, addedCandidates = 0, removedCandidates = 0)
         }
 
-        val photo = miningRepository.getPhoto(photoId)
         val effectiveTag = if (photo == null || photo.languageTag == LanguageTag.NA) {
             LanguageTag.JAPANESE
         } else {
@@ -534,9 +624,14 @@ class MiningPipelineRunner(
             for (row in rows) {
                 val key = row.itemType + "\u0000" + row.expression
                 when {
-                    key !in keepKeys -> {
+                    key !in keepKeys && !row.isManual -> {
                         miningRepository.deleteOccurrenceById(row.id)
                         removed++
+                    }
+                    key !in keepKeys -> {
+                        // Manual occurrence (word editor, schema v10): survives even when the analyzer
+                        // wouldn't re-produce it (user rule 2026-11-13, "never accidentally destroyed").
+                        // modified_by_user_flag alone does NOT protect — reconcile contract §1.
                     }
                     !seenKeys.add(key) -> {
                         // Collision merge (rows were newest-first): keep the most-triaged row.

@@ -77,7 +77,8 @@ class MiningRepository(
                 sentence TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
                 state TEXT NOT NULL,
-                modified_by_user_flag INTEGER NOT NULL DEFAULT 0
+                modified_by_user_flag INTEGER NOT NULL DEFAULT 0,
+                is_manual INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent(),
         )
@@ -189,6 +190,24 @@ class MiningRepository(
             db.execSQL(
                 "CREATE INDEX IF NOT EXISTS idx_nameplate_claims_photo ON nameplate_claims(photo_id, verdict)",
             )
+        }
+        if (oldVersion < 10) {
+            // v10: sentence word editor (user 2026-11-13). is_manual marks rows the editor
+            // created/renamed — distinct provenance from modified_by_user_flag (which means
+            // "user-authored TEXT" and does NOT protect against candidate reconciliation).
+            // Defensive on two axes: test harnesses hand-build partial or current-schema-then-
+            // downgraded databases, so check the table AND the column before altering.
+            val hasTable = db.rawQuery(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'item_occurrences'", null,
+            ).use { it.moveToFirst() }
+            val hasColumn = hasTable && db.rawQuery(
+                "SELECT 1 FROM pragma_table_info('item_occurrences') WHERE name = 'is_manual'", null,
+            ).use { it.moveToFirst() }
+            if (hasTable && !hasColumn) {
+                db.execSQL(
+                    "ALTER TABLE item_occurrences ADD COLUMN is_manual INTEGER NOT NULL DEFAULT 0",
+                )
+            }
         }
     }
 
@@ -896,6 +915,10 @@ class MiningRepository(
         val expression: String,
         val state: String,
         val createdAt: Long,
+        /** Manual occurrences survive candidate-granularity reprocessing (user decision 2026-11-13). */
+        val modifiedByUserFlag: Boolean = false,
+        /** Word-editor provenance (schema v10): the ONLY flag that protects a row from reconcile. */
+        val isManual: Boolean = false,
     )
 
     /** Parsed word/grammar candidates of one sentence instance (photo, sentence), DELETED excluded. */
@@ -923,17 +946,67 @@ class MiningRepository(
     internal fun occurrenceRowsForSentence(photoId: Long, sentence: String): List<OccurrenceRow> =
         readableDatabase.query(
             "item_occurrences",
-            arrayOf("id", "item_type", "expression", "state", "created_at"),
+            arrayOf("id", "item_type", "expression", "state", "created_at", "modified_by_user_flag", "is_manual"),
             "photo_id = ? AND sentence = ?",
             arrayOf(photoId.toString(), sentence),
             null, null, "created_at DESC, id DESC",
         ).use { c ->
             buildList {
                 while (c.moveToNext()) {
-                    add(OccurrenceRow(c.getLong(0), c.getString(1), c.getString(2), c.getString(3), c.getLong(4)))
+                    add(
+                        OccurrenceRow(
+                            id = c.getLong(0), itemType = c.getString(1), expression = c.getString(2),
+                            state = c.getString(3), createdAt = c.getLong(4),
+                            modifiedByUserFlag = c.getInt(5) != 0,
+                            isManual = c.getInt(6) != 0,
+                        ),
+                    )
                 }
             }
         }
+
+    // ---- sentence word editor (user feature 2026-11-13) ----
+
+    /** Re-key an occurrence's expression (chip rename), preserving review state; marks it user-modified. */
+    fun updateOccurrenceExpression(photoId: Long, sentence: String, oldExpr: String, newExpr: String): Int {
+        val values = ContentValues().apply {
+            put("expression", newExpr)
+            put("modified_by_user_flag", true)
+            put("is_manual", true)
+        }
+        return writableDatabase.update(
+            "item_occurrences", values,
+            "photo_id = ? AND sentence = ? AND expression = ?",
+            arrayOf(photoId.toString(), sentence, oldExpr),
+        )
+    }
+
+    /** Soft state flip for one expression within one sentence (editor delete/restore). */
+    fun setOccurrenceStateForExpression(
+        photoId: Long,
+        sentence: String,
+        expression: String,
+        state: OccurrenceState,
+        modifiedByUserFlag: Boolean = true,
+    ): Int {
+        val values = ContentValues().apply {
+            put("state", state.name)
+            put("modified_by_user_flag", modifiedByUserFlag)
+            put("is_manual", true)
+        }
+        return writableDatabase.update(
+            "item_occurrences", values,
+            "photo_id = ? AND sentence = ? AND expression = ?",
+            arrayOf(photoId.toString(), sentence, expression),
+        )
+    }
+
+    /** States present for (photo, sentence, expression): DELETED-only means a recoverable add. */
+    fun occurrenceStatesForExpression(photoId: Long, sentence: String, expression: String): Set<String> =
+        readableDatabase.rawQuery(
+            "SELECT DISTINCT state FROM item_occurrences WHERE photo_id = ? AND sentence = ? AND expression = ?",
+            arrayOf(photoId.toString(), sentence, expression),
+        ).use { c -> generateSequence { if (c.moveToNext()) c.getString(0) else null }.toSet() }
 
     internal fun deleteOccurrenceById(id: Long): Int =
         writableDatabase.delete("item_occurrences", "id = ?", arrayOf(id.toString()))
@@ -1534,6 +1607,7 @@ class MiningRepository(
         sentence: String,
         createdAt: Long = System.currentTimeMillis() / 1000L,
         modifiedByUserFlag: Boolean = false,
+        isManual: Boolean = false,
     ): Long {
         val isHidden = readableDatabase.rawQuery(
             "SELECT is_hidden, visibility_state FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
@@ -1562,6 +1636,7 @@ class MiningRepository(
             put("created_at", createdAt)
             put("state", initialState.name)
             put("modified_by_user_flag", sentenceModified)
+            put("is_manual", isManual)
         }
         return writableDatabase.insert("item_occurrences", null, values)
     }
@@ -1627,7 +1702,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 9
+        private const val DB_VERSION = 10
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

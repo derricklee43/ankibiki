@@ -25,6 +25,17 @@
             android:padding="8dp"
             android:src="@drawable/ic_arrow_back" />
 
+        <!-- Sentence word editor entry (user feature 2026-11-13): edits THIS sentence's
+             occurrence rows (rename/delete/add), never the definitions or other sentences. -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/editWordsButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/word_editor_edit"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <ScrollView
@@ -74,6 +85,54 @@
                 android:layout_marginTop="14dp"
                 android:textIsSelectable="true"
                 android:textSize="18sp" />
+
+            <!-- 4. Word editor table (replaces chips while editing): one row per occurrence. -->
+            <LinearLayout
+                android:id="@+id/wordEditorContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <LinearLayout
+                    android:id="@+id/wordEditorRows"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:divider="?android:attr/listDivider"
+                    android:showDividers="middle"
+                    android:orientation="vertical" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/wordEditorAddButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
+                    android:text="@string/word_editor_add" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="end"
+                    android:orientation="horizontal">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/wordEditorCancelButton"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/word_editor_cancel" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/wordEditorSaveButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="@string/word_editor_save" />
+                </LinearLayout>
+            </LinearLayout>
 
         </LinearLayout>
     </ScrollView>

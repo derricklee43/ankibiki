@@ -166,6 +166,13 @@
     <string name="wizard_cards_preview_header">Card preview</string>
     <string name="wizard_duplicate_warning">Note: %1$d existing note(s) in this card type already start with this term.</string>
     <string name="wizard_photo_unavailable">Source photo unreadable — photo fields will be written blank.</string>
+    <string name="word_editor_edit">編集</string>
+    <string name="word_editor_add">＋ 新しい単語を追加</string>
+    <string name="word_editor_save">保存</string>
+    <string name="word_editor_cancel">取り消し</string>
+    <string name="word_editor_delete">削除</string>
+    <string name="word_editor_add_hint">単語を入力</string>
+    <string name="word_editor_saved">%1$d 件の変更を保存しました</string>
     <string name="wizard_preview_unavailable">(rendered preview unavailable — fields above show exactly what will be written)</string>
     <string name="wizard_created_linked">Card created and linked to the mined item</string>
     <string name="wizard_create_failed">Create failed: %1$s</string>

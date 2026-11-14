@@ -22,11 +22,13 @@ remain covered by the restore validation tests.
 ## What the corpus is, and where it lives
 
 Everything the app derives lives in one SQLite database, `mining.db`
-(`user_version` 9 as of writing — v5 added `card_templates`, v6 the `ocr_corrections`
+(`user_version` 10 as of writing — v5 added `card_templates`, v6 the `ocr_corrections`
 cloud-gate audit table, v7 the `is_gold` column (explicit Mark-as-gold membership), v8 the
 `nameplate_claims` audit ledger, v9 its `context_sentence` column (per-occurrence inline
-plate claims); auxiliary
-tables/columns ride in the bundled `mining.db` file itself, and pre-v9 bundles restore fine —
+plate claims), v10 `item_occurrences.is_manual` (word-editor provenance: editor rows survive
+candidate reconcile, and — unlike `modified_by_user_flag` — they are the ONLY rows protected
+from it); auxiliary
+tables/columns ride in the bundled `mining.db` file itself, and pre-v10 bundles restore fine —
 the app migrates the restored file on first open):
 
 | Table | Holds | Recovery-relevant columns |

@@ -51,8 +51,9 @@ TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # scraped_photos (explicit gold membership). Bundles carry the whole sqlite file, so auxiliary
 # tables/columns ship and restore regardless of validation scope; a pre-v7 bundle restored by a
 # v7 app simply migrates on first open. is_gold is deliberately NOT in MINING_COLUMNS so older
-# bundles stay restorable.
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+# bundles stay restorable. Same for v10's is_manual (word-editor provenance): a restored pre-v10
+# db migrates on first open.
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

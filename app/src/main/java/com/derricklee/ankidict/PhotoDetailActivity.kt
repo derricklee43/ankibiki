@@ -66,6 +66,11 @@ class PhotoDetailActivity : AppCompatActivity() {
      * (theme colorSurface, so light/dark both read correctly), label just "Gold".
      */
     private fun renderGoldButton() {
+        // Gold freezes reprocessing surfaces (user 2026-11-13): the rescan button is hidden
+        // entirely and the stale-words chip cannot fire (word refresh never runs on gold).
+        binding.refreshThumbnailButton.visibility = if (currentIsGold) View.GONE else View.VISIBLE
+        binding.staleWordsChip.visibility =
+            if (!currentIsGold && lastLoadedText.isNotBlank() && lastDerivedStale) View.VISIBLE else View.GONE
         val gold = androidx.core.content.ContextCompat.getColor(this, R.color.gold)
         val tv = android.util.TypedValue()
         theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, tv, true)
@@ -595,7 +600,7 @@ class PhotoDetailActivity : AppCompatActivity() {
             if (raw.isNotEmpty() && raw == lastLoadedText) " " + getString(R.string.raw_ocr_same_as_display) else ""
         applyRawOcrVisibility()
         binding.staleWordsChip.visibility =
-            if (lastLoadedText.isNotBlank() && lastDerivedStale) {
+            if (!currentIsGold && lastLoadedText.isNotBlank() && lastDerivedStale) {
                 View.VISIBLE
             } else {
                 View.GONE

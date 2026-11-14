@@ -77,6 +77,17 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
    language), a claims-queue screen to drain pending nameplate rulings in batches,
    bulk photo ops (mark, ignore, delete), and a gold dashboard (marks count,
    headline trend line).
+   (PARTIAL 2026-11-13: **sentence word editor** shipped — 編集 on the single
+   sentence view swaps chips for an occurrence table (word input + 削除 per row,
+   追加 row, 保存/取り消し). Semantics pinned by user: free-form adds allowed,
+   deletes are soft (re-add restores), renames preserve review state; overlap
+   allowed (みお震わせる alongside ふるわせる — occurrences are a SELECTION, not
+   a segmentation). New schema v10 `is_manual` provenance marks editor rows;
+   ONLY those survive candidate reconcile (`modified_by_user_flag` keeps its
+   §1 "user-authored text" meaning and does not protect — regression-pinned).
+   **Gold = finalizing stamp** (same day): rescan hidden AND refused in code
+   (`rescanPhoto` -> SKIPPED), word re-derivation coerced text-only on both
+   reprocess paths, stale chip suppressed. 7 instrumented specs; 73/73 suite.)
 C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
    CJK queries while keeping the character-exploration path; less
    collection-specific deck/note-type configuration.
