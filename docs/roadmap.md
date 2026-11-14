@@ -201,6 +201,18 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / language 
 C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
    CJK queries while keeping the character-exploration path; less
    collection-specific deck/note-type configuration.
+   (DONE 2026-11-14, 引き scope — the whole-word half of track C: multi-character CJK
+   queries now ALSO look up the compound itself, prepended ahead of the per-character
+   results; single-char / kana / romaji query surfaces untouched. `searchQueries()` extracted
+   as the pure split rule (JVM `SearchQueriesTest` 3 specs: 海賊 -> [海賊,海,賊], 海賊だ stays
+   whole, single char unchanged); `WholeWordLookupInstrumentedTest` 5 specs against the REAL
+   bundled tables: 海賊/かいぞく/pirate exact JMdict hit, 你好 CEDICT hit, compound lookups
+   never yield Kanji cards but characters still do, SearchService orders the word ahead of
+   every kanji hit (dictionary-only sources; the Anki tier is gated by enabledSources so the
+   service runs provider-less on the AVD). Live walk via the extra_initial_query deep-link
+   (CJK-safe, no IME needed): search 海賊 renders [海賊 word card, 海贼 CEDICT card, then the
+   海/賊 character cards] — word table reachability + ordering + preserved exploration, all
+   visible. Full instrumented suite 96/96, JVM 81 green.)
    (DONE 2026-11-13, word-list scope: romaji/kana/kanji/pinyin search in the
    抽出された単語 list via pure `Romaji`/`ItemSearch` — no library dependency: stored
    readings make reading-inference libraries (Kanayanize/ICU4J) unnecessary; the

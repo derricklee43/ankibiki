@@ -20,11 +20,7 @@ class SearchService(
         val enabledModelIds = enabledSources.mapNotNull { SEARCH_SOURCE_MODEL_ID[it] }
 
         val trimmed = query.trim()
-        val queries = if (trimmed.length > 1 && trimmed.all(::isCjkCharacter)) {
-            trimmed.map { it.toString() }
-        } else {
-            listOf(trimmed)
-        }
+        val queries = searchQueries(trimmed)
 
         val perQuery = queries.map { q ->
             val tiered = ankiRepository.searchTiered(q, enabledModelIds)
@@ -74,3 +70,18 @@ fun isCjkCharacter(c: Char): Boolean {
         block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A ||
         block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
 }
+
+/**
+ * Track C (user 2026-11-14): a multi-character CJK compound now ALSO looks up the whole string —
+ * the old per-character-only split made dictionary words (海賊, 海盗) unreachable from 引き even
+ * though the word tables match exact multi-character headwords/ readings. The compound is
+ * prepended so it takes the top priority slots, and the per-character exploration path is
+ * preserved exactly as before. Queries that already ran whole (single char, kana/mixed text,
+ * romaji) are untouched.
+ */
+internal fun searchQueries(trimmed: String): List<String> =
+    if (trimmed.length > 1 && trimmed.all(::isCjkCharacter)) {
+        listOf(trimmed) + trimmed.map { it.toString() }
+    } else {
+        listOf(trimmed)
+    }
