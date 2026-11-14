@@ -363,6 +363,21 @@ at the expense of data trust and extraction quality.
 
 ## Parked ideas
 
+### Merge photo page + sentence page into one (pinned 2026-11-13 by user after investigation)
+
+User model: one page, the photo optional. Investigation verdict: worth doing, but the
+work is not the transplant — data loaders already overlap (the photo page is a superset)
+and the word editor is sentence-scoped by construction. The long pole is **sentence
+granularity**: the photo page renders all sentences as one static blob with a blob
+editor, so merging means per-sentence rows (tap-to-expand chips + word editor + amend)
+that stay coherent with blob-level reprocess/stale semantics and the pinned sentence-
+ordering tests. Stage plan when un-parked: (1) sentence page grows the full photo panel
+(gold/rescan/raw-OCR/claims/stale — moved, not rewritten; low risk), (2) text becomes
+sentence rows, blob editor demoted to overflow, gallery opens photo-anchored, (3) delete
+PhotoDetailActivity and rewire ~6 instrumented classes that deep-link these activities.
+Open decisions to settle first: row interaction shape; keep-or-kill the blob text editor;
+swipe axes (horizontal=photo vs sentence). Cost estimate: 2–3 sessions, stage 2 the big one.
+
 ### Speaker-nameplate exclusion (pinned 2026-11-10 — needs evidence and an opt-in
 design before any production code)
 
