@@ -80,6 +80,11 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
 C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
    CJK queries while keeping the character-exploration path; less
    collection-specific deck/note-type configuration.
+   (DONE 2026-11-13, word-list scope: romaji/kana/kanji/pinyin search in the
+   抽出された単語 list via pure `Romaji`/`ItemSearch` — no library dependency: stored
+   readings make reading-inference libraries (Kanayanize/ICU4J) unnecessary; the
+   only missing bridge was a deterministic kana->romaji table with full+compact
+   variants ("toukyou"/"tokyo"). Same bridge applies to the 引き tab later if wanted.)
 D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
    a Settings surface hosting the correction-gate kill switch and future toggles
    (today both live only in code).

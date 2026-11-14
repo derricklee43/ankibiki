@@ -109,6 +109,26 @@ class ExtractedListActivity : AppCompatActivity() {
         binding.filterActiveChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
         binding.filterHiddenChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
         binding.filterArchiveChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
+
+        // Word search (kanji / kana / romaji / pinyin): filters the already-loaded set in
+        // memory — the list is bounded and the matcher is cheap; no SQL re-query per keystroke.
+        binding.searchEditText.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
+            override fun afterTextChanged(s: android.text.Editable?) = renderRows()
+        })
+    }
+
+    /** Last rows fetched from the repository (unfiltered); search renders against these. */
+    private var lastRows: List<ExtractedOccurrenceRow> = emptyList()
+
+    private fun renderRows() {
+        val query = binding.searchEditText.text?.toString().orEmpty()
+        val rows = if (query.isBlank()) lastRows else lastRows.filter {
+            ItemSearch.matches(it.expression, it.kana, query)
+        }
+        adapter.submitList(rows)
+        binding.emptyOccurrencesText.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
     }
 
     private fun cycleDirection(current: SortDirection, defaultFirst: SortDirection): SortDirection {
@@ -177,8 +197,8 @@ class ExtractedListActivity : AppCompatActivity() {
             val rows = miningRepository.getActiveOccurrences(query)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                adapter.submitList(rows)
-                binding.emptyOccurrencesText.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+                lastRows = rows
+                renderRows() // keeps the active search query applied across refreshes
             }
         }
     }

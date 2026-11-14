@@ -94,6 +94,8 @@ data class ExtractedOccurrenceRow(
     val levelBadge: String?,
     val corpusRank: Int?,
     val createdAt: Long,
+    /** Stored reading (kana for JP, pinyin for ZH) — feeds the romaji search matcher. */
+    val kana: String? = null,
 ) {
     fun formatFrequencyColumn(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }

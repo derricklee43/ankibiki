@@ -1059,7 +1059,8 @@ class MiningRepository(
                 ) AS occurrence_count,
                 i.level_badge,
                 i.corpus_rank,
-                o.created_at
+                o.created_at,
+                i.kana
             FROM item_occurrences o
             JOIN extracted_items i
               ON o.language_tag = i.language_tag
@@ -1085,6 +1086,7 @@ class MiningRepository(
                         levelBadge = cursor.getStringOrNull(6),
                         corpusRank = cursor.getIntOrNull(7),
                         createdAt = cursor.getLong(8),
+                        kana = cursor.getStringOrNull(9),
                     ),
                 )
             }
