@@ -73,4 +73,19 @@ class RomajiSearchTest {
         assertTrue(ItemSearch.matches("何", null, "  "))
         assertTrue(ItemSearch.matches("何", "なに", ""))
     }
+
+    @Test
+    fun fuzzy_tiers_only_for_ascii_queries_and_stays_bounded() {
+        // exact still tier 0
+        assertEquals(0, ItemSearch.searchTier("海賊", "かいぞく", "kaizoku"))
+        // 1 typo (s/z): within budget for a 7-char query
+        assertEquals(1, ItemSearch.searchTier("海賊", "かいぞく", "kaisoku"))
+        // doubled letter typo
+        assertEquals(1, ItemSearch.searchTier("海賊", "かいぞく", "kaizokku"))
+        // CJK query with one wrong char does NOT fuzzy (expression path is exact)
+        assertEquals(null, ItemSearch.searchTier("海賊", "かいぞく", "海赋"))
+        // short queries still work through EXACT containment (tier 0), just no fuzzy budget
+        assertEquals(0, ItemSearch.searchTier("海賊", "かいぞく", "kai"))
+        assertEquals(null, ItemSearch.searchTier("海賊", "かいぞく", "kal"))
+    }
 }

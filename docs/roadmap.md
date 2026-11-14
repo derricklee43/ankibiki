@@ -84,7 +84,10 @@ C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
    抽出された単語 list via pure `Romaji`/`ItemSearch` — no library dependency: stored
    readings make reading-inference libraries (Kanayanize/ICU4J) unnecessary; the
    only missing bridge was a deterministic kana->romaji table with full+compact
-   variants ("toukyou"/"tokyo"). Same bridge applies to the 引き tab later if wanted.)
+   variants ("toukyou"/"tokyo"). Bounded FUZZY tier added same day: ASCII queries >=4 chars
+   tolerate 1 edit (<8 chars) / 2 edits (>=8), windowed over reading variants, results ordered
+   exact-first; kanji/kana paths stay exact-containment (fuzzy CJK = noise). Same bridge
+   applies to the 引き tab later if wanted.)
 D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
    a Settings surface hosting the correction-gate kill switch and future toggles
    (today both live only in code).

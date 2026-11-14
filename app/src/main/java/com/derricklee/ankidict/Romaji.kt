@@ -160,4 +160,60 @@ object ItemSearch {
         }
         return false
     }
+
+    /**
+     * Bounded Levenshtein with early exit: returns a distance <= [max] if within budget,
+     * else null. O(len*max) rows, not the full matrix.
+     */
+    internal fun editDistanceWithin(a: String, b: String, max: Int): Int? {
+        if (kotlin.math.abs(a.length - b.length) > max) return null
+        var prev = IntArray(b.length + 1) { it }
+        for (i in 1..a.length) {
+            val cur = IntArray(b.length + 1).also { it[0] = i }
+            var rowMin = i
+            for (j in 1..b.length) {
+                cur[j] = minOf(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (if (a[i - 1] == b[j - 1]) 0 else 1))
+                rowMin = minOf(rowMin, cur[j])
+            }
+            if (rowMin > max) return null
+            prev = cur
+        }
+        val d = prev[b.length]
+        return if (d <= max) d else null
+    }
+
+    /**
+     * Match TIER for word-list search: 0 = exact (kanji/kana containment or a romaji/pinyin
+     * variant contains it), then 1/2 = typo-tolerant romaji only (ASCII queries of sufficient
+     * length; kanji and kana stay exact — sub-string fuzzy there is noise, not help).
+     * Returns null for no match.
+     */
+    fun searchTier(expression: String, kana: String?, query: String): Int? {
+        if (matches(expression, kana, query)) return 0
+        val q = query.trim().lowercase().replace('v', 'u')
+        if (q.length < 4) return null
+        if (!q.all { it in 'a'..'z' }) return null // fuzzy is romaji/pinyin-only
+        val max = if (q.length >= 8) 2 else 1
+        if (kana.isNullOrBlank()) return null
+        // Windowed distance: a mistyped query need only approximate SOME window of the full
+        // spelling (the query usually covers part of a longer reading); the TIER returned is the
+        // true minimum distance, so ordering reflects confidence.
+        var best: Int? = null
+        for (variant in Romaji.variants(kana)) {
+            if (variant == q) return 0
+            if (variant.length >= q.length - max) {
+                val winMin = minOf(q.length, variant.length)
+                for (len in maxOf(winMin - max, 2)..winMin) {
+                    for (i in 0..variant.length - len) {
+                        val d = editDistanceWithin(variant.substring(i, i + len), q, max)
+                        if (d != null) best = minOf(best ?: Int.MAX_VALUE, d)
+                    }
+                }
+            } else {
+                val d = editDistanceWithin(variant, q, max)
+                if (d != null) best = minOf(best ?: Int.MAX_VALUE, d)
+            }
+        }
+        return best
+    }
 }

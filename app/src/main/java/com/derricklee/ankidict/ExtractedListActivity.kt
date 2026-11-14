@@ -124,8 +124,13 @@ class ExtractedListActivity : AppCompatActivity() {
 
     private fun renderRows() {
         val query = binding.searchEditText.text?.toString().orEmpty()
-        val rows = if (query.isBlank()) lastRows else lastRows.filter {
-            ItemSearch.matches(it.expression, it.kana, query)
+        val rows = if (query.isBlank()) {
+            lastRows
+        } else {
+            lastRows.mapNotNull { row ->
+                ItemSearch.searchTier(row.expression, row.kana, query)?.let { tier -> row to tier }
+            }.sortedBy { it.second } // exact matches first, typo-tolerant romaji below
+                .map { it.first }
         }
         adapter.submitList(rows)
         binding.emptyOccurrencesText.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
