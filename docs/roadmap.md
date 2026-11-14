@@ -25,14 +25,16 @@ The original feature designs remain in
 [the Chinese word/hanzi sync plan](chinese-word-hanzi-sync-plan.md).
 This roadmap complements those designs rather than replacing them.
 
-## Current assessment (refreshed 2026-11-13)
+## Current assessment (refreshed 2026-11-14 — P0: this section no longer restates benchmark numbers)
 
 - The capture-to-study loop is **closed end-to-end**: photo mining -> transparent
   correction UX -> explicit gold marking (金 button) -> auto-applying quality gate ->
   card-creation wizard writing real AnkiDroid notes. Data trust (§1) and transparency
   (§3) shipped; recovery bundles are proven against the live corpus.
-- **Extraction quality is now the bottleneck, not plumbing.** The gold harness says
-  27/73 sentences exact, 7/46 segmentation (as-typed floor caveat applies); the
+- **Extraction quality is now the bottleneck, not plumbing.** Gold-harness numbers
+  live ONLY in [docs/extraction-pipeline-state.md](extraction-pipeline-state.md) —
+  P0 rule (2026-11-14): the roadmap points, never restates (the prior restatement
+  carried stale rev-5 figures 27/73 here while the same file targeted 31/126); the
   dominant classes — phantom-`。` stitching failures and nameplate leaks — are OUT of
   the correction gate's reach (it fixes recognition-substitution islands only).
 - The S003-D' gate ships auto-apply (user decision 2026-11-13) behind a per-island
@@ -57,7 +59,7 @@ state, decision log, gated invariants, backlog with entry points, and the
 re-entry protocol. Parked items, biggest lever first:
 
 1. **Stitching fixes** for parser-bound photos (`CjkSentenceParser`:
-   phantom-`。` guard + wrap stitching; target = segmentation beyond 31/127).
+   phantom-`。` guard + wrap stitching; target = segmentation beyond 31/126).
 2. **`gate_score.py`** — score `ocr_corrections` against marked gold; 19 applied
    samples already accruing toward the ~200-sample auto-apply checkpoint.
 3. **Claims ledger** — 20 pending 正しい/違う rulings, H9v2 merge proposals,
@@ -100,6 +102,29 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
    KEEP-photo occurrences. 11 JVM specs + 4 instrumented specs; full unit suite +
    77/77 emulator suite green; live walkthrough verified on emulator-5554, including
    gojūon order over the real corpus and the zero-occurrence tap path.)
+   SPEC 2026-11-14 (user go; from the agent review findings):
+   - [ ] **B1 — Claims queue screen.** Dedicated screen listing pending
+         `nameplate_claims` rows (standalone v8 + inline H9v2 merge proposals)
+         with the plate text, a deep-link to the owning photo, and 正しい/違う
+         per row; pending-count badge at the entry point. The flywheel currently
+         only spins when a photo happens to be open; 20+ rulings are accruing
+         unlabeled.
+         Exit criteria: (a) instrumented spec — queue drains pending to 0, every
+         ruling writes a verdict row, ruled plates never re-surface on rescan
+         (extends the existing hide-for-good assertions); (b) live walkthrough —
+         real pending count (SELECT at run start) drops to 0 on device/emulator;
+         (c) badge count == `SELECT COUNT(*) WHERE verdict IS NULL`, proven by a
+         test reading both sides.
+   - [ ] **B2 — Gold dashboard.** One screen: 金 count, `ocr_corrections`
+         applied/rejected shown against the ~200-sample auto-apply checkpoint,
+         headline per benchmark run (static table read from the fixture record —
+         NOT live OCR), correction-effort proxy (touched-before-gold per photo).
+         Also the guard against the extraction park going permanent: the parked
+         track gets a number that visibly accrues.
+         Exit criteria: (a) dashboard values match a scripted read of the same
+         corpus DB copy exactly (instrumented spec over both sides); (b) "gate
+         evidence N/200" renders from `ocr_corrections` counts; (c) roadmap §2
+         parked item 2 gets a pointer to the dashboard as its checkpoint view.
 C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
    CJK queries while keeping the character-exploration path; less
    collection-specific deck/note-type configuration.
@@ -114,11 +139,51 @@ C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
 D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
    a Settings surface hosting the correction-gate kill switch and future toggles
    (today both live only in code).
+   SPEC 2026-11-14 (user go; from the agent review findings):
+   - [ ] **D1 — A11y capture self-check.** `AnkiAccessibilityService`'s WebView
+         warm-up depends on Chromium internals (AnkiDroid's reviewer; Chrome
+         updates move the a11y trees) and has NO detector for its own failure —
+         a silent regression reads as an app bug. Change: on bubble trigger,
+         record whether the a11y selection arrived fresh vs stale/none
+         (timestamp compare); Settings surfaces
+         `selection capture: OK / degraded / last-success time + count` plus the
+         AnkiDroid package version logged alongside.
+         Exit criteria: (a) instrumented spec — faked fresh selection event flips
+         status to OK, silence past threshold flips to degraded; (b) Pixel manual
+         test written into this checkbox — bubble tap on a live AnkiDroid reviewer
+         without manually copying fires the lookup AND Settings shows that success
+         with a timestamp; (c) forced-degrade case (fake stale timestamps) shows
+         the degraded state before any debugging happens. Ship BEFORE the next
+         AnkiDroid update — its value requires proving on a working system.
+   - [ ] **D2 — MiningRepository read/write split (mechanical).** Extract all
+         read queries out of `MiningRepository.kt` (1780 lines) into
+         `MiningQueries`; writes/reconcile/migrations stay. Do BEFORE D3 —
+         the lifecycle work will touch this file, and the split also cheapens
+         diffs from parallel agent sessions.
+         Exit criteria: (a) full JVM + instrumented suites green with ZERO test
+         bodies edited (proves the split is mechanical); (b) both files < 900
+         lines; (c) the commit diff is moves-only.
+   - [ ] **D3 — Async consolidation + §5 interruption tests (the expensive one).**
+         Replace the 11 hand-rolled per-activity
+         `Executors.newSingleThreadExecutor()` + `runOnUiThread` sites with one
+         shared pattern (coroutines + `lifecycleScope` if kotlinx is acceptable,
+         else a shared executor wrapper class), then write the deferred §5 tests.
+         Exit criteria: (a) `grep -r newSingleThreadExecutor app/src/main` returns
+         0 after migration; (b) three instrumented tests pass on emulator —
+         rotation mid-scan keeps working with no duplicate work; process death
+         mid-rescan leaves the previous corpus intact (reuse existing
+         rollback-protection assertions); backgrounded-then-returned scan completes
+         and the UI reconnects; (c) §5's two checkboxes flip with the three test
+         names in the parenthetical.
 
 Suggested ordering: **B → A → D**, with C as occasional quick wins — B first
 because the ledger queue and triage are the daily loop right now while the
 pipeline side is frozen, and A turns the 126-photo corpus into study material,
-which is the point of all of it.
+which is the point of all of it. Two dependencies from the 2026-11-14 spec pass:
+B2 is the parked gate track's accruing checkpoint (pair it with a review date at
+the ~200-sample mark), and inside D the order is fixed D2 → D3 (split before
+lifecycle) with D1 independent and time-critical (before the next AnkiDroid
+update).
 
 ## 1. Finish the trust foundation — highest priority
 
@@ -323,6 +388,10 @@ must not silently create duplicate cards. Keep this a focused flow, not a genera
 Anki editor.
 
 ## 5. Improve lifecycle reliability and maintainability
+
+(SPEC 2026-11-14: the two unchecked items below are pinned as track D D3 with
+named exit criteria under ACTIVE track D; D1 a11y self-check + D2 repo split are
+its prerequisites/companions there.)
 
 - [ ] Move long scans toward lifecycle-independent, recoverable execution with
       useful progress, cancellation, and retry behavior.

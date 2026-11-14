@@ -9,8 +9,12 @@ without re-deriving it. No pipeline knowledge lives in agent memory — it lives
 
 **Measured state** (docs/benchmarks/2026-11-12-gold-baseline.md rev 6 + addenda):
 - Gold set: **126 photos / ~183 sentences** under explicit 金 marks (983 excluded as
-  a system-menu outlier). Headline: **73/185 exact (39.5%)**, segmentation-exact
-  31/127, mean char accuracy 0.796. As-typed gold is a correctness FLOOR — typos
+  a system-menu outlier). Headline: **73/181 exact (40.3%)**, segmentation-exact
+  31/126, mean char accuracy 0.799. (Re-verified 2026-11-14: `GoldBenchmarkTest`
+  regenerated from the committed fixtures returns sentenceExact 73/181,
+  segmentationExact 31, fixtures 126 — the prior 73/185 · 31/127 figures here
+  were the pre-983-exclusion baseline and should have moved with commits
+  ee0c46a/a162fea.) As-typed gold is a correctness FLOOR — typos
   surviving user passes are misses, not endorsements; quote that caveat with numbers.
 - Nameplate noise excluded from headline: 38 standalone + 27 inline leaks.
 - Grouped: legacy 46-photo set 24/71 (34%); new batch 49/114 (43%).
@@ -66,7 +70,7 @@ without re-deriving it. No pipeline knowledge lives in agent memory — it lives
 
 1. **Stitching fixes** for parser-bound photos (phantom-`。` guard + wrap
    stitching in `CjkSentenceParser`). Entry points: rev-6 report "wrong-set"
-   groupings; target = segmentation-exact beyond 31/127 without regressing
+   groupings; target = segmentation-exact beyond 31/126 without regressing
    parity/locked suites.
 2. **`gate_score.py`** — join `ocr_corrections` rows against marked gold per
    backup; emit precision + coverage checkpoints (50/100/200 applied samples);
