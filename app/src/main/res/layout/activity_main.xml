@@ -183,6 +183,58 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical">
 
+                    <!-- Section 1.5: 名前の板の候補 claims-queue entry (roadmap B1; visible while pending > 0,
+                         count text == SELECT COUNT(*) WHERE verdict IS NULL) -->
+                    <com.google.android.material.card.MaterialCardView
+                        android:id="@+id/claimsQueueCard"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_margin="6dp"
+                        android:visibility="gone"
+                        app:cardCornerRadius="16dp"
+                        app:cardElevation="3dp"
+                        app:contentPadding="12dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/claims_queue_entry_title"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold" />
+
+                                <TextView
+                                    android:id="@+id/claimsQueueCountText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:textColor="#888888"
+                                    android:textSize="12sp" />
+
+                            </LinearLayout>
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/claimsQueueButton"
+                                style="@style/Widget.MaterialComponents.Button.UnelevatedButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/claims_queue_entry_button" />
+
+                        </LinearLayout>
+
+                    </com.google.android.material.card.MaterialCardView>
+
                     <!-- Section 2: 抽出された単語 -->
                     <com.google.android.material.card.MaterialCardView
                         android:layout_width="match_parent"

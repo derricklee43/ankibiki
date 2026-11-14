@@ -103,7 +103,7 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
    77/77 emulator suite green; live walkthrough verified on emulator-5554, including
    gojūon order over the real corpus and the zero-occurrence tap path.)
    SPEC 2026-11-14 (user go; from the agent review findings):
-   - [ ] **B1 — Claims queue screen.** Dedicated screen listing pending
+   - [x] **B1 — Claims queue screen.** Dedicated screen listing pending
          `nameplate_claims` rows (standalone v8 + inline H9v2 merge proposals)
          with the plate text, a deep-link to the owning photo, and 正しい/違う
          per row; pending-count badge at the entry point. The flywheel currently
@@ -115,6 +115,32 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
          real pending count (SELECT at run start) drops to 0 on device/emulator;
          (c) badge count == `SELECT COUNT(*) WHERE verdict IS NULL`, proven by a
          test reading both sides.
+         SHIPPED 2026-11-14. The screen: `ClaimsQueueActivity` (名前の板の審査) —
+         one card per pending row, standalone plates monospace, inline proposals
+         rendered 「sentence」から「plate」をカット → 「remainder」 (remainder preview =
+         the shipped H9v2 rule over the REAL gate lexicon, enriched async so rows +
+         badge render from fast SQL alone); per-row 正しい (filled) / 違う (outlined) /
+         写真を開く icon deep-links the owning photo. Entry: 採掘-tab card 名前の板の候補
+         showing 未審査 N件, visible iff pending > 0, refreshed on resume. Rulings run
+         through the new `NameplateRuling` shared use case — extracted VERBATIM from
+         PhotoDetailActivity's inline handler (both screens now rule identically;
+         the photo view was rewired to it, zero behavior change).
+         Evidence: (a) `ClaimsQueueInstrumentedTest` 6 specs — query lists both kinds
+         newest-photo-first with the deep-link join fields and excludes ruled; badge
+         == raw `SELECT COUNT(*) WHERE verdict IS NULL` read BOTH sides (criterion c);
+         drain-to-zero writes verdict + verdict_at on every row; queue-ruled standalone
+         plates survive rescan hidden with no re-pending; queue-ruled inline cuts excise
+         through the real lexicon (tripwire assert: カイン must be out of it) and never
+         re-propose; 違う keeps the sentence; (b) emulator-5554 live walkthrough on the
+         real corpus copy: entry badge 未審査 20 件 == DB count at run start, 違う tap
+         → 19, deep-link opened the photo view and returned, 19 正しい taps drained the
+         header to 未審査 0 件 + empty state, entry card gone after BACK (onResume
+         re-read), DB readback pending=0 total=108 correct=105 incorrect=3
+         missing-verdict_at=0, マルス率いる merged line excised from extracted_text;
+         full instrumented suite 83/83 OK (77 prior + 6 new), JVM suite green.
+         CAVEAT: the walkthrough's 20 rulings are emulator-copy test data; the Pixel's
+         own 20 pending rows are UNTOUCHED — the production label stream for spike 004
+         comes from the user's real rulings, which still await him on-device.
    - [ ] **B2 — Gold dashboard.** One screen: 金 count, `ocr_corrections`
          applied/rejected shown against the ~200-sample auto-apply checkpoint,
          headline per benchmark run (static table read from the fixture record —

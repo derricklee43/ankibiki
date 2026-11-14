@@ -35,6 +35,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".ClaimsQueueActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".PhotoDetailActivity"
             android:exported="false" />
 

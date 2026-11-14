@@ -226,6 +226,9 @@ class MainActivity : AppCompatActivity() {
         binding.seeAllGrammarButton.setOnClickListener {
             startActivity(ExtractedListActivity.newIntent(this, ItemType.GRAMMAR))
         }
+        binding.claimsQueueButton.setOnClickListener {
+            startActivity(Intent(this, ClaimsQueueActivity::class.java))
+        }
 
         binding.bottomNav.setOnItemSelectedListener { item ->
             when (item.itemId) {
@@ -282,6 +285,7 @@ class MainActivity : AppCompatActivity() {
                     limit = PREVIEW_ROW_LIMIT,
                 ),
             )
+            val pendingClaims = miningRepository.countPendingNameplateClaims()
 
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -297,6 +301,13 @@ class MainActivity : AppCompatActivity() {
                 recentGrammarAdapter.submitList(recentGrammar)
                 binding.emptyRecentGrammarText.visibility =
                     if (recentGrammar.isEmpty()) View.VISIBLE else View.GONE
+
+                // claims-queue entry badge (B1): visible while rulings are pending.
+                binding.claimsQueueCard.visibility = if (pendingClaims > 0) View.VISIBLE else View.GONE
+                if (pendingClaims > 0) {
+                    binding.claimsQueueCountText.text =
+                        getString(R.string.claims_queue_pending_count, pendingClaims)
+                }
             }
         }
     }

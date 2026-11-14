@@ -594,6 +594,53 @@ class MiningRepository(
             }.toList()
         }
 
+    /**
+     * One unruled claim for the claims queue (roadmap B1), with the owning photo's fields needed
+     * to deep-link [PhotoDetailActivity] and render the source line. Newest photos first
+     * (triage follows the capture stream), then draft order within a photo.
+     */
+    data class PendingNameplateClaim(
+        val claimId: Long,
+        val text: String,
+        val contextSentence: String,
+        val source: String,
+        val mediaStoreId: Long,
+        val contentUri: String,
+        val dateAdded: Long,
+        val languageTag: LanguageTag,
+    )
+
+    fun pendingNameplateClaims(): List<PendingNameplateClaim> =
+        readableDatabase.rawQuery(
+            "SELECT c.id, c.text, c.context_sentence, c.source, c.photo_id, p.content_uri, p.date_added, p.language_tag " +
+                "FROM nameplate_claims c JOIN scraped_photos p ON p.media_store_id = c.photo_id " +
+                "WHERE c.verdict IS NULL ORDER BY p.date_added DESC, c.id ASC",
+            null,
+        ).use { c ->
+            generateSequence {
+                if (c.moveToNext()) {
+                    PendingNameplateClaim(
+                        claimId = c.getLong(0),
+                        text = c.getString(1),
+                        contextSentence = c.getString(2),
+                        source = c.getString(3),
+                        mediaStoreId = c.getLong(4),
+                        contentUri = c.getString(5),
+                        dateAdded = c.getLong(6),
+                        languageTag = runCatching { LanguageTag.valueOf(c.getString(7)) }.getOrNull()
+                            ?: LanguageTag.JAPANESE,
+                    )
+                } else null
+            }.toList()
+        }
+
+    /** Badge count for the queue entry — the same `verdict IS NULL` set the queue lists. */
+    fun countPendingNameplateClaims(): Int =
+        readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM nameplate_claims WHERE verdict IS NULL",
+            null,
+        ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+
     /** CJK projections of confirmed STANDALONE plates — the sentence filter for future mine/rescan passes. */
     fun hiddenNameplateCores(mediaStoreId: Long): Set<String> =
         readableDatabase.rawQuery(

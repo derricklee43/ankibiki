@@ -89,6 +89,15 @@
     <string name="nameplate_status_kept">✓ 台詞として残す</string>
     <string name="nameplate_hidden_toast">名前の板を隠しました — もう現れません</string>
     <string name="nameplate_kept_toast">台詞として残します — 次からは候補に出しません</string>
+    <!-- Claims queue (roadmap B1, 2026-11-14) -->
+    <string name="claims_queue_title">名前の板の審査</string>
+    <string name="claims_queue_pending_count">未審査 %1$d 件</string>
+    <string name="claims_queue_empty">審査待ちはありません — すべての候補が確定しました</string>
+    <string name="claims_queue_entry_title">名前の板の候補</string>
+    <string name="claims_queue_entry_button">審査する</string>
+    <string name="claims_open_photo">写真を開く</string>
+    <string name="claims_source_standalone">独り言の候補</string>
+    <string name="claims_source_inline">文中の結合の提案</string>
     <string name="photo_rescan_dialog_title">編集済みの写真を再スキャン</string>
     <string name="photo_rescan_warning">手動で編集したテキストがあります。承認すると写真からテキストを再抽出し、手動の編集と単語・文法の出現データを置き換えます。</string>
     <string name="photo_rescan_skip_explanation">テキスト抽出をスキップすると、サムネイルのみ更新します。テキストと編集済みの状態は保持されます。</string>

@@ -510,29 +510,7 @@ class PhotoDetailActivity : AppCompatActivity() {
         ioExecutor.execute {
             var failure: Exception? = null
             try {
-                if (claim.contextSentence.isNotEmpty() && correct) {
-                    // Inline ruling: excise through the reconciled text-edit path so word
-                    // occurrences rebuild — then settle the verdict (hidden for good on rescan).
-                    val lex = runCatching { GateLexiconProvider.lexicon(this@PhotoDetailActivity) }.getOrNull()
-                    val remainder = lex?.let { l ->
-                        NameplateInlineRule.suggestions(claim.contextSentence, l)
-                            .firstOrNull { it.plate == claim.text }?.remainder
-                    }
-                    val photo = miningRepository.getPhoto(mediaId)
-                    val current = photo?.extractedText.orEmpty()
-                    if (remainder != null && current.lineSequence().any { it.trim() == claim.contextSentence.trim() }) {
-                        val amended = current.split('\n')
-                            .joinToString("\n") { if (it.trim() == claim.contextSentence.trim()) remainder else it }
-                        miningPipelineRunner.reprocessPhotoText(
-                            mediaStoreId = mediaId, amendedText = amended, reprocessWords = true,
-                        )
-                    }
-                    // remainder == null: the merged sentence is already gone from the text (user
-                    // stripped it manually) — the plate confirmation itself still stands.
-                    miningRepository.applyNameplateVerdict(claim.id, correct)
-                } else {
-                    miningRepository.applyNameplateVerdict(claim.id, correct)
-                }
+                NameplateRuling.apply(this@PhotoDetailActivity, miningRepository, miningPipelineRunner, mediaId, claim, correct)
             } catch (e: Exception) {
                 failure = e
             }
