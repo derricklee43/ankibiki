@@ -379,6 +379,13 @@ class MainActivity : AppCompatActivity() {
                 restoreBundleLauncher.launch(arrayOf("application/zip"))
             }
         }
+        // gold dashboard (roadmap B2): quality scoreboard entry, settings menu
+        val dashboardRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
+        dashboardRow.actionLabel.setText(R.string.dashboard_open)
+        dashboardRow.root.setOnClickListener {
+            recoveryPopup?.dismiss()
+            startActivity(Intent(this, GoldDashboardActivity::class.java))
+        }
         bubbleRow.toggleSwitch.isChecked =
             settingsRepository.isFloatingBubbleEnabled() && Settings.canDrawOverlays(this)
         bubbleRow.toggleSwitch.setOnCheckedChangeListener { buttonView, isChecked ->

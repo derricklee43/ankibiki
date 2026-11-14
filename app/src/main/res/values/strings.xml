@@ -98,6 +98,24 @@
     <string name="claims_open_photo">写真を開く</string>
     <string name="claims_source_standalone">独り言の候補</string>
     <string name="claims_source_inline">文中の結合の提案</string>
+    <!-- Gold dashboard (roadmap B2, 2026-11-14) -->
+    <string name="dashboard_title">金ダッシュボード</string>
+    <string name="dashboard_gate_title">自動修正ゲート</string>
+    <string name="dashboard_gate_evidence">ゲート証拠: %1$d / %2$d サンプル</string>
+    <string name="dashboard_gate_breakdown">適用 %1$d · 却下 %2$d · 除外 %3$d</string>
+    <string name="dashboard_gate_note">チェックポイント到達でロールアウト再判断 — 各行は監査台帳に前後のテキスト付きで保存され、元に戻せます</string>
+    <string name="dashboard_gold_title">金マーク</string>
+    <string name="dashboard_gold_count">金の写真: %1$d 枚</string>
+    <string name="dashboard_effort">修正手間 proxy: マーク前に編集された %1$d / %2$d 枚</string>
+    <string name="dashboard_corpus">コーパス: 全 %1$d 枚 · KEEP %2$d 枚</string>
+    <string name="dashboard_bench_title">記録されたベンチマーク（静的）</string>
+    <string name="dashboard_bench_gold_set">ゴールド集合（写真）</string>
+    <string name="dashboard_bench_sentence_exact">文の完全一致</string>
+    <string name="dashboard_bench_segmentation">分詞の完全一致</string>
+    <string name="dashboard_bench_char_acc">文字精度（平均）</string>
+    <string name="dashboard_bench_source">記録 %1$s — 出典 %2$s — 静的記録でありライブOCRではありません</string>
+    <string name="dashboard_record_missing">ベンチマーク記録が見つかりません（資産なし）</string>
+    <string name="dashboard_open">金ダッシュボード</string>
     <string name="photo_rescan_dialog_title">編集済みの写真を再スキャン</string>
     <string name="photo_rescan_warning">手動で編集したテキストがあります。承認すると写真からテキストを再抽出し、手動の編集と単語・文法の出現データを置き換えます。</string>
     <string name="photo_rescan_skip_explanation">テキスト抽出をスキップすると、サムネイルのみ更新します。テキストと編集済みの状態は保持されます。</string>

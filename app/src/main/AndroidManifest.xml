@@ -39,6 +39,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".GoldDashboardActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".PhotoDetailActivity"
             android:exported="false" />
 

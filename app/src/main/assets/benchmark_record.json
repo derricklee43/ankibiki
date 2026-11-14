@@ -1,0 +1,12 @@
+{
+  "source_doc": "docs/extraction-pipeline-state.md",
+  "source_doc_sha256": "4345451e7ac7ad371ed52ff0b7c8c60e05940d0fdeacc7e9ea3f05b0737bab40",
+  "generated_utc": "2026-11-14T16:50:24Z",
+  "recorded": "2026-11-14",
+  "gold_fixture_photos": 126,
+  "sentence_exact": "73/181",
+  "sentence_exact_pct": "40.3%",
+  "segmentation_exact": "31/126",
+  "char_accuracy": "0.799",
+  "caveat": "as-typed gold is a correctness FLOOR — surviving typos are misses, not endorsements"
+}

@@ -641,6 +641,38 @@ class MiningRepository(
             null,
         ).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
 
+    /**
+     * Aggregates for the gold dashboard (roadmap B2): corpus size, 金 marks, the correction-effort
+     * proxy (gold photos whose text was user-edited before marking), and the auto-apply gate's
+     * audit-ledger counts. All single-pass SQL over the corpus DB; the dashboard renders these
+     * plus the static recorded benchmark — NEVER a live OCR run.
+     */
+    data class DashboardStats(
+        val totalPhotos: Int,
+        val keepPhotos: Int,
+        val goldPhotos: Int,
+        val goldUserEditedPhotos: Int,
+        val correctionsApplied: Int,
+        val correctionsRejected: Int,
+        val correctionsExcluded: Int,
+    )
+
+    fun getDashboardStats(): DashboardStats {
+        val db = readableDatabase
+        fun count(sql: String): Int =
+            db.rawQuery(sql, null).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+        return DashboardStats(
+            totalPhotos = count("SELECT COUNT(*) FROM scraped_photos"),
+            keepPhotos = count("SELECT COUNT(*) FROM scraped_photos WHERE status = 'KEEP'"),
+            goldPhotos = count("SELECT COUNT(*) FROM scraped_photos WHERE is_gold = 1"),
+            goldUserEditedPhotos =
+                count("SELECT COUNT(*) FROM scraped_photos WHERE is_gold = 1 AND modified_by_user_flag = 1"),
+            correctionsApplied = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'applied'"),
+            correctionsRejected = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'rejected'"),
+            correctionsExcluded = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'excluded'"),
+        )
+    }
+
     /** CJK projections of confirmed STANDALONE plates — the sentence filter for future mine/rescan passes. */
     fun hiddenNameplateCores(mediaStoreId: Long): Set<String> =
         readableDatabase.rawQuery(
