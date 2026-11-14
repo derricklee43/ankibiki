@@ -31,6 +31,7 @@ class AnkiAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        connectedAt = System.currentTimeMillis()
         mainHandler.post { warmUpAllWindows() }
     }
 
@@ -428,6 +429,11 @@ class AnkiAccessibilityService : AccessibilityService() {
     companion object {
         @Volatile
         var instance: AnkiAccessibilityService? = null
+            private set
+
+        /** When the service last connected — the session floor for capture freshness (D1, Pixel fix). */
+        @Volatile
+        var connectedAt: Long = 0L
             private set
 
         @Volatile

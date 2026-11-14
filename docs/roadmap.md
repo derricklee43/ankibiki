@@ -258,6 +258,28 @@ D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
          the a11y service actually enabled — is a Pixel session item; the AVD cannot
          exercise it (no Google WebView reviewer flow here), same convention as the
          Translate-chip precedent.
+         PIXEL SESSION 2026-11-14 — exit (b) DONE, and it falsified the classifier twice,
+         both fixes shipped + re-verified on-device: (1) the 10s-vs-tap window labeled a
+         HEALTHY capture degraded (real flow: select → read the card → tap the bubble,
+         minutes apart) — freshness is now measured against the a11y service's session
+         start (connectedAt); (2) the selection EVENT can stay quiet on the reviewer while
+         the service's own ACTION_COPY-on-touchdown delivers the text — a copy-delivered
+         trigger now also counts FRESH (the user's own clipboard still does NOT, which is
+         the point of the ledger). Live walk: a11y service + overlay enabled via adb
+         (pre-state recorded: null/0/default), bubble toggle on, long-press 分析 in the
+         AnkiDroid 2.25.3 reviewer WebView, bubble tap -> AnkiBiki popup rendered the
+         captured 析 decomposition (chop/tree/axe tree) with NO manual copy; Settings row
+         read 選択キャプチャ: 正常 (3/3 回) — 最終成功 10:24:02 · AnkiDroid 2.25.3.
+         Known quirk (noted, not fixed): the counter counts resolve passes, not user taps
+         (the popup re-resolves sources), so N/M reads inflated per tap — ratio semantics
+         unaffected. Device restored afterwards: bubble off, a11y services null,
+         accessibility_enabled 0, overlay appops default, service confirmed stopped,
+         reviewer exited WITHOUT grading the card (flipped only — no revlog).
+         The Pixel also caught one fixture bug: TextLocalesInstrumentedTest's NA case
+         asserted size<=1, which fails on a multilingual device (en/ja/zh system locales
+         default the fallback list >1) — now asserts the real contract (NA does not
+         rewrite the list). Full suites after all fixes: 99/99 on Pixel 10 Pro XL AND
+         99/99 on emulator-5554.
    - [x] **D2 — MiningRepository read/write split (mechanical).** Extract all
          read queries out of `MiningRepository.kt` (1780 lines) into
          `MiningQueries`; writes/reconcile/migrations stay. Do BEFORE D3 —
@@ -344,6 +366,13 @@ See [docs/recovery.md](recovery.md) (`scripts/backup_bundle.py`).
       in backups/manual/*.zip, content-verified against the Pixel source —
       copying one off this machine is still a manual step, and photo bytes
       need the device connected at export time)
+      (RE-CUT 2026-11-14 device session: fresh full bundle WITH photos from the
+      live 225-photo corpus — ankibiki-corpus-20261114-100427.zip, 452 MB, rows
+      225/815/1027, user_version 10 — staged 224/225 photo bytes (1 media id no
+      longer in MediaStore: pre-existing drift, reported not hidden), copied to
+      C:\\Users\\derri\\Documents\\AnkiBikiBackups\\ AND OneDrive\\AnkiBikiBackups\\,
+      all three SHA-256 identical, OneDrive copy re-verified. Snapshots
+      20261114-100010/100236 precede the write probes.)
 - [x] Document recovery and demonstrate a restore into an isolated installation
       or database before calling backup/recovery complete.
       (docs/recovery.md; demonstrated 2026-11-10 on isolated databases and on a
@@ -543,6 +572,13 @@ its prerequisites/companions there.)
       existing rollback suite. REMAINING for a Pixel session: real kill -9 during rescan,
       permission-loss behavior, editor pending-save-target evidence — in-process
       simulation cannot honestly fake these, so the box stays unchecked per the evidence rule.)
+      (PIXEL SESSION 2026-11-14: kill -9 mid-rescan DONE on #952 (least-impact target
+      chosen from the snapshot: KEEP, non-gold, never-edited, 10 chars; reached via the
+      claims-queue deep-link, the claim itself left pending): force-stopped ~1s after
+      再スキャン -> pulled DB: integrity ok, photo text byte-identical to the pre-probe
+      snapshot, occurrences/claims/totals unchanged (the kill landed before the write
+      transaction — the atomicity contract held), app reopened the photo clean. Permission
+      loss + editor pending-save-target remain open; box stays unchecked.)
 - [ ] Consolidate mutation/reprocessing rules into explicit use cases rather than
       allowing Activity callbacks to become the source of business rules.
 - [x] Update the README to describe mining, data ownership, backups, cloud/offline

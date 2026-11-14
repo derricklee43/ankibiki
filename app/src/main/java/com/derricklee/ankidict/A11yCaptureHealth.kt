@@ -5,30 +5,41 @@ package com.derricklee.ankidict
  *
  * The floating-bubble lookup depends on [AnkiAccessibilityService]'s WebView warm-up, which
  * leans on Chromium internals that can move with any Chrome/AnkiDroid update — and until now
- * the service had NO detector for its own failure: a silent a11y regression reads as "the app
+ * the service had NO detector for its own failure: a silent regression reads as "the app
  * is broken" instead of "selection capture stopped delivering".
  *
- * Model: at every bubble trigger (resolveBestText), classify the a11y selection timestamp
- * against the trigger clock:
- * - FRESH   — a selection arrived within [FRESH_WINDOW_MS] of the tap (capture is alive);
- * - STALE   — a selection exists but predates the window (likely a dead tree + old text);
- * - ABSENT  — nothing ever recorded (service not running or trees never warmed).
- * The Settings popup renders the rolling status so a regression shows up BEFORE anyone
- * debugs the app. Pure JVM logic (no Android types) pinned by A11yCaptureHealthTest.
+ * Freshness semantics (corrected by the first Pixel run, 2026-11-14): the original rule —
+ * selection within 10s of the bubble TAP — mislabeled healthy captures as degraded, because
+ * real usage is select → read the card → tap the bubble, minutes apart. The invariant that
+ * actually proves the pipeline is alive: the selection event ARRIVED DURING THE CURRENT
+ * SERVICE SESSION (timestamp >= connectedAt). A pre-session timestamp means the ledger holds
+ * only stale text from a dead/old session; nothing recorded means never delivered.
+ * Pure JVM logic (no Android types) pinned by A11yCaptureHealthTest.
  */
 enum class CaptureStatus { FRESH, STALE, ABSENT }
 
 object A11yCaptureHealth {
 
-    /** Selection must be no older (or newer) than this around the tap to count as live capture. */
-    const val FRESH_WINDOW_MS = 10_000L
-
-    fun classify(triggerAt: Long, selectionTimestamp: Long, windowMs: Long = FRESH_WINDOW_MS): CaptureStatus =
+    /**
+     * Session-based classification (both rules learned from the first Pixel run):
+     * FRESH   — the a11y selection ledger delivered text DURING the current service session,
+     *           or this trigger's lookup came from the service's own ACTION_COPY (the WebView
+     *           copy path is capture machinery too; the real flow often delivers via it while
+     *           TYPE_VIEW_SELECTED stays quiet);
+     * STALE   — text existed but only from a pre-session ledger or the user's own clipboard —
+     *           the lookup worked without the capture pipeline proving itself;
+     * ABSENT  — nothing delivered and no session.
+     */
+    fun classify(selectionTimestamp: Long, serviceConnectedAt: Long, copyDelivered: Boolean): CaptureStatus =
         when {
-            selectionTimestamp <= 0L -> CaptureStatus.ABSENT
-            kotlin.math.abs(triggerAt - selectionTimestamp) <= windowMs -> CaptureStatus.FRESH
-            else -> CaptureStatus.STALE
+            selectionTimestamp > 0L && serviceConnectedAt > 0L && selectionTimestamp >= serviceConnectedAt -> CaptureStatus.FRESH
+            copyDelivered -> CaptureStatus.FRESH
+            selectionTimestamp > 0L -> CaptureStatus.STALE
+            else -> CaptureStatus.ABSENT
         }
+
+    fun classify(selectionTimestamp: Long, serviceConnectedAt: Long): CaptureStatus =
+        classify(selectionTimestamp, serviceConnectedAt, copyDelivered = false)
 
     // ---- rolling store (written from the bubble's IO path, read by the Settings popup) ----
 
@@ -40,8 +51,8 @@ object A11yCaptureHealth {
     @Volatile var ankiPackageVersion: String? = null; private set
 
     /** One recorded bubble trigger; [selectionTimestamp] from the a11y service's ledger. */
-    fun recordTrigger(triggerAt: Long, selectionTimestamp: Long, nowMs: Long = System.currentTimeMillis()) {
-        val status = classify(triggerAt, selectionTimestamp)
+    fun recordTrigger(triggerAt: Long, selectionTimestamp: Long, serviceConnectedAt: Long, copyDelivered: Boolean, nowMs: Long = System.currentTimeMillis()) {
+        val status = classify(selectionTimestamp, serviceConnectedAt, copyDelivered)
         lastTriggerAt = triggerAt
         triggerCount += 1
         lastStatus = status

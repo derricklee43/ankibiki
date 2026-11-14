@@ -319,10 +319,15 @@ class FloatingBubbleService : Service() {
         val (a11yText, a11yTimestamp) = AnkiAccessibilityService.getLastSelectionWithTimestamp()
         val cjkA11y = a11yText?.takeIf { it.any(::isCjkCharacter) }
 
-        // D1 capture-health: classify the a11y selection against the trigger clock BEFORE
-        // source arbitration decides the answer — the health ledger tracks the a11y path,
-        // not whether some other source happened to rescue this particular lookup.
-        A11yCaptureHealth.recordTrigger(System.currentTimeMillis(), a11yTimestamp)
+        // D1 capture-health: classify the a11y selection against the service session, plus
+        // whether THIS trigger's text came from the service's own ACTION_COPY (the WebView
+        // copy path is capture machinery too — the Pixel run showed the selection event can
+        // stay quiet while the copy delivers). Health tracks the capture pipeline, not
+        // whether the user's own clipboard happened to rescue the lookup.
+        A11yCaptureHealth.recordTrigger(
+            System.currentTimeMillis(), a11yTimestamp, AnkiAccessibilityService.connectedAt,
+            copyDelivered = triggeredCopy && cjkClip != null,
+        )
         if (A11yCaptureHealth.ankiPackageVersion == null) {
             runCatching {
                 packageManager.getPackageInfo("com.ichi2.anki", 0).versionName
