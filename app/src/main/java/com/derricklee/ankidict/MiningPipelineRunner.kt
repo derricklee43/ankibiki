@@ -227,7 +227,7 @@ class MiningPipelineRunner(
         }
 
         val sentences0 = config.sentenceParser.parseSentences(workingDocument)
-        // Nameplate audit claims (user 2026-11-13): proxy drafts that LEAKED into the sentence
+        // Nameplate audit claims (user 2026-11-13): proxy drafts that LEAK into the sentence
         // list become pending claims — visible until the user rules; a confirmed plate is hidden
         // for good here (rescan re-filter) and by applyNameplateVerdict (retroactive strip).
         // Nothing is removed on draft; the user's verdict is the only destructive action.
@@ -239,7 +239,27 @@ class MiningPipelineRunner(
                 intersect claims.map { gateCjkOnly(it) }.toSet(),
         )
         val hidden = miningRepository.hiddenNameplateCores(candidate.mediaStoreId)
-        val sentences = if (hidden.isEmpty()) claims else claims.filterNot { gateCjkOnly(it) in hidden }
+        val standaloneFiltered =
+            if (hidden.isEmpty()) claims else claims.filterNot { gateCjkOnly(it) in hidden }
+        // H9v2 inline-plate PROPOSALS (spike 004, suggestion grade): confirmed cuts re-apply on
+        // every mine/rescan (hidden-for-good); fresh firings enter the ledger as PENDING rows.
+        // Nothing here deletes or rewrites text without a user verdict (G1/G2).
+        val lex = config.nameplateLexicon?.invoke()
+        val sentences = if (lex == null || tag != LanguageTag.JAPANESE) {
+            standaloneFiltered
+        } else {
+            val hiddenInline = miningRepository.hiddenInlineClaims(candidate.mediaStoreId)
+            val cut = if (hiddenInline.isEmpty()) standaloneFiltered else standaloneFiltered.map { s ->
+                val ruling = hiddenInline.firstOrNull { it.contextSentence == s }
+                if (ruling == null) s
+                else NameplateInlineRule.suggestions(s, lex).firstOrNull { it.plate == ruling.text }?.remainder ?: s
+            }
+            miningRepository.insertInlineNameplateClaims(
+                candidate.mediaStoreId,
+                cut.flatMap { s -> NameplateInlineRule.suggestions(s, lex).map { it.plate to s } },
+            )
+            cut
+        }
         val displayExtractedText = if (sentences.isNotEmpty()) {
             sentences.joinToString("\n")
         } else {
@@ -637,6 +657,9 @@ class MiningPipelineRunner(
                     reader = CloudReedReader { image ->
                         runCatching { cloudJp.extract(image, null) }.getOrNull()
                     },
+                    // Spike 004 verdict: the gate's plate-adjacency input is the recurrence
+                    // lexicon ∪ ledger-confirmed plates — NOT the A0 proxy (4 content casualties).
+                    nameplateStrings = { _ -> miningRepository.nameplateGateStrings() },
                 )
             } else {
                 null
@@ -658,6 +681,9 @@ class MiningPipelineRunner(
                 ),
                 ankiMatchLookup = ankiMatchLookup,
                 correctionPass = jpCorrectionPass,
+                // H9v2 inline plate proposals: real lexicon from the bundled dictionary (offline,
+                // process-cached). Proposals only — the photo-view verdict is the actor.
+                nameplateLexicon = { runCatching { GateLexiconProvider.lexicon(appContext) }.getOrNull() },
             )
 
             val zhConfig = PipelineConfig(

@@ -112,11 +112,12 @@ class MiningRepository(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 photo_id INTEGER NOT NULL,
                 text TEXT NOT NULL,
+                context_sentence TEXT NOT NULL DEFAULT '',
                 source TEXT NOT NULL DEFAULT 'proxy',
                 verdict TEXT,
                 created_at INTEGER NOT NULL,
                 verdict_at INTEGER,
-                UNIQUE(photo_id, text)
+                UNIQUE(photo_id, text, context_sentence)
             )
             """.trimIndent(),
         )
@@ -158,6 +159,36 @@ class MiningRepository(
         }
         if (oldVersion < 8) {
             createNameplateClaimsSchema(db)
+        }
+        if (oldVersion < 9) {
+            // v9: inline plate claims need per-occurrence identity (カイン may be a plate on one
+            // line and a vocative on another in the SAME photo) — rebuild with context_sentence.
+            db.execSQL(
+                """
+                CREATE TABLE nameplate_claims_v9 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    photo_id INTEGER NOT NULL,
+                    text TEXT NOT NULL,
+                    context_sentence TEXT NOT NULL DEFAULT '',
+                    source TEXT NOT NULL DEFAULT 'proxy',
+                    verdict TEXT,
+                    created_at INTEGER NOT NULL,
+                    verdict_at INTEGER,
+                    UNIQUE(photo_id, text, context_sentence)
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO nameplate_claims_v9 (id, photo_id, text, context_sentence, source, verdict, created_at, verdict_at)
+                SELECT id, photo_id, text, '', source, verdict, created_at, verdict_at FROM nameplate_claims
+                """.trimIndent(),
+            )
+            db.execSQL("DROP TABLE nameplate_claims")
+            db.execSQL("ALTER TABLE nameplate_claims_v9 RENAME TO nameplate_claims")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS idx_nameplate_claims_photo ON nameplate_claims(photo_id, verdict)",
+            )
         }
     }
 
@@ -485,16 +516,47 @@ class MiningRepository(
 
     // ---- Nameplate audit claims (v8; see createNameplateClaimsSchema for semantics) ----
 
-    data class NameplateClaim(val id: Long, val text: String, val verdict: String?)
+    data class NameplateClaim(
+        val id: Long,
+        val text: String,
+        val contextSentence: String,
+        val verdict: String?,
+    )
 
-    /** Idempotent draft insert (UNIQUE photo+text): called from the mining path per leaked line. */
+    /** Idempotent draft insert (UNIQUE photo+text+context): called from the mining path per leaked line. */
     fun insertNameplateClaims(mediaStoreId: Long, cores: Set<String>, now: Long = System.currentTimeMillis()) {
         for (core in cores) {
             if (core.isBlank()) continue
             val values = ContentValues().apply {
                 put("photo_id", mediaStoreId)
                 put("text", core)
+                put("context_sentence", "")
                 put("source", "proxy")
+                put("created_at", now)
+            }
+            writableDatabase.insertWithOnConflict(
+                "nameplate_claims", null, values, SQLiteDatabase.CONFLICT_IGNORE,
+            )
+        }
+    }
+
+    /**
+     * H9v2 merge proposals (suggestion-grade, spike 004): one row per (plate, sentence) the rule
+     * fires on. NEVER destructive — the sentence keeps its plate until the user rules 正しい in
+     * the photo view (which excises it through the normal text-reconciliation path).
+     */
+    fun insertInlineNameplateClaims(
+        mediaStoreId: Long,
+        proposals: Collection<Pair<String, String>>, // plate to context sentence
+        now: Long = System.currentTimeMillis(),
+    ) {
+        for ((plate, sentence) in proposals) {
+            if (plate.isBlank() || sentence.isBlank()) continue
+            val values = ContentValues().apply {
+                put("photo_id", mediaStoreId)
+                put("text", plate)
+                put("context_sentence", sentence)
+                put("source", "h9")
                 put("created_at", now)
             }
             writableDatabase.insertWithOnConflict(
@@ -505,21 +567,33 @@ class MiningRepository(
 
     fun nameplateClaims(mediaStoreId: Long): List<NameplateClaim> =
         readableDatabase.rawQuery(
-            "SELECT id, text, verdict FROM nameplate_claims WHERE photo_id = ? ORDER BY id",
+            "SELECT id, text, context_sentence, verdict FROM nameplate_claims WHERE photo_id = ? ORDER BY id",
             arrayOf(mediaStoreId.toString()),
         ).use { c ->
             generateSequence {
-                if (c.moveToNext()) NameplateClaim(c.getLong(0), c.getString(1), c.getString(2)) else null
+                if (c.moveToNext()) NameplateClaim(c.getLong(0), c.getString(1), c.getString(2), c.getString(3)) else null
             }.toList()
         }
 
-    /** CJK projections of confirmed plates — the sentence filter for future mine/rescan passes. */
+    /** CJK projections of confirmed STANDALONE plates — the sentence filter for future mine/rescan passes. */
     fun hiddenNameplateCores(mediaStoreId: Long): Set<String> =
         readableDatabase.rawQuery(
-            "SELECT text FROM nameplate_claims WHERE photo_id = ? AND verdict = 'correct'",
+            "SELECT text FROM nameplate_claims WHERE photo_id = ? AND verdict = 'correct' AND context_sentence = ''",
             arrayOf(mediaStoreId.toString()),
         ).use { c ->
             generateSequence { if (c.moveToNext()) c.getString(0) else null }.toSet()
+        }
+
+    /** Confirmed INLINE cuts (plate, sentence): rescan re-excises these before display/persistence. */
+    fun hiddenInlineClaims(mediaStoreId: Long): List<NameplateClaim> =
+        readableDatabase.rawQuery(
+            "SELECT id, text, context_sentence, verdict FROM nameplate_claims " +
+                "WHERE photo_id = ? AND verdict = 'correct' AND context_sentence != ''",
+            arrayOf(mediaStoreId.toString()),
+        ).use { c ->
+            generateSequence {
+                if (c.moveToNext()) NameplateClaim(c.getLong(0), c.getString(1), c.getString(2), c.getString(3)) else null
+            }.toList()
         }
 
     /**
@@ -536,13 +610,15 @@ class MiningRepository(
             val db = writableDatabase
             var mediaStoreId = -1L
             var core = ""
+            var context = ""
             db.rawQuery(
-                "SELECT photo_id, text FROM nameplate_claims WHERE id = ?",
+                "SELECT photo_id, text, context_sentence FROM nameplate_claims WHERE id = ?",
                 arrayOf(claimId.toString()),
             ).use { c ->
                 if (c.moveToFirst()) {
                     mediaStoreId = c.getLong(0)
                     core = c.getString(1)
+                    context = c.getString(2)
                 }
             }
             if (mediaStoreId < 0) return@inTransaction
@@ -557,6 +633,11 @@ class MiningRepository(
                 arrayOf(claimId.toString()),
             )
             if (!correct) return@inTransaction
+            if (context.isNotEmpty()) {
+                // INLINE claim: the caller applies the cut through reprocessPhotoText so word
+                // occurrences are rebuilt; this method only settles the verdict.
+                return@inTransaction
+            }
             var text = ""
             db.rawQuery(
                 "SELECT extracted_text FROM scraped_photos WHERE media_store_id = ?",
@@ -591,24 +672,61 @@ class MiningRepository(
      * current extracted_text. Verdicts stay with the user; CONFLICT_IGNORE makes this idempotent,
      * so reruns after seeded rounds only ADD genuinely new pending rows.
      */
-    fun backfillNameplateClaims(): Int {
+    fun backfillNameplateClaims(inlineLexicon: GateLexicon? = null): Int {
         var inserted = 0
         for (photo in getAllScrapedPhotos()) {
             val document = OcrDocument.fromJsonString(photo.ocrBlocksJson) ?: continue
             val drafts = runCatching { OcrCorrectionPass.draftNameplateStrings(document) }
                 .getOrDefault(emptySet())
-            if (drafts.isEmpty()) continue
-            val leaked = photo.extractedText.split('\n')
-                .map { gateCjkOnly(it) }
-                .filter { it.isNotEmpty() }
-                .toSet()
-            val cores = drafts intersect leaked
-            if (cores.isEmpty()) continue
-            val before = nameplateClaims(photo.mediaStoreId).map { it.text }.toSet()
-            insertNameplateClaims(photo.mediaStoreId, cores)
-            inserted += (cores - before).size
+            if (drafts.isNotEmpty()) {
+                val leaked = photo.extractedText.split('\n')
+                    .map { gateCjkOnly(it) }
+                    .filter { it.isNotEmpty() }
+                    .toSet()
+                val cores = drafts intersect leaked
+                if (cores.isNotEmpty()) {
+                    val before = nameplateClaims(photo.mediaStoreId).map { it.text to it.contextSentence }.toSet()
+                    insertNameplateClaims(photo.mediaStoreId, cores)
+                    inserted += cores.map { it to "" }.subtract(before).size
+                }
+            }
+            if (inlineLexicon != null) {
+                val proposals = photo.extractedText.split('\n').flatMap { line ->
+                    NameplateInlineRule.suggestions(line, inlineLexicon).map { it.plate to line }
+                }
+                if (proposals.isNotEmpty()) {
+                    val before = nameplateClaims(photo.mediaStoreId).map { it.text to it.contextSentence }.toSet()
+                    insertInlineNameplateClaims(photo.mediaStoreId, proposals)
+                    inserted += proposals.toSet().subtract(before).size
+                }
+            }
         }
         return inserted
+    }
+
+    /**
+     * Nameplate strings the cloud-gate should treat as plate-adjacent (roadmap shipping note,
+     * spike 004 verdict): the recurrence lexicon (H3 — the ONLY zero-casualty signal measured)
+     * plus every ledger-confirmed plate. REPLACES the A0 structural proxy as the gate's upstream
+     * exclusion input: A0 flagged 4 genuine content lines (ヘヘヘ-class), which as gate input
+     * silently suppressed correct fixes near content. Derived + recomputable (G3): pure function
+     * of stored texts and user verdicts.
+     */
+    fun nameplateGateStrings(): Set<String> {
+        val counts = HashMap<String, MutableSet<Long>>()
+        for (photo in getAllScrapedPhotos()) {
+            for (line in photo.extractedText.split('\n')) {
+                val proj = gateCjkOnly(line)
+                if (proj.length !in 2..8) continue
+                if (line.any { it in "。．！？!?.…" }) continue
+                counts.getOrPut(proj) { HashSet() }.add(photo.mediaStoreId)
+            }
+        }
+        val recurring = counts.filterValues { it.size >= 2 }.keys
+        val confirmed = readableDatabase.rawQuery(
+            "SELECT DISTINCT text FROM nameplate_claims WHERE verdict = 'correct'", null,
+        ).use { c -> generateSequence { if (c.moveToNext()) c.getString(0) else null }.toSet() }
+        return recurring + confirmed
     }
 
     /** Marks existing sentence objects changed through the whole-photo text editor. */
@@ -1507,7 +1625,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 8
+        private const val DB_VERSION = 9
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

@@ -378,6 +378,17 @@ class PhotoDetailActivity : AppCompatActivity() {
                 val rows = miningRepository.getOccurrenceSentenceRows(mediaId)
                 val document = OcrDocument.fromJsonString(photo?.ocrBlocksJson)
                 val claims = miningRepository.nameplateClaims(mediaId)
+                val inlineRemainders = HashMap<Long, String>()
+                if (claims.any { it.contextSentence.isNotEmpty() }) {
+                    val lex = runCatching { GateLexiconProvider.lexicon(this@PhotoDetailActivity) }.getOrNull()
+                    if (lex != null) {
+                        for (cl in claims) if (cl.contextSentence.isNotEmpty()) {
+                            NameplateInlineRule.suggestions(cl.contextSentence, lex)
+                                .firstOrNull { it.plate == cl.text }
+                                ?.let { inlineRemainders[cl.id] = it.remainder }
+                        }
+                    }
+                }
                 val resolvedUri = photo?.contentUri?.takeIf { it.isNotBlank() } ?: fallbackContentUri
                 runOnUiThread {
                     if (isFinishing || isDestroyed || generation != textLoadGeneration ||
@@ -390,7 +401,7 @@ class PhotoDetailActivity : AppCompatActivity() {
                     renderGoldButton()
                     binding.extractedTextDisplay.text =
                         text.ifBlank { getString(R.string.no_extracted_text) }
-                    renderNameplateClaims(mediaId, claims)
+                    renderNameplateClaims(mediaId, claims, inlineRemainders)
                     bindTransparencyViews()
                     loadingText = false
                     updateActionAvailability()
@@ -406,27 +417,34 @@ class PhotoDetailActivity : AppCompatActivity() {
     }
 
     /**
-     * Nameplate audit ledger for the current photo (v8 table, drafted by the mining proxy).
-     * Pending rows expose 正しい/違う; once ruled the row settles to a status label and the
-     * plate is decided "for good": correct hides the line from text + future mine/rescan,
-     * incorrect keeps it and CONFLICT_IGNORE prevents any re-suggestion for this photo.
+     * Nameplate audit ledger for the current photo (v9 table; standalone drafts from the mining
+     * proxy + H9v2 inline merge proposals). Pending rows expose 正しい/違う; once ruled the row
+     * settles to a status label and the plate is decided "for good": correct hides the standalone
+     * line (or excises the plate from the merged sentence through the normal text-reconciliation
+     * path), incorrect keeps the text and never re-proposes it for this photo.
      */
     private fun renderNameplateClaims(
         mediaId: Long,
         claims: List<MiningRepository.NameplateClaim>,
+        inlineRemainders: Map<Long, String>,
     ) {
         val rows = binding.nameplateClaimsRows
         rows.removeAllViews()
         binding.nameplateClaimsSection.visibility = if (claims.isEmpty()) View.GONE else View.VISIBLE
         for (claim in claims) {
+            val inline = claim.contextSentence.isNotEmpty()
             val row = android.widget.LinearLayout(this).apply {
                 orientation = android.widget.LinearLayout.HORIZONTAL
                 gravity = android.view.Gravity.CENTER_VERTICAL
             }
             row.addView(android.widget.TextView(this).apply {
-                text = claim.text
-                typeface = Typeface.MONOSPACE
-                textSize = 14f
+                text = if (!inline) claim.text else buildString {
+                    append("「").append(claim.contextSentence).append("」から\n")
+                    append("「").append(claim.text).append("」をカット")
+                    inlineRemainders[claim.id]?.let { append(" → 「").append(it).append("」") }
+                }
+                if (!inline) typeface = Typeface.MONOSPACE
+                textSize = if (inline) 12f else 14f
                 layoutParams = android.widget.LinearLayout.LayoutParams(
                     0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f,
                 )
@@ -438,18 +456,20 @@ class PhotoDetailActivity : AppCompatActivity() {
                         textSize = 12f
                         setInsetTop(0); setInsetBottom(0)
                         minWidth = 0; minimumWidth = 0
-                        setOnClickListener { onNameplateVerdict(mediaId, claim.id, true) }
+                        setOnClickListener { onNameplateVerdict(mediaId, claim, true) }
                     })
                     row.addView(com.google.android.material.button.MaterialButton(this).apply {
                         text = getString(R.string.nameplate_incorrect_btn)
                         textSize = 12f
                         setInsetTop(0); setInsetBottom(0)
                         minWidth = 0; minimumWidth = 0
-                        setOnClickListener { onNameplateVerdict(mediaId, claim.id, false) }
+                        setOnClickListener { onNameplateVerdict(mediaId, claim, false) }
                     })
                 }
                 "correct" -> row.addView(android.widget.TextView(this).apply {
-                    text = getString(R.string.nameplate_status_hidden)
+                    text = getString(
+                        if (inline) R.string.nameplate_status_cut else R.string.nameplate_status_hidden,
+                    )
                     textSize = 12f
                     setTextColor(androidx.core.content.ContextCompat.getColor(this@PhotoDetailActivity,
                         android.R.color.holo_green_dark))
@@ -463,14 +483,40 @@ class PhotoDetailActivity : AppCompatActivity() {
         }
     }
 
-    private fun onNameplateVerdict(mediaId: Long, claimId: Long, correct: Boolean) {
+    private fun onNameplateVerdict(
+        mediaId: Long,
+        claim: MiningRepository.NameplateClaim,
+        correct: Boolean,
+    ) {
         if (operationInProgress || loadingText) return
         operationInProgress = true
         updateActionAvailability()
         ioExecutor.execute {
             var failure: Exception? = null
             try {
-                miningRepository.applyNameplateVerdict(claimId, correct)
+                if (claim.contextSentence.isNotEmpty() && correct) {
+                    // Inline ruling: excise through the reconciled text-edit path so word
+                    // occurrences rebuild — then settle the verdict (hidden for good on rescan).
+                    val lex = runCatching { GateLexiconProvider.lexicon(this@PhotoDetailActivity) }.getOrNull()
+                    val remainder = lex?.let { l ->
+                        NameplateInlineRule.suggestions(claim.contextSentence, l)
+                            .firstOrNull { it.plate == claim.text }?.remainder
+                    }
+                    val photo = miningRepository.getPhoto(mediaId)
+                    val current = photo?.extractedText.orEmpty()
+                    if (remainder != null && current.lineSequence().any { it.trim() == claim.contextSentence.trim() }) {
+                        val amended = current.split('\n')
+                            .joinToString("\n") { if (it.trim() == claim.contextSentence.trim()) remainder else it }
+                        miningPipelineRunner.reprocessPhotoText(
+                            mediaStoreId = mediaId, amendedText = amended, reprocessWords = true,
+                        )
+                    }
+                    // remainder == null: the merged sentence is already gone from the text (user
+                    // stripped it manually) — the plate confirmation itself still stands.
+                    miningRepository.applyNameplateVerdict(claim.id, correct)
+                } else {
+                    miningRepository.applyNameplateVerdict(claim.id, correct)
+                }
             } catch (e: Exception) {
                 failure = e
             }

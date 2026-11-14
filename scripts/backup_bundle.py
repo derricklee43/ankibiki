@@ -52,7 +52,7 @@ TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # tables/columns ship and restore regardless of validation scope; a pre-v7 bundle restored by a
 # v7 app simply migrates on first open. is_gold is deliberately NOT in MINING_COLUMNS so older
 # bundles stay restorable.
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8}
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

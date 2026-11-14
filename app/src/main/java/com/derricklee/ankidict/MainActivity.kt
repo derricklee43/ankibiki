@@ -95,16 +95,21 @@ class MainActivity : AppCompatActivity() {
         )
         settingsRepository = SettingsRepository(this)
         miningRepository = MiningRepository(this)
-        // v8 one-shot maintenance: photos mined before nameplate_claims existed get PENDING
-        // audit rows from their stored artifacts (offline proxy, no re-OCR). Idempotent by
-        // UNIQUE constraint; the flag only avoids the scan on every launch.
+        // v9 one-shot maintenance: photos mined before the claims ledger existed get PENDING
+        // audit rows (standalone drafts + H9v2 inline proposals) from stored artifacts —
+        // offline proxy + bundled lexicon, no re-OCR. Idempotent by UNIQUE constraint; the flag
+        // only avoids the scan on every launch.
         if (!getSharedPreferences("maintenance", Context.MODE_PRIVATE)
-                .getBoolean("nameplate_backfill_v8", false)
+                .getBoolean("nameplate_backfill_v9", false)
         ) {
             miningExecutor.execute {
-                runCatching { miningRepository.backfillNameplateClaims() }
+                runCatching {
+                    miningRepository.backfillNameplateClaims(
+                        inlineLexicon = runCatching { GateLexiconProvider.lexicon(this) }.getOrNull(),
+                    )
+                }
                 getSharedPreferences("maintenance", Context.MODE_PRIVATE).edit()
-                    .putBoolean("nameplate_backfill_v8", true).apply()
+                    .putBoolean("nameplate_backfill_v9", true).apply()
             }
         }
         miningPipelineRunner = MiningPipelineRunner.createDefault(

@@ -91,7 +91,7 @@ class NameplateClaimsInstrumentedTest {
         MiningPipelineRunner(repo, MediaStoreNoopSource, FakePrep, NoopTagger, mapOf(LanguageTag.JAPANESE to config))
 
     @Test
-    fun schema_v8_createsNameplateClaimsTable() {
+    fun schema_current_createsNameplateClaimsTable() {
         val db = repo.readableDatabase
         assertTrue(
             "nameplate_claims table missing at current version",
@@ -103,7 +103,13 @@ class NameplateClaimsInstrumentedTest {
             db.rawQuery("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_nameplate_claims_photo'", null)
                 .use { c -> c.moveToFirst() },
         )
-        assertEquals(MiningRepository.expectedUserVersion(), 8)
+        assertTrue(
+            "v9 context_sentence column missing",
+            db.rawQuery("PRAGMA table_info(nameplate_claims)", null).use { c ->
+                generateSequence { if (c.moveToNext()) c.getString(1) else null }.toList()
+            }.contains("context_sentence"),
+        )
+        assertEquals(MiningRepository.expectedUserVersion(), 9)
     }
 
     @Test
@@ -216,5 +222,115 @@ class NameplateClaimsInstrumentedTest {
         )
         repo.backfillNameplateClaims()
         assertEquals("user-cleaned text must not spawn claims", emptyList<Any>(), repo.nameplateClaims(edited.mediaStoreId))
+    }
+
+    @Test
+    fun migration_v8toV9_preservesClaims_andAddsContextColumn() {
+        repo.close()
+        val dbFile = context.getDatabasePath("test_mig_v8.db")
+        dbFile.parentFile?.mkdirs(); dbFile.delete()
+        android.database.sqlite.SQLiteDatabase.openOrCreateDatabase(dbFile, null).use { db ->
+            db.execSQL(
+                """CREATE TABLE nameplate_claims (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, photo_id INTEGER NOT NULL, text TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'proxy', verdict TEXT, created_at INTEGER NOT NULL,
+                    verdict_at INTEGER, UNIQUE(photo_id, text))""",
+            )
+            db.execSQL("INSERT INTO nameplate_claims (photo_id, text, source, verdict, created_at) VALUES (555, 'モロドフ', 'proxy', 'correct', 1)")
+            db.execSQL("INSERT INTO nameplate_claims (photo_id, text, source, created_at) VALUES (555, 'カイン', 'proxy', 1)")
+            db.execSQL("PRAGMA user_version = 8")
+        }
+        val migrated = MiningRepository(context, "test_mig_v8.db")
+        try {
+            val claims = migrated.nameplateClaims(555L)
+            assertEquals("both v8 rows must survive the rebuild", 2, claims.size)
+            assertTrue(claims.all { it.contextSentence.isEmpty() })
+            assertEquals("correct", claims.first { it.text == "モロドフ" }.verdict)
+            assertNull("pending row must stay pending", claims.first { it.text == "カイン" }.verdict)
+            val uv = migrated.readableDatabase.rawQuery("PRAGMA user_version", null)
+                .use { c -> c.moveToFirst(); c.getInt(0) }
+            assertEquals(MiningRepository.expectedUserVersion(), uv)
+        } finally {
+            migrated.close()
+            context.deleteDatabase("test_mig_v8.db")
+        }
+    }
+
+    @Test
+    fun gateStrings_recurrenceUnionLedger_replacesA0Proxy() {
+        // Spike 004 verdict wiring: the cloud-gate's plate-adjacency input is recurring short
+        // lines (H3, K>=2) UNION ledger-confirmed plates — and NOT shape drafting, so one-off
+        // content-shaped strings never enter it.
+        for (pid in 888_010L..888_011L) {
+            repo.upsertPhoto(
+                ScrapedPhoto(
+                    mediaStoreId = pid, contentUri = "content://test/$pid", dateAdded = 1000L,
+                    languageTag = LanguageTag.JAPANESE,
+                    extractedText = "シーダ\nそこだけの内容行は一つきり。",
+                    ocrBlocksJson = doc("シーダ", "そこだけの内容行は一つきり。").toJsonString(),
+                    status = PhotoStatus.KEEP, duplicateOfPhotoId = null, modifiedByUserFlag = false,
+                ),
+            )
+        }
+        val strings = repo.nameplateGateStrings()
+        assertTrue("recurring short line belongs: $strings", "シーダ" in strings)
+        // One-off lines appear once per photo but across BOTH photos → recurring; use a truly
+        // unique per-photo tail to test non-membership instead:
+        repo.upsertPhoto(
+            ScrapedPhoto(
+                mediaStoreId = 888_012L, contentUri = "content://test/888012", dateAdded = 1000L,
+                languageTag = LanguageTag.JAPANESE,
+                extractedText = "二度と出ない固有短線",
+                ocrBlocksJson = doc("二度と出ない固有短線").toJsonString(),
+                status = PhotoStatus.KEEP, duplicateOfPhotoId = null, modifiedByUserFlag = false,
+            ),
+        )
+        assertTrue("one-off string must NOT be gate-excluded", "二度と出ない固有短線" !in repo.nameplateGateStrings())
+        // Ledger-confirmed plates join even when they never recur.
+        repo.insertNameplateClaims(888_013L, setOf("ゴードン"))
+        val claim = repo.nameplateClaims(888_013L).single()
+        repo.applyNameplateVerdict(claim.id, correct = true)
+        assertTrue("confirmed plate belongs regardless of recurrence", "ゴードン" in repo.nameplateGateStrings())
+    }
+
+    @Test
+    fun mining_inlineProposals_arePending_andRulingExcisesThroughReconciledPath() {
+        val candidate = PhotoCandidate(888_008L, "content://test/888008", 1000L)
+        val lex = GateLexiconProvider.lexiconFrom(listOf("村人"), emptyList())
+        val local = doc("カイン私は絶対に忘れない。", "村人だから先に進むぞ。")
+        val cfg = config(local).copy(nameplateLexicon = { lex })
+        runner(cfg).processOcrDocument(candidate, cfg, local, checkDuplicates = false, prepared = prepared())
+
+        // Non-destructive: both sentences still stored…
+        val photo = repo.getPhoto(candidate.mediaStoreId)!!
+        assertTrue("proposal must not cut text: ${photo.extractedText}",
+            photo.extractedText.contains("カイン私は絶対に忘れない。"))
+        // …one inline pending claim (tier-a カイン), and the dictionary word 村人 produced none.
+        val claims = repo.nameplateClaims(candidate.mediaStoreId)
+        val inline = claims.filter { it.contextSentence.isNotEmpty() }
+        assertEquals("expected exactly the カイン merge proposal, got $claims", 1, inline.size)
+        assertEquals("カイン", inline[0].text)
+        assertEquals("カイン私は絶対に忘れない。", inline[0].contextSentence)
+        assertNull(inline[0].verdict)
+
+        // Ruling 正しい: the activity-side sequence — excision through reprocessPhotoText, then verdict.
+        val remainder = NameplateInlineRule.suggestions(inline[0].contextSentence, lex)
+            .first { it.plate == inline[0].text }.remainder
+        assertEquals("私は絶対に忘れない。", remainder)
+        val amended = repo.getPhoto(candidate.mediaStoreId)!!.extractedText.split('\n')
+            .joinToString("\n") { if (it.trim() == inline[0].contextSentence.trim()) remainder else it }
+        runner(cfg).reprocessPhotoText(candidate.mediaStoreId, amended, reprocessWords = true)
+        repo.applyNameplateVerdict(inline[0].id, correct = true)
+        val after = repo.getPhoto(candidate.mediaStoreId)!!
+        assertFalse("plate excised for good: ${after.extractedText}", after.extractedText.contains("カイン"))
+        assertTrue("utterance kept: ${after.extractedText}", after.extractedText.contains("絶対に忘れない"))
+
+        // Rescan the same document: hidden-inline filter re-applies the cut — it never comes back,
+        // and the ruled claim is not re-pended.
+        runner(cfg).processOcrDocument(candidate, cfg, local, checkDuplicates = false, prepared = prepared())
+        val rescan = repo.getPhoto(candidate.mediaStoreId)!!
+        assertFalse("rescan must not resurrect the plate: ${rescan.extractedText}", rescan.extractedText.contains("カイン"))
+        assertEquals("correct", repo.nameplateClaims(candidate.mediaStoreId)
+            .first { it.contextSentence.isNotEmpty() }.verdict)
     }
 }

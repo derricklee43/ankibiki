@@ -178,7 +178,9 @@ def h7(p, pid):
 KOTO = "、・，,"
 SUFFIX_HEADS = ("の", "たち", "ども", "ちゃ", "さん", "くん", "様", "王国", "帝国")
 PRONOUNS = ("私", "僕", "ぼく", "君", "きみ", "あな", "貴", "俺", "おら", "わし")
-def cut_candidates(p):
+TITLES = ("軍団長", "継承者", "隊長", "将軍", "皇帝", "王子", "騎士", "姫", "王")
+COPULAS = ("だと", "なら", "です", "だよ", "である")
+def cut_candidates(p, guarded=False):
     proj = cjk_only(p)
     for L in range(2, 7):  # DESIGN DEVIATION (run): gate said len<=4 but its own examples
         if len(proj) <= L: continue   # (モロドフ 5ch) are longer; <=6 honors the examples
@@ -195,11 +197,34 @@ def cut_candidates(p):
         bare = head.strip(TERM + "」』）)』】 ")
         if is_kanji(T[-1]) and len(bare) <= 3 and all(is_cjk(c) or c in TERM for c in head) and not any(is_hira(c) for c in head):
             continue  # bare title phrase remainder (マルス王子。) = content
-        if any(is_hira(c) for c in head[:1]) and head[0] in PARTICLES: continue  # attachable particle
-        if is_kata(T[-1]) and is_kata(head[0]): continue  # katakana run continues: mid-name cut
+        if any(is_hira(c) for c in head[:1]) and head[0] in PARTICLES \
+                and not any(head.startswith(a) for a in ACKS): continue  # attachable particle (ACK openers exempt)
+        # mid-name katakana-continuation block — with ACKS exemption: a known sentence-opener
+        # (はい/なあに/うん…) is NOT a name suffix (モ口ドフ|はい。 is the corpus's signature
+        # merge AND はい。 is gold content in 1136 — the cut must leave it intact).
+        if is_kata(T[-1]) and is_kata(head[0]) and not any(head.startswith(a) and (len(head) == len(a) or head[len(a)] in TERM + '、') for a in ACKS):
+            continue
         if is_kanji(head[0]) and head[0] not in "私僕君貴俺わ" and len(head) > 1 and is_hira(head[1]) and head[1] in "はがのもにで":
             continue  # single kanji + particle immediately = bound reading (王は…) — pronouns exempt
         if is_kanji(T[-1]) and is_hira(head[0]) and (T[-1], head[0]) in OKURI: continue
+        if guarded:
+            # H9v2 guards (2026-11-13, from the FP census of the H9_gold_free run; refined after
+            # the v2 pass wrongly blocked 1166 モロドフ|王子の格好 — a title that begins a real
+            # subject clause IS content-shaped gold):
+            # G1 title guard — remainder begins a title noun and then ENDS (±punct only) or
+            # continues with a set-phrase/particle tail {と,よ,だ,で,な} (王子。/ 王子よ。/
+            # 継承者として) = title phrase. Clause markers (の/に/は…) or punct+long clause
+            # (王子、ほとんど…) stay allowed.
+            for ttl in TITLES:
+                if head.startswith(ttl):
+                    after = head[len(ttl):]
+                    if (not after or all(c in TERM + '」』）)【】『』「「『' or c.isspace() for c in after)
+                            or (after and after[0] in 'とよだでな')):
+                        head = None
+                    break
+            if head is None: continue
+            # G2 copula guard — だと/なら/です-class attaches to the preceding token (ジオルだと = "it IS Diorl")
+            if head.startswith(COPULAS): continue
         yield T, rn
 
 def tier(T, rn):
@@ -211,9 +236,9 @@ def tier(T, rn):
     if run >= 1 and len(rn) > run and rn[run] in 'はがも': return 'a'
     return 'c'
 
-def inline_hits(p, lexicon=None, ab_only=False):
+def inline_hits(p, lexicon=None, ab_only=False, guarded=False):
     out = []
-    for T, rn in cut_candidates(p):
+    for T, rn in cut_candidates(p, guarded):
         t = tier(T, rn)
         if ab_only:
             fire = t in 'ab'
@@ -221,9 +246,15 @@ def inline_hits(p, lexicon=None, ab_only=False):
             fire = True
         else:  # c: exact-token dictionary absence OR lexicon license (A2/A3), len<=6 per deviation note
             fire = len(T) <= 6 and (not in_dict(T) or (lexicon is not None and T in lexicon))
+            # G3 (v2 guards): tier-c cut whose token ENDS in a title char swallowed the title
+            # into the cut (マルス王|よ。). Tier a/b exemptions keep グラ軍隊長|なあに alive.
+            if guarded and fire and T[-1] in '王姫長帝': fire = False
         if lexicon is not None and fire and t in 'ab' and T not in lexicon: fire = False  # lexicon-mode filter
         if fire: out.append((T, rn, t))
-    return out
+    # prefix-duplication: a short proposal swallowed by a longer tier-a/b proposal in the same
+    # sentence is a mid-name artifact (モロ ⊂ モロドフ|はい。); keep only the fuller evidence.
+    return [h for h in out if not any(
+        g is not h and len(g[0]) > len(h[0]) and g[0].startswith(h[0]) and g[2] in 'ab' for g in out)]
 
 
 LEX_H3_2, LEX_H3_3 = h3_lexicon(2), h3_lexicon(3)
@@ -272,18 +303,18 @@ def variant_sets():
     v['A3_boot_K3'] = {(pid, p) for pid in PHOTO for p in PHOTO[pid]['lines'] if h2(p) and cjk_only(p) in A3_LEX_3}
     return v
 
-def score_inline(name, lexicon=None, ab_only=False):
+def score_inline(name, lexicon=None, ab_only=False, guarded=False):
     tp = 0; fp_cas = []; fp_noise = []; missed = []
     for pid, rec in PHOTO.items():
         for p in rec['lines']:
-            hits = inline_hits(p, lexicon, ab_only)
+            hits = inline_hits(p, lexicon, ab_only, guarded)
             if not hits: continue
             if p in rec['inline']: tp += 1
             elif rec['truth'][p] == 'LEGIT': fp_cas.append(f"{pid}:{p}:{hits[0][0]}")
             else: fp_noise.append(f"{pid}:{p}:{hits[0][0]}")
     for pid, rec in PHOTO.items():
         for p in rec['inline']:
-            if not inline_hits(p, lexicon, ab_only): missed.append(f"{pid}:{p}")
+            if not inline_hits(p, lexicon, ab_only, guarded): missed.append(f"{pid}:{p}")
     total = tp + len(fp_cas) + len(fp_noise)
     return dict(name=name, recall=f"{tp}/{inline_total}", precision=round(tp / total, 3) if total else 0,
                 casualties=len(fp_cas), noise_fp=len(fp_noise),
@@ -327,6 +358,7 @@ var_out = {k: score(k, v) for k, v in variant_sets().items()}
 var_out['A5_scoped_K2'] = score('A5_scoped_K2', A5_SET)
 inline_out = {
     'H9_gold_free': score_inline('H9_gold_free'),
+    'H9v2_gold_free_guarded': score_inline('H9v2_gold_free_guarded', guarded=True),
     'H9a_b_only': score_inline('H9a_b_only', ab_only=True),
     'H9_and_A3lex': score_inline('H9_and_A3lex', lexicon=A3_LEX_2),
 }

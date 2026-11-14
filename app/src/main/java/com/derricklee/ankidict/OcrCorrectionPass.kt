@@ -42,6 +42,13 @@ data class CorrectionEvidenceRow(
 class OcrCorrectionPass(
     private val gateProvider: () -> OcrCorrectionGate,
     private val reader: CloudReedReader,
+    /**
+     * Nameplate strings the gate treats as plate-adjacent (islands near these never auto-apply).
+     * Production wires the spike-004 replacement — recurrence lexicon ∪ ledger-confirmed plates
+     * (`MiningRepository.nameplateGateStrings`); the A0 structural proxy stays only as the
+     * fallback default, never the shipping input (its 4 content casualties, spike README).
+     */
+    private val nameplateStrings: (OcrDocument) -> Set<String> = ::draftNameplateStrings,
 ) {
 
     data class Outcome(
@@ -72,7 +79,7 @@ class OcrCorrectionPass(
         if (cloudDoc.fullText.isBlank()) return Outcome(document, emptyList(), 0, cloudAvailable = true)
 
         val gate = gateProvider()
-        val nameplateStrings = draftNameplateStrings(document)
+        val nameplateStrings = this.nameplateStrings(document)
         val lines = document.blocks.flatMap { it.lines }
         val cloudLines = cloudDoc.blocks.flatMap { it.lines }.map { it.text }
         val islands = gate.extractIslands(lines.map { it.text }, cloudLines)

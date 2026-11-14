@@ -147,12 +147,17 @@ class GateLexicon(
     val headwords: Set<String>,
     val bigrams: Set<String>,
     val radicals: Map<Char, Set<String>>,
+    /** (kanji, immediately-following hiragana) adjacent pairs from raw headwords — okurigana
+     * continuations used by [NameplateInlineRule] to reject cuts that split a verb in two.
+     * Derived (never authoritative), like every lexicon surface here. */
+    val okurigana: Set<String> = emptySet(),
 ) {
     companion object {
         /** @param headwordRows every `words.headword` value; @param radicalRows `kanji_radicals` (character, radical). */
         fun build(headwordRows: Sequence<String>, radicalRows: Sequence<Pair<Char, String>>): GateLexicon {
             val headwords = HashSet<String>(1 shl 18)
             val bigrams = HashSet<String>(1 shl 16)
+            val okurigana = HashSet<String>(1 shl 15)
             for (hw in headwordRows) {
                 val full = gateCjkOnly(hw)
                 if (full.length in 2..8) headwords.add(full)
@@ -161,12 +166,16 @@ class GateLexicon(
                     if (prev != null && isGateCjk(prev) && isGateCjk(ch)) {
                         bigrams.add("$prev$ch")
                     }
+                    // okurigana pairs from the RAW string: kanji followed by its hiragana reading tail
+                    if (prev != null && prev in '\u4e00'..'\u9fff' && ch in '\u3040'..'\u309f') {
+                        okurigana.add("$prev$ch")
+                    }
                     prev = ch
                 }
             }
             val radicals = HashMap<Char, HashSet<String>>()
             for ((ch, r) in radicalRows) radicals.getOrPut(ch) { HashSet() }.add(r)
-            return GateLexicon(headwords, bigrams, radicals)
+            return GateLexicon(headwords, bigrams, radicals, okurigana)
         }
     }
 }

@@ -165,6 +165,10 @@ nameplate-agnostic scoring; v1 JVM layer built 2026-11-12, rev-5 numbers in
 [docs/benchmarks/2026-11-12-gold-baseline.md](benchmarks/2026-11-12-gold-baseline.md)
 — sentence exact 27/73 (cleaned gold), segmentation exact 7/46, char acc 0.794, 25 provisional
 nameplate leaks excluded from headline): [docs/benchmarks/gold-set-iteration-plan.md](benchmarks/gold-set-iteration-plan.md).
+- Error-class census of the remaining non-exact sentences (post nameplate exclusion) →
+  [docs/benchmarks/2026-11-13-error-census.md](benchmarks/2026-11-13-error-census.md):
+  segmentation/boundary + orphan-garbage ≈ 75 lines is the biggest cluster, near-miss
+  misreads 54; regenerate with `scripts/error_census.py` after the next benchmark run.
 Provider A/B on the 46-photo set (stored == fresh-local; Cloud different but
 complementary, oracle 37/74): [docs/benchmarks/2026-11-12-provider-ab.md](benchmarks/2026-11-12-provider-ab.md).
 Spike 002 — word-level correction gate evaluated on gold (post-cleanup: 88% precision,
@@ -366,6 +370,26 @@ and recorded deviations: [spikes/004-nameplate-exclusion/README.md](../spikes/00
 Manual strip + ledger rulings remain the mechanism; A6 (fuzzy recurrence)
 is written up as a proposal but unmeasured. Production-go blocked twice:
 bars missed AND the menu-control coverage gap stands.
+
+**Second slice SHIPPED same day (user: "wasn't H9 supposed to count?"):
+merge PROPOSALS in the ledger, schema v9.** The spike's suggestion-grade
+finding — H9v2 (22/27 recall, 0.815 precision, ZERO casualties) — now runs
+at mining: inline plate merges become PENDING claims with the sentence, the
+proposed cut, and the resulting remainder; 正しい excises through the normal
+reconciled text-edit path (word occurrences rebuilt, and every future
+rescan re-applies the cut via hiddenInlineClaims — hidden for good), 違う
+keeps the sentence and never re-proposes. Non-destructive until ruled (G1),
+user click is the policy (G2), claims re-derive from stored blocks (G3).
+Port: `NameplateInlineRule.kt` — verbatim from the spike run of record
+parity spec `NameplateInlineRuleTest` (10 corpus cases incl. the guards);
+inline lifecycle + v8→v9 migration covered by 20/20 instrumented tests;
+backfill (v9 prefs pass) proposes for already-mined photos — verified live
+(18 inline proposals; first live 違う click on #1280 オグマー persisted with
+text intact). Gate input swapped per spike verdict: plate-adjacency now =
+recurrence lexicon ∪ ledger-confirmed (`nameplateGateStrings`), NOT the A0
+proxy. Remaining known-noise cost of suggestion grade: prefix-duplicate
+proposals on tier-c pairs (グラ軍/グラ軍隊) and clause-ambiguous titles —
+each is one 違う click, each click is a label.
 
 Shipping note (2026-11-13, amended same day): AUTOMATIC exclusion stays parked —
 nothing is dropped by nameplate reasoning alone; the only hides that ship are

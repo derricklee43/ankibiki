@@ -58,6 +58,18 @@ Inline (separate decision point, over all 181 sentences, truth = 27):
 | H9 gold-free (a∨b ∨ c∧¬dict) | 22/27 | 0.69 | 1 | 9 |
 | H9a/b tiers only | 1/27 | 0.50 | 0 | 1 |
 | H9 ∧ A3 lexicon | 21/27 | 0.68 | 1 | 9 |
+| **H9v2 guarded (SHIPPED as suggestions)** | **22/27** | **0.82** | **0** | 5 |
+
+H9v2 = v1 + three guards written from the v1 FP census (measured same day, so
+this row is an improvement iteration, NOT a post-hoc variant competing for the
+auto-go bar): G1 title-phrase tails (王子。/王子よ。/継承者として blocked;
+clause-headed titles like 王子の格好 and 王子、ほとんど… pass), G2 copula heads
+(だと/なら/です), G3 tier-c tokens ending in a title char (マルス王|よ。). The
+first guard draft over-blocked — it ate 1166's true merge — the refinement
+round restored it; both iterations are in the git history of this script.
+Auto-go verdict unchanged (0.82 < 0.95). What H9v2 IS qualified for: pending
+claims in the ledger, where the cost of the 5 noise FPs is one 違う click and
+every click is a label.
 
 Effort-lift secondary metric: 44 of 75 leaked lines would be auto-caught →
 31 remain for manual strip (target ≤10: **missed**).

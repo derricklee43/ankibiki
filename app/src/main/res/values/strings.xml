@@ -84,6 +84,7 @@
     <string name="nameplate_correct_btn">正しい</string>
     <string name="nameplate_incorrect_btn">違う</string>
     <string name="nameplate_status_hidden">✓ 永久に非表示</string>
+    <string name="nameplate_status_cut">✓ 台詞からカット済み</string>
     <string name="nameplate_status_kept">✓ 台詞として残す</string>
     <string name="nameplate_hidden_toast">名前の板を隠しました — もう現れません</string>
     <string name="nameplate_kept_toast">台詞として残します — 次からは候補に出しません</string>

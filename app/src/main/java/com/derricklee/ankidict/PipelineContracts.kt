@@ -233,6 +233,11 @@ data class PipelineConfig(
     // Default ON by user decision 2026-11-13 ("implement the gate to auto correct"),
     // overriding spike 003's suggestion-first rollout. Tests pass values explicitly.
     val ocrCorrectionEnabled: Boolean = true,
+    /**
+     * GateLexicon supplier enabling H9v2 inline-plate PROPOSALS at mining (spike 004 suggestion
+     * grade; null = inline proposals disabled). Never cuts text — fires into nameplate_claims.
+     */
+    val nameplateLexicon: (() -> GateLexicon?)? = null,
 )
 
 data class ScanSummary(
