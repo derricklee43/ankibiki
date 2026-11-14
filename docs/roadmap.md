@@ -82,8 +82,7 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / language 
    facet CUT by user 2026-11-14: grid-wide staleness means re-running every photo's pipeline,
    and the per-photo 導出した単語が古い chip stays the only staleness surface),
    a claims-queue screen to drain pending nameplate rulings in batches,
-   bulk photo ops (mark, ignore, delete), and a gold dashboard (marks count,
-   headline trend line).
+   and a gold dashboard (marks count, headline trend line).
    (PARTIAL 2026-11-13: **sentence word editor** shipped — 編集 on the single
    sentence view swaps chips for an occurrence table (word input + 削除 per row,
    追加 row, 保存/取り消し). Semantics pinned by user: free-form adds allowed,
@@ -517,6 +516,15 @@ These should follow demonstrated learning-workflow needs, not expand the scope
 at the expense of data trust and extraction quality.
 
 ## Parked ideas
+
+### Bulk photo ops — mark / ignore / delete (pulled from track B 2026-11-14 by user)
+
+Was listed among the Review & organization UX proposals (batch operations over the library
+grid). User decision: not to be implemented until he personally feels the want for it —
+no spec, no investigation record, deliberately nothing written ahead of that. Re-entry
+trigger: the user asks. (Design notes if/when: 削除 is the one op with corpus consequences —
+today no photo-deletion path exists in the app at all, so it would need the same
+reversibility ceremony as every other destructive surface here.)
 
 ### Merge photo page + sentence page into one (pinned 2026-11-13 by user after investigation)
 
