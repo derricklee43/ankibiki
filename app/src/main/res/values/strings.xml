@@ -98,6 +98,11 @@
     <string name="claims_open_photo">写真を開く</string>
     <string name="claims_source_standalone">独り言の候補</string>
     <string name="claims_source_inline">文中の結合の提案</string>
+    <!-- Library filters (roadmap B3, 2026-11-14) -->
+    <string name="filter_unseen">未読</string>
+    <string name="filter_gold">金</string>
+    <string name="filter_japanese">日本語</string>
+    <string name="filter_chinese">中国語</string>
     <!-- Gold dashboard (roadmap B2, 2026-11-14) -->
     <string name="dashboard_title">金ダッシュボード</string>
     <string name="dashboard_gate_title">自動修正ゲート</string>

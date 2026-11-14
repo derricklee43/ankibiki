@@ -308,6 +308,35 @@ class MiningRepository(
             limit = null,
         )
 
+    /**
+     * Library grid filters (roadmap B3, user spec 2026-11-14: 未読 / 金 / 言語 facets — the
+     * stale facet was explicitly CUT: judging staleness grid-wide means re-running each photo's
+     * pipeline, which is exactly what the per-photo chip already does lazily). Facets AND-join;
+     * an unchecked facet means "no constraint". 未読 mirrors the inbox's ACTIVE-occurrence
+     * semantics verbatim (getActiveOccurrences): an UNSEEN occurrence row of an active, non-hidden
+     * canonical item — word or grammar, either language — on a KEEP photo.
+     */
+    fun getScrapedPhotosFiltered(unseenOnly: Boolean, goldOnly: Boolean, tags: Set<LanguageTag>): List<ScrapedPhoto> {
+        val selection = StringBuilder("status = ?")
+        val args = mutableListOf(PhotoStatus.KEEP.name)
+        if (unseenOnly) {
+            selection.append(
+                " AND EXISTS (SELECT 1 FROM item_occurrences o" +
+                    " JOIN extracted_items i" +
+                    " ON o.language_tag = i.language_tag AND o.item_type = i.item_type AND o.expression = i.expression" +
+                    " WHERE o.photo_id = scraped_photos.media_store_id" +
+                    " AND o.state = 'UNSEEN' AND i.visibility_state = 'ACTIVE' AND i.is_hidden = 0)",
+            )
+        }
+        if (goldOnly) selection.append(" AND is_gold = 1")
+        val tagList = tags.toList()
+        if (tagList.isNotEmpty() && tagList.size < LanguageTag.entries.size) {
+            selection.append(" AND language_tag IN (").append(tagList.joinToString(",") { "?" }).append(")")
+            args.addAll(tagList.map { it.name })
+        }
+        return queryScrapedPhotos(selection.toString(), args.toTypedArray(), "date_added DESC, media_store_id DESC", null)
+    }
+
     /** Returns the [limit] most recently scraped KEEP photos for [languageTag]. */
     fun getRecentKeepPhotosByTag(languageTag: LanguageTag, limit: Int): List<ScrapedPhoto> =
         queryScrapedPhotos(

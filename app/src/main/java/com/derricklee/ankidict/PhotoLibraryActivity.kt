@@ -45,6 +45,12 @@ class PhotoLibraryActivity : AppCompatActivity() {
 
         binding.backButton.setOnClickListener { finish() }
 
+        // library filters (roadmap B3): each facet toggle re-queries the grid
+        binding.filterUnseenChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
+        binding.filterGoldChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
+        binding.filterJapaneseChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
+        binding.filterChineseChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
+
         binding.cameraRollSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked && !hasReadMediaPermission()) {
                 requestPermissions(
@@ -88,11 +94,19 @@ class PhotoLibraryActivity : AppCompatActivity() {
 
     private fun loadPhotos() {
         val showFullCameraRoll = binding.cameraRollSwitch.isChecked && hasReadMediaPermission()
+        // library facets scope the mined corpus; camera roll shows un-mined media — no chip row there
+        binding.filterChipGroup.visibility = if (showFullCameraRoll) View.GONE else View.VISIBLE
+        val unseen = binding.filterUnseenChip.isChecked
+        val gold = binding.filterGoldChip.isChecked
+        val tags = buildSet {
+            if (binding.filterJapaneseChip.isChecked) add(LanguageTag.JAPANESE)
+            if (binding.filterChineseChip.isChecked) add(LanguageTag.CHINESE)
+        }
         ioExecutor.execute {
             val photos = if (showFullCameraRoll) {
                 miningRepository.getCameraRollPhotos()
             } else {
-                miningRepository.getAllScrapedPhotos()
+                miningRepository.getScrapedPhotosFiltered(unseen, gold, tags)
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread

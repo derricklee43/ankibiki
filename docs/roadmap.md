@@ -78,8 +78,10 @@ A. **Card-making loop** (§4 extension): batch "create cards" from the unseen
    list (the wizard is one-word-at-a-time today); an "add to existing note"
    path (append a newly mined sentence to a card that already exists); wizard
    validation against the real collection in a device session.
-B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
-   language), a claims-queue screen to drain pending nameplate rulings in batches,
+B. **Review & organization UX** (new): library filters (unseen / 金 / language — the stale
+   facet CUT by user 2026-11-14: grid-wide staleness means re-running every photo's pipeline,
+   and the per-photo 導出した単語が古い chip stays the only staleness surface),
+   a claims-queue screen to drain pending nameplate rulings in batches,
    bulk photo ops (mark, ignore, delete), and a gold dashboard (marks count,
    headline trend line).
    (PARTIAL 2026-11-13: **sentence word editor** shipped — 編集 on the single
@@ -178,6 +180,25 @@ B. **Review & organization UX** (new): library filters (unseen / 金 / stale /
          backups/20261114-085131 before the run. Note: the asset's caveat line renders
          in English — deliberate, it is the repo's canonical verbatim quote ("quote
          that caveat"); say the word for a Japanese rewrite.
+   - [x] **B3 — Library filters** (direct user request 2026-11-14: "skip stale and
+         remove it from the roadmap, implement the others"). Chip row under the
+         library header: 未読 / 金 / 日本語 / 中国語, facets AND-join, unchecked
+         facet = no constraint, both language chips = all; 未読 mirrors the inbox's
+         ACTIVE-occurrence condition VERBATIM (UNSEEN occurrence of an active,
+         non-hidden canonical item, word or grammar, on a KEEP photo) — no second
+         definition of "unseen" was invented. `MiningRepository.getScrapedPhotosFiltered`
+         is the single query; camera-roll mode hides the chip row (filters scope the
+         mined corpus, not un-mined media) and filter state survives the mode switch.
+         Exit evidence: `PhotoLibraryFiltersInstrumentedTest` 5 specs — hand-derived
+         oracle sets over a 10-photo fixture (hidden-item UNSEEN row excluded, SEEN
+         excluded, DELETED excluded, IGNORED-photo excluded, grammar UNSEEN counted,
+         unseen∧gold AND-join, both-tags==no-constraint, date-DESC order survives
+         facets) + the unseen facet cross-checked against an independent scripted
+         EXISTS read (both sides). Live walk on emulator-5554 real corpus: 174 →
+         中国語 = 1 tile (DB zh=1) → +金 = 1 (zh_gold=1) → 日本語+金 page-full
+         (jp_gold=150) → +未読 (jp_gold_unseen=144); camera-roll ON hides chips,
+         OFF restores with state; screenshot-verified chip/tile rendering clean.
+         Full instrumented suite 91/91 (86 prior + 5), JVM suite green (78).
 C. **Lookup upgrades** (from Secondary): whole-word lookup for multi-character
    CJK queries while keeping the character-exploration path; less
    collection-specific deck/note-type configuration.
