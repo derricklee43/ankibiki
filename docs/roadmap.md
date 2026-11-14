@@ -74,10 +74,10 @@ re-entry protocol. Parked items, biggest lever first:
 
 ### 🟢 ACTIVE — feature tracks (proposals; pick what fits the itch)
 
-A. **Card-making loop** (§4 extension): batch "create cards" from the unseen
-   list (the wizard is one-word-at-a-time today); an "add to existing note"
-   path (append a newly mined sentence to a card that already exists); wizard
+A. **Card-making loop** (§4 extension): an "add to existing note" path (append
+   a newly mined sentence to a card that already exists); wizard
    validation against the real collection in a device session.
+   (The batch "create cards" proposal was pulled by user 2026-11-14 — see Parked ideas.)
 B. **Review & organization UX** (new): library filters (unseen / 金 / language — the stale
    facet CUT by user 2026-11-14: grid-wide staleness means re-running every photo's pipeline,
    and the per-photo 導出した単語が古い chip stays the only staleness surface),
@@ -516,6 +516,14 @@ These should follow demonstrated learning-workflow needs, not expand the scope
 at the expense of data trust and extraction quality.
 
 ## Parked ideas
+
+### Batch "create cards" from the unseen list (pulled from track A 2026-11-14 by user)
+
+Was the first item of the Card-making loop (batching the one-word-at-a-time wizard over the
+unseen list). User decision, same standing as bulk photo ops below: not to be implemented
+until he personally feels the want for it — no spec, no investigation record, nothing written
+ahead of that. Re-entry trigger: the user asks. The rest of track A (add-to-existing-note,
+wizard validation against the real collection) stays active.
 
 ### Bulk photo ops — mark / ignore / delete (pulled from track B 2026-11-14 by user)
 
