@@ -13,6 +13,18 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+        <ImageView
+            android:id="@+id/claimPhotoImage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:adjustViewBounds="true"
+            android:background="#14000000"
+            android:contentDescription="@string/photo_content_description"
+            android:maxHeight="320dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone" />
+
         <TextView
             android:id="@+id/claimText"
             android:layout_width="match_parent"

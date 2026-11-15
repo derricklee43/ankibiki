@@ -89,6 +89,7 @@ class KuromojiWordAnalyzer : WordAnalyzer {
 
         private fun isValidWordCandidate(expression: String): Boolean {
             if (expression.isEmpty()) return false
+            if (expression.all { it == 'ー' }) return false
             val hasKanji = expression.any { MlKitImageTagger.isCjkIdeograph(it) }
             if (hasKanji) return true
             // Pure kana words must be at least 2 characters long

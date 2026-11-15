@@ -1,15 +1,22 @@
 package com.derricklee.ankidict
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.derricklee.ankidict.databinding.ActivityWordGrammarDetailBinding
 import com.derricklee.ankidict.databinding.ItemMatchedSentenceBinding
+import java.util.Collections
 
 class WordGrammarDetailActivity : AppCompatActivity() {
 
@@ -23,6 +30,8 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     private lateinit var ankiCardService: AnkiCardService
     private lateinit var miningPipelineRunner: MiningPipelineRunner
     private lateinit var photosAdapter: PhotoThumbnailAdapter
+    private lateinit var sentencesAdapter: MatchedSentenceAdapter
+    private lateinit var sentenceTouchHelper: ItemTouchHelper
     private val ioExecutor = AppIo.io
 
     private var occurrenceId: Long = -1L
@@ -88,6 +97,53 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         binding.matchingPhotosStrip.layoutManager =
             LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         binding.matchingPhotosStrip.adapter = photosAdapter
+
+        sentencesAdapter = MatchedSentenceAdapter(
+            languageTag = languageTag,
+            onStartDrag = { holder -> sentenceTouchHelper.startDrag(holder) },
+            onOpenSentence = { matched ->
+                val detail = currentDetail ?: return@MatchedSentenceAdapter
+                val anchorPhotoId = if (matched.photoId >= 0L) matched.photoId
+                else detail.photos.firstOrNull()?.mediaStoreId ?: -1L
+                startActivity(
+                    SentenceDetailActivity.newIntent(
+                        context = this,
+                        photoId = anchorPhotoId,
+                        sentence = matched.sentence,
+                        languageTag = detail.languageTag,
+                    ),
+                )
+            },
+        )
+        sentenceTouchHelper = ItemTouchHelper(
+            object : ItemTouchHelper.SimpleCallback(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0) {
+                private var moved = false
+                override fun isLongPressDragEnabled(): Boolean = false
+                override fun onMove(
+                    recyclerView: RecyclerView,
+                    viewHolder: RecyclerView.ViewHolder,
+                    target: RecyclerView.ViewHolder,
+                ): Boolean {
+                    val from = viewHolder.bindingAdapterPosition
+                    val to = target.bindingAdapterPosition
+                    if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION) return false
+                    sentencesAdapter.moveItem(from, to)
+                    moved = true
+                    return true
+                }
+                override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
+                override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
+                    super.clearView(recyclerView, viewHolder)
+                    if (moved) {
+                        moved = false
+                        persistSentenceOrder(sentencesAdapter.currentSentences())
+                    }
+                }
+            },
+        )
+        binding.sentencesRecyclerView.layoutManager = LinearLayoutManager(this)
+        binding.sentencesRecyclerView.adapter = sentencesAdapter
+        sentenceTouchHelper.attachToRecyclerView(binding.sentencesRecyclerView)
 
         binding.backButton.setOnClickListener { finish() }
         binding.targetExpressionText.text = expression
@@ -182,21 +238,17 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
-    /** One step up/down in this word's sentence order; re-renders on success. */
-    private fun moveSentence(sentence: String, up: Boolean) {
+    /** Persists drag-and-drop sentence ordering on the word entity. */
+    private fun persistSentenceOrder(orderedSentences: List<String>) {
         val detail = currentDetail ?: return
         ioExecutor.execute {
-            val moved = runCatching {
-                miningRepository.moveSentenceRank(
+            runCatching {
+                miningRepository.saveSentenceOrder(
                     languageTag = detail.languageTag,
                     itemType = detail.itemType,
                     expression = detail.expression,
-                    sentence = sentence,
-                    up = up,
+                    orderedSentences = orderedSentences,
                 )
-            }.getOrDefault(false)
-            runOnUiThread {
-                if (!isFinishing && !isDestroyed && moved) loadDetail()
             }
         }
     }
@@ -278,43 +330,66 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     }
 
     private fun populateMatchedSentences(detail: ExtractedItemDetail) {
-        binding.sentencesContainer.removeAllViews()
         val items: List<MatchedSentence> = if (detail.matchedSentences.isNotEmpty()) {
             detail.matchedSentences
         } else {
             detail.sentences.map { s -> MatchedSentence(occurrenceId = -1L, photoId = -1L, sentence = s) }
         }
-        val distinctOrder = items.map { it.sentence }.distinct()
+        sentencesAdapter.submitList(items)
+    }
 
-        for (matched in items) {
-            val row = ItemMatchedSentenceBinding.inflate(layoutInflater, binding.sentencesContainer, false)
-            row.sentenceText.text = "• ${matched.sentence}"
-            TextLocales.apply(row.sentenceText, languageTag)
-            // Sentences stay plain selectable text; the buttons on the right carry the
-            // explicit affordances: open-in-new -> single sentence view. Sentence editing
-            // moved there too (user UI tweak 2026-11-13).
-            row.sentenceViewButton.setOnClickListener {
-                val anchorPhotoId = if (matched.photoId >= 0L) matched.photoId
-                else detail.photos.firstOrNull()?.mediaStoreId ?: -1L
-                startActivity(
-                    SentenceDetailActivity.newIntent(
-                        context = this,
-                        photoId = anchorPhotoId,
-                        sentence = matched.sentence,
-                        languageTag = detail.languageTag,
-                    ),
-                )
+    private class MatchedSentenceAdapter(
+        private val languageTag: LanguageTag,
+        private val onStartDrag: (RecyclerView.ViewHolder) -> Unit,
+        private val onOpenSentence: (MatchedSentence) -> Unit,
+    ) : RecyclerView.Adapter<MatchedSentenceAdapter.ViewHolder>() {
+
+        private val items = mutableListOf<MatchedSentence>()
+
+        fun submitList(newItems: List<MatchedSentence>) {
+            items.clear()
+            items.addAll(newItems)
+            notifyDataSetChanged()
+        }
+
+        fun moveItem(from: Int, to: Int) {
+            if (from !in items.indices || to !in items.indices) return
+            Collections.swap(items, from, to)
+            notifyItemMoved(from, to)
+        }
+
+        fun currentSentences(): List<String> = items.map { it.sentence }
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+            val binding = ItemMatchedSentenceBinding.inflate(
+                LayoutInflater.from(parent.context), parent, false,
+            )
+            return ViewHolder(binding)
+        }
+
+        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+            holder.bind(items[position], items.size > 1)
+        }
+
+        override fun getItemCount(): Int = items.size
+
+        inner class ViewHolder(
+            private val binding: ItemMatchedSentenceBinding,
+        ) : RecyclerView.ViewHolder(binding.root) {
+
+            @SuppressLint("ClickableViewAccessibility")
+            fun bind(matched: MatchedSentence, movable: Boolean) {
+                binding.sentenceText.text = "• ${matched.sentence}"
+                TextLocales.apply(binding.sentenceText, languageTag)
+                binding.dragHandle.visibility = if (movable) View.VISIBLE else View.GONE
+                binding.dragHandle.setOnTouchListener { _, event ->
+                    if (movable && event.actionMasked == MotionEvent.ACTION_DOWN) {
+                        onStartDrag(this)
+                    }
+                    false
+                }
+                binding.sentenceViewButton.setOnClickListener { onOpenSentence(matched) }
             }
-            // Manual ordering: rank stored on the word entity; unset = date-ascending (default).
-            val pos = distinctOrder.indexOf(matched.sentence)
-            val movable = distinctOrder.size > 1
-            row.moveUpButton.visibility = if (movable) View.VISIBLE else View.GONE
-            row.moveDownButton.visibility = if (movable) View.VISIBLE else View.GONE
-            row.moveUpButton.isEnabled = movable && pos > 0
-            row.moveDownButton.isEnabled = movable && pos < distinctOrder.size - 1
-            row.moveUpButton.setOnClickListener { moveSentence(matched.sentence, up = true) }
-            row.moveDownButton.setOnClickListener { moveSentence(matched.sentence, up = false) }
-            binding.sentencesContainer.addView(row.root)
         }
     }
 
@@ -334,6 +409,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                 binding.kanjiDecompositionTree.visibility = View.GONE
                 binding.kanjiValueText.visibility = View.VISIBLE
                 binding.kanjiValueText.text = detail?.kanji?.ifBlank { "—" } ?: "—"
+                TextLocales.apply(binding.kanjiValueText, languageTag)
             }
         } else {
             binding.kanjiRevealButton.visibility = View.VISIBLE
@@ -345,6 +421,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             binding.kanaRevealButton.visibility = View.GONE
             binding.kanaValueText.visibility = View.VISIBLE
             binding.kanaValueText.text = detail?.kana?.ifBlank { "—" } ?: "—"
+            TextLocales.apply(binding.kanaValueText, languageTag)
         } else {
             binding.kanaRevealButton.visibility = View.VISIBLE
             binding.kanaValueText.visibility = View.GONE

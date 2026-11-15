@@ -361,15 +361,22 @@ fun MiningRepository.getOccurrenceSentenceRows(photoId: Long): List<ExtractionSt
 
 fun MiningRepository.getSentenceCandidates(photoId: Long, sentence: String): List<MiningRepository.SentenceCandidate> =
     readableDatabase.rawQuery(
-        """SELECT MAX(id), item_type, expression FROM item_occurrences
-           WHERE photo_id = ? AND sentence = ? AND state != 'DELETED'
-           GROUP BY item_type, expression""",
+        """SELECT MAX(o.id), o.item_type, o.expression,
+                  COALESCE(i.visibility_state, CASE WHEN COALESCE(i.is_hidden, 0) != 0 THEN 'HIDDEN' ELSE 'ACTIVE' END)
+           FROM item_occurrences o
+           LEFT JOIN extracted_items i
+             ON i.language_tag = o.language_tag
+            AND i.item_type = o.item_type
+            AND i.expression = o.expression
+           WHERE o.photo_id = ? AND o.sentence = ? AND o.state != 'DELETED'
+           GROUP BY o.item_type, o.expression""",
         arrayOf(photoId.toString(), sentence),
     ).use { c ->
         buildList {
             while (c.moveToNext()) {
                 val type = runCatching { ItemType.valueOf(c.getString(1)) }.getOrNull() ?: continue
-                add(MiningRepository.SentenceCandidate(c.getLong(0), type, c.getString(2)))
+                val visibility = runCatching { ItemVisibility.valueOf(c.getString(3)) }.getOrDefault(ItemVisibility.ACTIVE)
+                add(MiningRepository.SentenceCandidate(c.getLong(0), type, c.getString(2), visibility))
             }
         }
     }.sortedWith(

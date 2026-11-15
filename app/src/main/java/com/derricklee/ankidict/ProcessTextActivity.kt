@@ -58,6 +58,16 @@ class ProcessTextActivity : AppCompatActivity() {
             intent?.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)
                 ?: intent?.getCharSequenceExtra(Intent.EXTRA_TEXT)
             )?.toString().orEmpty()
+        binding.openInAppButton.setOnClickListener {
+            val launch = if (selectedText.isNotBlank()) {
+                MainActivity.newLookupIntent(this, selectedText)
+            } else {
+                Intent(this, MainActivity::class.java)
+            }
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(launch)
+            finish()
+        }
         AnkiAccessibilityService.recordSelection(selectedText)
         val characters = selectedText.filter(::isCjkCharacter).map { it.toString() }.distinct()
 

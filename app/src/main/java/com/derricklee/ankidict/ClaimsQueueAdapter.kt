@@ -1,7 +1,12 @@
 package com.derricklee.ankidict
 
+import android.graphics.Bitmap
 import android.graphics.Typeface
+import android.os.Handler
+import android.os.Looper
+import android.util.LruCache
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.derricklee.ankidict.databinding.ItemNameplateClaimRowBinding
@@ -21,6 +26,8 @@ class ClaimsQueueAdapter(
 
     private var items: List<MiningRepository.PendingNameplateClaim> = emptyList()
     private var inlineRemainders: Map<Long, String> = emptyMap()
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val photoCache = object : LruCache<String, Bitmap>(16) {}
     /** While one ruling is in flight every row's action buttons are disabled (single-write guard). */
     var actionsEnabled = true
         set(value) {
@@ -50,6 +57,38 @@ class ClaimsQueueAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: MiningRepository.PendingNameplateClaim) {
+            val uri = row.contentUri
+            binding.claimPhotoImage.tag = uri
+            val cached = if (uri.isNotBlank()) photoCache.get(uri) else null
+            if (cached != null) {
+                binding.claimPhotoImage.setImageBitmap(cached)
+                binding.claimPhotoImage.visibility = View.VISIBLE
+            } else if (uri.isNotBlank()) {
+                binding.claimPhotoImage.setImageDrawable(null)
+                binding.claimPhotoImage.visibility = View.VISIBLE
+                val ctx = binding.root.context.applicationContext
+                AppIo.io.execute {
+                    val bmp = runCatching {
+                        PhotoThumbnailCache.decodeFullResolutionOriented(ctx, uri)
+                    }.getOrNull()
+                    if (bmp != null) {
+                        photoCache.put(uri, bmp)
+                    }
+                    mainHandler.post {
+                        if (binding.claimPhotoImage.tag != uri) return@post
+                        if (bmp != null) {
+                            binding.claimPhotoImage.setImageBitmap(bmp)
+                            binding.claimPhotoImage.visibility = View.VISIBLE
+                        } else {
+                            binding.claimPhotoImage.visibility = View.GONE
+                        }
+                    }
+                }
+            } else {
+                binding.claimPhotoImage.setImageDrawable(null)
+                binding.claimPhotoImage.visibility = View.GONE
+            }
+
             val inline = row.contextSentence.isNotEmpty()
             binding.claimText.text = if (!inline) {
                 row.text

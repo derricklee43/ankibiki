@@ -258,6 +258,14 @@ class FloatingBubbleService : Service() {
         binding.root.isClickable = true
         binding.kanjiPopupList.layoutManager = LinearLayoutManager(themedContext)
         binding.closeButton.setOnClickListener { dismissPopup() }
+        binding.openInAppButton.setOnClickListener {
+            dismissPopup()
+            startActivity(
+                Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                },
+            )
+        }
         backdrop.addView(binding.root, cardParams)
 
         // Do NOT set FLAG_NOT_FOCUSABLE here: receiving window focus is what allows this overlay

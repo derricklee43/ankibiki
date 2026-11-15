@@ -131,12 +131,36 @@ class SentenceDetailActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 binding.wordChipGroup.removeAllViews()
+                val surfaceColor = resolveThemeColor(com.google.android.material.R.attr.colorSurface)
+                val onSurfaceColor = resolveThemeColor(com.google.android.material.R.attr.colorOnSurface)
+                val onSurfaceVariantColor = resolveThemeColor(com.google.android.material.R.attr.colorOnSurfaceVariant)
+                val surfaceContainerHighestColor = resolveThemeColor(com.google.android.material.R.attr.colorSurfaceContainerHighest)
+                val outlineVariantColor = resolveThemeColor(com.google.android.material.R.attr.colorOutlineVariant)
                 for (candidate in candidates) {
                     val chipBinding = ItemSentenceChipBinding.inflate(
                         layoutInflater, binding.wordChipGroup, false,
                     )
                     val chip: Chip = chipBinding.root
                     chip.text = candidate.expression
+                    when (candidate.visibility) {
+                        ItemVisibility.ACTIVE -> {
+                            // Non-hidden: elevated, swap background and text colors.
+                            chip.chipBackgroundColor = android.content.res.ColorStateList.valueOf(onSurfaceColor)
+                            chip.setTextColor(surfaceColor)
+                            chip.chipStrokeWidth = 0f
+                            chip.elevation = 4f
+                        }
+                        ItemVisibility.HIDDEN -> {
+                            // Hidden: keep the current default outline/surface styling.
+                        }
+                        ItemVisibility.ARCHIVED -> {
+                            // Archived: more gray to de-emphasize.
+                            chip.chipBackgroundColor = android.content.res.ColorStateList.valueOf(surfaceContainerHighestColor)
+                            chip.setTextColor(onSurfaceVariantColor)
+                            chip.chipStrokeColor = android.content.res.ColorStateList.valueOf(outlineVariantColor)
+                            chip.alpha = 0.65f
+                        }
+                    }
                     chip.setOnClickListener {
                         startActivity(
                             WordGrammarDetailActivity.newIntent(
@@ -295,9 +319,12 @@ class SentenceDetailActivity : AppCompatActivity() {
     }
 
     /** colorPrimary from the theme (Material3 dynamic; pink on this device's palette). */
-    private fun resolvePrimaryColor(): Int {
+    private fun resolvePrimaryColor(): Int =
+        resolveThemeColor(com.google.android.material.R.attr.colorPrimary)
+
+    private fun resolveThemeColor(attr: Int): Int {
         val tv = android.util.TypedValue()
-        theme.resolveAttribute(com.google.android.material.R.attr.colorPrimary, tv, true)
+        theme.resolveAttribute(attr, tv, true)
         return if (tv.resourceId != 0) {
             androidx.core.content.ContextCompat.getColor(this, tv.resourceId)
         } else {

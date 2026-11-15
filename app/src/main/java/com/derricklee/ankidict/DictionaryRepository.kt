@@ -66,12 +66,22 @@ class DictionaryRepository(context: Context) {
     }
 
     fun lookupJapaneseWords(query: String): List<DictionaryEntry.JapaneseWord> {
-        val results = mutableListOf<DictionaryEntry.JapaneseWord>()
-        db.rawQuery(
+        val hiragana = KuromojiWordAnalyzer.katakanaToHiragana(query)
+        val hasKatakanaVariant = hiragana != query
+        val sql = if (hasKatakanaVariant) {
             "SELECT headword, reading, glosses, is_common FROM words " +
-                "WHERE headword = ? OR reading = ? ORDER BY is_common DESC",
-            arrayOf(query, query),
-        ).use { cursor ->
+                "WHERE headword = ? OR reading = ? OR reading = ? ORDER BY is_common DESC"
+        } else {
+            "SELECT headword, reading, glosses, is_common FROM words " +
+                "WHERE headword = ? OR reading = ? ORDER BY is_common DESC"
+        }
+        val args = if (hasKatakanaVariant) {
+            arrayOf(query, query, hiragana)
+        } else {
+            arrayOf(query, query)
+        }
+        val results = mutableListOf<DictionaryEntry.JapaneseWord>()
+        db.rawQuery(sql, args).use { cursor ->
             while (cursor.moveToNext()) {
                 results.add(
                     DictionaryEntry.JapaneseWord(

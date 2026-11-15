@@ -498,7 +498,12 @@ class MiningRepository(
     )
 
     /** Parsed word/grammar candidates of one sentence instance (photo, sentence), DELETED excluded. */
-    data class SentenceCandidate(val occurrenceId: Long, val itemType: ItemType, val expression: String)
+    data class SentenceCandidate(
+        val occurrenceId: Long,
+        val itemType: ItemType,
+        val expression: String,
+        val visibility: ItemVisibility = ItemVisibility.ACTIVE,
+    )
 
 
 
@@ -642,13 +647,25 @@ class MiningRepository(
         val to = if (up) from - 1 else from + 1
         if (from < 0 || to !in ordered.indices) return false
         val moved = ordered.toMutableList().apply { add(to, removeAt(from)) }
+        return saveSentenceOrder(languageTag, itemType, expression, moved)
+    }
+
+    /** Persists an explicit sentence ordering (used by drag-and-drop reorder in word detail). */
+    fun saveSentenceOrder(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+        orderedSentences: List<String>,
+    ): Boolean {
+        if (orderedSentences.isEmpty()) return false
+        val distinct = orderedSentences.distinct()
         val values = ContentValues().apply {
             put(
                 "sentence_ranks",
-                org.json.JSONObject(moved.mapIndexed { i, s -> s to i }.toMap() as Map<String, Any>).toString(),
+                org.json.JSONObject(distinct.mapIndexed { i, s -> s to i }.toMap() as Map<String, Any>).toString(),
             )
         }
-        val updated = db.update(
+        val updated = writableDatabase.update(
             "extracted_items", values,
             "language_tag = ? AND item_type = ? AND expression = ?",
             arrayOf(languageTag.name, itemType.name, expression),

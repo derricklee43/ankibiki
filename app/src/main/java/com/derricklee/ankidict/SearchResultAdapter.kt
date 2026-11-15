@@ -213,6 +213,15 @@ class SearchResultAdapter(
             val layout = NOTE_LAYOUTS[note.modelId]
             val card = note.toCard()
 
+            val textTag = when (note.modelId) {
+                CHINESE_MNEMONICS_MODEL_ID -> LanguageTag.CHINESE
+                else -> LanguageTag.JAPANESE
+            }
+            TextLocales.apply(binding.characterText, textTag)
+            TextLocales.apply(binding.readingText, textTag)
+            TextLocales.apply(binding.vocabText, textTag)
+            TextLocales.apply(binding.extraText, textTag)
+
             bindDeckTag(layout)
             bindAudio(note, card?.word)
             bindOptional(binding.characterText, card?.word)

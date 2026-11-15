@@ -415,6 +415,7 @@ class PhotoDetailActivity : AppCompatActivity() {
                     renderGoldButton()
                     binding.extractedTextDisplay.text =
                         text.ifBlank { getString(R.string.no_extracted_text) }
+                    renderSentenceLinks(mediaId, text, rows)
                     renderNameplateClaims(mediaId, claims, inlineRemainders)
                     bindTransparencyViews()
                     loadingText = false
@@ -427,6 +428,63 @@ class PhotoDetailActivity : AppCompatActivity() {
                     reportOperationFailure(error)
                 }
             }
+        }
+    }
+
+    /** Explicit links from the photo view to the single-sentence view for each sentence. */
+    private fun renderSentenceLinks(
+        mediaId: Long,
+        text: String,
+        rows: List<ExtractionStatus.SentenceRows>,
+    ) {
+        val container = binding.sentencesLinksContainer
+        container.removeAllViews()
+        val sentences = rows.map { it.sentence }.ifEmpty {
+            text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+        }.distinct()
+        if (sentences.isEmpty()) {
+            container.visibility = View.GONE
+            return
+        }
+        container.visibility = View.VISIBLE
+        for (sentence in sentences) {
+            val row = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(0, 2, 0, 2)
+            }
+            val label = android.widget.TextView(this).apply {
+                this.text = sentence
+                textSize = 13f
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                layoutParams = android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f,
+                )
+            }
+            TextLocales.apply(label, lastLoadedTag)
+            val openBtn = android.widget.ImageButton(this).apply {
+                setImageResource(R.drawable.ic_arrow_forward)
+                contentDescription = getString(R.string.view_single_sentence)
+                val tv = android.util.TypedValue()
+                theme.resolveAttribute(android.R.attr.selectableItemBackgroundBorderless, tv, true)
+                setBackgroundResource(tv.resourceId)
+                val sizePx = (36 * resources.displayMetrics.density).toInt()
+                layoutParams = android.widget.LinearLayout.LayoutParams(sizePx, sizePx)
+                setOnClickListener {
+                    startActivity(
+                        SentenceDetailActivity.newIntent(
+                            context = this@PhotoDetailActivity,
+                            photoId = mediaId,
+                            sentence = sentence,
+                            languageTag = lastLoadedTag,
+                        ),
+                    )
+                }
+            }
+            row.addView(label)
+            row.addView(openBtn)
+            container.addView(row)
         }
     }
 

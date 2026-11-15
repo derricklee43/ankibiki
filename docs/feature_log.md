@@ -7,6 +7,45 @@ from git history — commit `37f2174` had mangled it to a `|x|` artifact). The r
 convention applies here: checkboxes only flipped when exit evidence was verified, so
 everything below carries its proof record.
 
+## 2026-11-15 · Laundry-list batch (user's 17-item message: "complete all that you can without my input")
+
+Shipped on emulator-5554 — JVM suite + androidTest compile green; each verified by uiautomator
+dump/screenshot walkthrough on the emulator during the session:
+
+- **6-dot drag handle replaces up/down sort arrows** (WordGrammarDetailActivity): sentences
+  container -> RecyclerView + ItemTouchHelper, order persisted via MiningRepository.saveSentenceOrder.
+- **Right arrow replaces the boxed open-in-new icon** on the sentence link (ic_arrow_forward).
+- **"Open in AnkiBiki" (AnkiBikiで開く) button on the external-app overlay** (ProcessTextActivity +
+  FloatingBubbleService): opens MainActivity, prefills selected text from ACTION_PROCESS_TEXT.
+- **Katakana word lookup fixed**: DictionaryRepository.lookupJapaneseWords also queries
+  katakanaToHiragana(query) — ザマ→ざま(様), カギ→かぎ(鍵) now resolve in dictionary.db.
+- **Prolonged-mark noise rejected**: KuromojiWordAnalyzer.isValidWordCandidate drops pure-choonpu
+  strings ("ーー" from 知れるーー); pinned by new KuromojiWordAnalyzerTest (also pins 殺せ→殺す
+  tokenization and katakana extraction).
+- **Photo full-page view**: delete button moved to top-right header; per-sentence right-arrow
+  links open SentenceDetailActivity from below the extracted text.
+- **System-Translate coverage**: TextLocales.apply extended to SearchResultAdapter vocab/reading/
+  character/extra rows and WordGrammarDetailActivity kanji/kana rows. NOTE: the Translate chip
+  itself needs a physical device (emulator google_apis image has no translation provider) —
+  deferred, not faked.
+- **Launcher tap resumes the last screen** (was resetting to 引き): alwaysRetainTaskState +
+  isTaskRoot/ACTION_MAIN guard in MainActivity.onCreate.
+- **Nameplate claims queue shows the full photo**: claimPhotoImage (match_parent, maxHeight 320dp,
+  fitCenter), decoded async via PhotoThumbnailCache.decodeFullResolutionOriented.
+- **Sentence-view word chips styled by visibility**: ACTIVE elevated (bg/fg swapped), HIDDEN
+  unchanged, ARCHIVED de-emphasized gray (MiningQueries.getSentenceCandidates joins visibility).
+
+Design deliverables (exit criterion for the proposal-shaped items was the doc itself):
+docs/gold-sentence-edit-reconcile-proposal.md (gold typo edits reparse words without re-OCR,
+is_manual-protected rows survive; awaiting go), spikes/005-homophone-disambiguation/README.md
+(でも conjunction-vs-particle POS gate + same-POS sense picker options), docs/cross-view-undo-proposal.md
+(DB-backed undo_log + cross-screen Snackbar 元に戻す; awaiting go).
+
+Blocked on user disambiguation (questions written in docs/pending-disambiguation.md): photo flagger
+(palette + placement), わし sense / custom definition + notes / runtime-lookup-vs-saved-meaning,
+word folders + skip-inbox behavior (the wrong-sense root cause was found: is_common DESC picks
+和紙 over 儂), and the exact sentence/photo for the 殺せ→殺せる mispick.
+
 ## 2026-11-13/14 · Track B — review & organization UX
 
 B. **Review & organization UX** (new): library filters (unseen / 金 / language — the stale

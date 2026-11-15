@@ -193,12 +193,12 @@
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
-            <LinearLayout
-                android:id="@+id/sentencesContainer"
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/sentencesRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="6dp"
-                android:orientation="vertical" />
+                android:nestedScrollingEnabled="false" />
 
         </LinearLayout>
 

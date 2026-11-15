@@ -215,4 +215,7 @@
     <string name="wizard_preview_unavailable">(rendered preview unavailable — fields above show exactly what will be written)</string>
     <string name="wizard_created_linked">Card created and linked to the mined item</string>
     <string name="wizard_create_failed">Create failed: %1$s</string>
+    <string name="open_in_ankibiki">AnkiBikiで開く</string>
+    <string name="reorder_sentence">並び替え</string>
+    <string name="view_sentences_links">文ごとの詳細</string>
 </resources>

@@ -86,8 +86,17 @@ A. **Card-making loop** (§4 extension): an "add to existing note" path (append
    (The batch "create cards" proposal was pulled by user 2026-11-14 — see Parked ideas.)
 
 B. **Review & organization UX** — shipped 2026-11-13/14 in full (sentence word editor,
-   出現/単語 tab split, claims queue, gold dashboard, library filters). No open items;
-   evidence: [docs/feature_log.md](feature_log.md).
+   出現/単語 tab split, claims queue, gold dashboard, library filters).
+   (2026-11-15: laundry-list batch — ten UI/lookup fixes shipped on emulator, evidence in
+   [docs/feature_log.md](feature_log.md). OPEN on this track: four items awaiting user
+   disambiguation (photo flagger palette/placement, 意味 save-vs-runtime + custom definition/notes,
+   word folders + skip-inbox, exact 殺せ mispick sentence) — questions in
+   [docs/pending-disambiguation.md](pending-disambiguation.md); two proposals awaiting a go —
+   [gold sentence-edit reconcile](gold-sentence-edit-reconcile-proposal.md) and
+   [cross-view undo](cross-view-undo-proposal.md); homophone spike design in
+   [spikes/005-homophone-disambiguation](../spikes/005-homophone-disambiguation/README.md);
+   Translate chip needs a physical-device pass.)
+   Evidence: [docs/feature_log.md](feature_log.md).
 
 C. **Lookup upgrades** (from Secondary): less collection-specific deck/note-type
    configuration (conditional — only if the app is meant to outlive this collection).
