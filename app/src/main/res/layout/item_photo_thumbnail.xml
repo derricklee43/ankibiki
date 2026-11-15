@@ -39,4 +39,15 @@
         app:layout_constraintStart_toStartOf="@id/thumbnailImage"
         app:layout_constraintTop_toTopOf="@id/thumbnailImage" />
 
+    <View
+        android:id="@+id/flagDot"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:layout_margin="5dp"
+        android:background="@drawable/flag_dot_bg"
+        android:elevation="2dp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@id/thumbnailImage"
+        app:layout_constraintTop_toTopOf="@id/thumbnailImage" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

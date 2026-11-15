@@ -13,6 +13,10 @@ enum class ExportField(val label: String) {
     TERM("term"),
     READING("reading"),
     MEANING("meaning"),
+    /** v11 (user 2026-11-15: "I want to be able to add my own definition and notes"): the
+     * user-authored text, distinct from dictionary `meaning`; mappable like any other field. */
+    USER_DEFINITION("user_definition"),
+    USER_NOTES("user_notes"),
     SENTENCE("sentence"),
     SENTENCE_WORDS("sentence_words"),
     PHOTO("photo"),
@@ -44,6 +48,9 @@ data class CardDraft(
     val languageLabel: String,
     val levelBadge: String?,
     val corpusRank: Int?,
+    /** v11: user-authored definition/notes ride the draft like any other source (default "" = unset). */
+    val userDefinition: String = "",
+    val userNotes: String = "",
 ) {
     fun toJson(): String = JSONObject().apply {
         put("languageTag", languageTag)
@@ -57,6 +64,8 @@ data class CardDraft(
         put("languageLabel", languageLabel)
         put("levelBadge", levelBadge ?: JSONObject.NULL)
         put("corpusRank", corpusRank ?: JSONObject.NULL)
+        put("userDefinition", userDefinition)
+        put("userNotes", userNotes)
     }.toString()
 
     companion object {
@@ -76,6 +85,9 @@ data class CardDraft(
                 languageLabel = o.getString("languageLabel"),
                 levelBadge = if (o.isNull("levelBadge")) null else o.getString("levelBadge"),
                 corpusRank = if (o.isNull("corpusRank")) null else o.getInt("corpusRank"),
+                // opt* not getString: drafts persisted before v11 lack these keys.
+                userDefinition = o.optString("userDefinition"),
+                userNotes = o.optString("userNotes"),
             )
         }.getOrNull()
 
@@ -97,6 +109,8 @@ data class CardDraft(
                 },
                 levelBadge = detail.levelBadge,
                 corpusRank = detail.corpusRank,
+                userDefinition = detail.userDefinition.orEmpty(),
+                userNotes = detail.userNotes.orEmpty(),
             )
 
         private fun sentencePhotoUri(detail: ExtractedItemDetail, sentence: String): String? {
@@ -115,6 +129,9 @@ object DraftAdapter {
         ExportField.TERM to draft.expression,
         ExportField.READING to draft.reading,
         ExportField.MEANING to draft.meaning,
+        // v11 user-authored sources: empty until the user fills them on the word view.
+        ExportField.USER_DEFINITION to draft.userDefinition,
+        ExportField.USER_NOTES to draft.userNotes,
         ExportField.SENTENCE to draft.sentence,
         ExportField.SENTENCE_WORDS to draft.sentenceWords.joinToString(WORDS_JOINER),
         // photo is materialized at write time (media import), not as plain text:

@@ -82,6 +82,13 @@ data class ScrapedPhoto(
      * rescan replaces the text, so it clears the mark; user text edits keep it.
      */
     val isGold: Boolean = false,
+    /**
+     * v11 photo flagger (user 2026-11-15): a flag COLOR STRING, deliberately decoupled from any
+     * palette — PhotoFlagPalette resolves today's fixed keys but a #RRGGBB string round-trips
+     * unchanged, so wiring in a color picker later needs no schema or storage change.
+     * null = no flag. Set ONLY via MiningRepository.setPhotoFlag; photo upserts preserve it.
+     */
+    val flagColor: String? = null,
 )
 
 data class ExtractedOccurrenceRow(
@@ -148,9 +155,24 @@ data class ExtractedItemDetail(
     val photos: List<ScrapedPhoto>,
     val sentences: List<String>,
     val matchedSentences: List<MatchedSentence> = emptyList(),
+    /** v11 user-authored definition (user 2026-11-15): shown ABOVE the dictionary meaning. */
+    val userDefinition: String? = null,
+    /** v11 user notes, own section; free text. */
+    val userNotes: String? = null,
+    /** v11 folder membership (1:1, user answer 2026-11-15). */
+    val folderId: Long? = null,
+    val folderName: String? = null,
 ) {
     fun formatFrequencyLine(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }
+
+/** v11 word folder (user 2026-11-15). [wordCount] = items currently assigned to it. */
+data class WordFolder(
+    val id: Long,
+    val name: String,
+    val skipInbox: Boolean,
+    val wordCount: Int = 0,
+)
 
 fun formatFrequencySummary(
     occurrenceCount: Int,

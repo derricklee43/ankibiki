@@ -162,6 +162,33 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             updateRevealViews()
         }
 
+        // v11 user definition / notes / folder (user answers 2026-11-15). Saves are targeted
+        // UPDATEs and never touch the text-provenance flag: definition != authorship of the
+        // sentence text (is_manual/modified_by_user_flag semantics stay pinned).
+        binding.userDefinitionEditButton.setOnClickListener {
+            showUserTextEditor(
+                getString(R.string.user_definition_dialog_title),
+                currentDetail?.userDefinition,
+            ) { text ->
+                ioExecutor.execute {
+                    miningRepository.setUserDefinition(languageTag, itemType, expression, text)
+                    runOnUiThread { loadDetail() }
+                }
+            }
+        }
+        binding.userNotesEditButton.setOnClickListener {
+            showUserTextEditor(
+                getString(R.string.user_notes_dialog_title),
+                currentDetail?.userNotes,
+            ) { text ->
+                ioExecutor.execute {
+                    miningRepository.setUserNotes(languageTag, itemType, expression, text)
+                    runOnUiThread { loadDetail() }
+                }
+            }
+        }
+        binding.folderEditButton.setOnClickListener { showFolderPicker() }
+
         binding.ankiCardActionButton.setOnClickListener {
             val detail = currentDetail
             if (detail?.ankiNoteId != null) {
@@ -307,6 +334,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                     finish()
                     return@runOnUiThread
                 }
+                renderUserRows()
 
                 photosAdapter.submitList(detail.photos)
                 binding.matchingPhotosStrip.visibility =
@@ -434,6 +462,67 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         } else {
             binding.meaningRevealButton.visibility = View.VISIBLE
             binding.meaningValueText.visibility = View.GONE
+        }
+    }
+
+    // ---- v11 user rows (definition / notes / folder) ----
+
+    private fun renderUserRows() {
+        val d = currentDetail
+        binding.userDefinitionValueText.text = d?.userDefinition?.takeIf { it.isNotBlank() } ?: "—"
+        binding.userNotesValueText.text = d?.userNotes?.takeIf { it.isNotBlank() } ?: "—"
+        binding.folderValueText.text = d?.folderName?.takeIf { it.isNotBlank() } ?: "—"
+    }
+
+    /** Multiline text dialog for user_definition/user_notes; blank save clears the value. */
+    private fun showUserTextEditor(title: String, initial: String?, onSave: (String?) -> Unit) {
+        val input = android.widget.EditText(this).apply {
+            setText(initial.orEmpty())
+            setSelection(initial?.length ?: 0)
+            minLines = 3
+            maxLines = 6
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+        }
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val container = android.widget.FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(
+                input,
+                android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(title)
+            .setView(container)
+            .setPositiveButton(R.string.btn_save_text) { _, _ ->
+                onSave(input.text.toString().trim().ifEmpty { null })
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    /** 1:1 folder assignment (user answer 2026-11-15). Row 0 clears the assignment. */
+    private fun showFolderPicker() {
+        ioExecutor.execute {
+            val folders = miningRepository.listWordFolders()
+            val labels = (listOf(getString(R.string.folder_none)) + folders.map { it.name }).toTypedArray()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.folder_pick_title)
+                    .setItems(labels) { _, which ->
+                        val target: Long? = if (which == 0) null else folders[which - 1].id
+                        ioExecutor.execute {
+                            miningRepository.moveItemToFolder(languageTag, itemType, expression, target)
+                            runOnUiThread { loadDetail() }
+                        }
+                    }
+                    .setNegativeButton(R.string.btn_cancel, null)
+                    .show()
+            }
         }
     }
 

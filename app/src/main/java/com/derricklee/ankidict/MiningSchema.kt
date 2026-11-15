@@ -115,3 +115,43 @@ internal fun MiningRepository.cleanPureKanaKanjiBackfill(db: SQLiteDatabase) {
         )
     }
 }
+
+/**
+ * v11 word folders (user 2026-11-15 laundry list: "trying to clear my inbox, I don't want to
+ * create cards for all of them"). One folder per word (user answer: 1:1 — folder_id lives on
+ * extracted_items). skip_inbox = 1 means the folder opts future occurrences out of the 出現
+ * inbox: mining inserts them SEEN, and moving a word in also marks its existing UNSEEN
+ * occurrences SEEN (user answer 2026-11-15). Rows are pure organization — deleting a folder
+ * only unassigns its words, never touches occurrences' history.
+ */
+internal fun MiningRepository.createWordFoldersSchema(db: SQLiteDatabase) {
+    db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS word_folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            skip_inbox INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL
+        )
+        """.trimIndent(),
+    )
+}
+
+/** v11 column guards (user 2026-11-15 batch): table AND column must both be checked before
+ * ALTER — harnesses hand-build partial or current-schema-then-downgraded DBs (v10 lesson). */
+internal fun MiningRepository.addColumnIfMissing(
+    db: SQLiteDatabase,
+    table: String,
+    column: String,
+    ddl: String,
+) {
+    val hasTable = db.rawQuery(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(table),
+    ).use { it.moveToFirst() }
+    val hasColumn = hasTable && db.rawQuery(
+        "SELECT 1 FROM pragma_table_info('$table') WHERE name = ?", arrayOf(column),
+    ).use { it.moveToFirst() }
+    if (hasTable && !hasColumn) {
+        db.execSQL("ALTER TABLE $table ADD COLUMN $column $ddl")
+    }
+}

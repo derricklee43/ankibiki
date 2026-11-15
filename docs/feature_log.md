@@ -7,6 +7,40 @@ from git history — commit `37f2174` had mangled it to a `|x|` artifact). The r
 convention applies here: checkboxes only flipped when exit evidence was verified, so
 everything below carries its proof record.
 
+## 2026-11-15 · Schema v11 — answers batch (flagger, user definitions/notes, word folders)
+
+The four disambiguation items from the laundry-list batch came back answered the same day
+(thread, 2026-11-15); all shipped on top of the morning's batch. Resolved answers with the
+answer->question mapping: [docs/pending-disambiguation.md](pending-disambiguation.md).
+
+- **v10 -> v11 migration** (`scraped_photos.flag_color`, `extracted_items.user_definition/
+  user_notes/folder_id`, `word_folders` table) — guarded ALTERs (table+column), deliberately
+  NOT in REQUIRED_COLUMNS/MINING_COLUMNS so pre-v11 bundles stay restorable; every version
+  gate re-synced in the bump commit (backup_bundle SUPPORTED_USER_VERSIONS, recovery.md prose,
+  the NameplateClaims hard-pin tripwire 10->11). Fresh-DB + v10->v11 migration specs;
+  live-corpus migration proven on the emulator's 174-photo copy (queryable flag_color after
+  first open).
+- **Photo flagger**: fixed 5-color palette + 解除, dots in the row under 金 — storage is an
+  OPAQUE string (PhotoFlagPalette resolves; #hex round-trips) so the future color selector is
+  UI-only. Thumbnail badges + 旗 library facet. REPLACE-upserts preserve the flag.
+  Specs: PhotoFlagPaletteTest (4 JVM) + PhotoFlagInstrumentedTest (5). Live: tap 赤 ->
+  `flag_color='red'` -> red pixels sampled 50/50 -> facet shows exactly the 1 flagged tile.
+- **User definition + notes** above the dictionary meaning, wizard-mappable: ExportField
+  `user_definition`/`user_notes` (DraftAdapter contract re-pinned deliberately; pre-v11 drafts
+  still parse via opt*). Targeted UPDATEs; survive the extracted_items REPLACE upsert (the
+  same preservation pass also closed a latent hazard: sentence_ranks is now carried across
+  REPLACE too — previously a re-upsert could drop manual ordering).
+- **Word folders** exactly as answered: 1:1 `folder_id`, 第三タブ フォルダ (create dialog with
+  skip-inbox toggle, tap -> word list, long-press -> delete-unassigns-only), フォルダ row +
+  picker on the word view; skip-inbox folders mark existing UNSEEN SEEN on move AND mine
+  future occurrences born-SEEN; removal never un-sees. Specs: WordFoldersInstrumentedTest (5).
+  Live on real corpus: create `mining-low` via UI -> move 海賊 -> UNSEEN 8->0, SEEN 8 ->
+  test state restored.
+- Suite after: JVM **92/92**; instrumented **110/110 OK** on emulator-5554 (99 prior + 11 new),
+  corpus snapshotted first (backups/20261115-105313).
+- 殺せ->殺せる reproduction closed by user ("let's not worry about it"); pinned 殺す tokenization
+  and ーー rejection stay as shipped test data.
+
 ## 2026-11-15 · Laundry-list batch (user's 17-item message: "complete all that you can without my input")
 
 Shipped on emulator-5554 — JVM suite + androidTest compile green; each verified by uiautomator

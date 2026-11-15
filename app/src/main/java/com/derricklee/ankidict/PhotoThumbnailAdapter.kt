@@ -53,6 +53,13 @@ class PhotoThumbnailAdapter(
             boundMediaId = photo.mediaStoreId
             binding.root.setOnClickListener { onPhotoClick(photo) }
             binding.goldChip.visibility = if (photo.isGold) android.view.View.VISIBLE else android.view.View.GONE
+            // v11 flag badge (user 2026-11-15): tint applied from the palette resolver, so any
+            // stored value (key today, hex after a color selector ships) renders or degrades gray.
+            val flagColor = PhotoFlagPalette.resolveColor(photo.flagColor)
+            binding.flagDot.visibility = if (flagColor != null) android.view.View.VISIBLE else android.view.View.GONE
+            if (flagColor != null) {
+                binding.flagDot.backgroundTintList = android.content.res.ColorStateList.valueOf(flagColor)
+            }
 
             val cached = PhotoThumbnailCache.getMemoryCached(photo.mediaStoreId)
             if (cached != null) {

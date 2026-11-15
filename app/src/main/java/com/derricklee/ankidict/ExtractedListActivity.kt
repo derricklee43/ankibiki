@@ -13,12 +13,13 @@ import com.google.android.material.tabs.TabLayout
 class ExtractedListActivity : AppCompatActivity() {
 
     /** Occurrences = the review inbox (one row per sentence hit). Words = gojūon-sorted definitions. */
-    private enum class ListTab { OCCURRENCES, WORDS }
+    private enum class ListTab { OCCURRENCES, WORDS, FOLDERS }
 
     private lateinit var binding: ActivityExtractedListBinding
     private lateinit var miningRepository: MiningRepository
     private lateinit var adapter: ExtractedOccurrenceAdapter
     private lateinit var wordAdapter: WordDefinitionAdapter
+    private lateinit var folderAdapter: FolderAdapter
     private val ioExecutor = AppIo.io
 
     private var itemType: ItemType = ItemType.WORD
@@ -80,6 +81,12 @@ class ExtractedListActivity : AppCompatActivity() {
                 ),
             )
         }
+        // v11 Folders tab (user answer 2026-11-15: third tab, one folder per word).
+        folderAdapter = FolderAdapter(
+            onCreateFolder = { showCreateFolderDialog() },
+            onOpenFolder = { folder -> showFolderWordsDialog(folder) },
+            onDeleteFolder = { folder -> confirmDeleteFolder(folder) },
+        )
 
         binding.occurrencesRecyclerView.layoutManager = LinearLayoutManager(this)
         binding.occurrencesRecyclerView.adapter = adapter
@@ -106,8 +113,17 @@ class ExtractedListActivity : AppCompatActivity() {
                 },
             ),
         )
+        binding.listTabs.addTab(
+            binding.listTabs.newTab().setText(getString(R.string.tab_folders)),
+        )
         binding.listTabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) = selectTab(if (tab.position == 0) ListTab.OCCURRENCES else ListTab.WORDS)
+            override fun onTabSelected(tab: TabLayout.Tab) = selectTab(
+                when (tab.position) {
+                    0 -> ListTab.OCCURRENCES
+                    1 -> ListTab.WORDS
+                    else -> ListTab.FOLDERS
+                },
+            )
             override fun onTabUnselected(tab: TabLayout.Tab) = Unit
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
         })
@@ -121,10 +137,12 @@ class ExtractedListActivity : AppCompatActivity() {
         binding.colSecondHeader.text = when (tab) {
             ListTab.OCCURRENCES -> getString(R.string.col_deck)
             ListTab.WORDS -> getString(R.string.col_definition)
+            ListTab.FOLDERS -> ""
         }
         binding.occurrencesRecyclerView.adapter = when (tab) {
             ListTab.OCCURRENCES -> adapter
             ListTab.WORDS -> wordAdapter
+            ListTab.FOLDERS -> folderAdapter
         }
         loadActiveTab()
     }
@@ -133,6 +151,7 @@ class ExtractedListActivity : AppCompatActivity() {
         when (currentTab) {
             ListTab.OCCURRENCES -> loadOccurrences()
             ListTab.WORDS -> loadWords()
+            ListTab.FOLDERS -> loadFolders()
         }
     }
 
@@ -186,6 +205,7 @@ class ExtractedListActivity : AppCompatActivity() {
     private fun renderRows() {
         val query = binding.searchEditText.text?.toString().orEmpty()
         when (currentTab) {
+            ListTab.FOLDERS -> { /* folder rows render from their own load path */ }
             ListTab.OCCURRENCES -> {
                 val rows = if (query.isBlank()) {
                     lastRows
@@ -291,6 +311,109 @@ class ExtractedListActivity : AppCompatActivity() {
                 renderRows()
             }
         }
+    }
+
+    // ---- v11 Folders tab (user answers 2026-11-15: third tab, create+toggle, clearing inbox) ----
+
+    private fun loadFolders() {
+        ioExecutor.execute {
+            val folders = miningRepository.listWordFolders()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                folderAdapter.submitList(folders)
+            }
+        }
+    }
+
+    private fun showCreateFolderDialog() {
+        val input = android.widget.EditText(this).apply {
+            hint = getString(R.string.folder_name_hint)
+            maxLines = 2
+        }
+        val toggle = android.widget.Switch(this).apply {
+            text = getString(R.string.folder_skip_inbox_label)
+            setPadding(0, (8 * resources.displayMetrics.density).toInt(), 0, 0)
+        }
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val container = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, 0)
+            addView(
+                input,
+                android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+            addView(
+                toggle,
+                android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                ),
+            )
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.folder_create_button)
+            .setView(container)
+            .setPositiveButton(R.string.btn_save_text) { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isEmpty()) return@setPositiveButton
+                ioExecutor.execute {
+                    miningRepository.createWordFolder(name, toggle.isChecked)
+                    runOnUiThread { if (!isFinishing && !isDestroyed) loadFolders() }
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
+    }
+
+    /** Folder contents dialog: tap a word to open its detail (the move entry lives there). */
+    private fun showFolderWordsDialog(folder: WordFolder) {
+        ioExecutor.execute {
+            val rows = miningRepository.listWordRowsInFolder(folder.id, languageTag, itemType)
+            val labels = rows.map { r ->
+                buildString {
+                    append(r.expression)
+                    r.kana?.takeIf { it.isNotBlank() }?.let { append("　").append(it) }
+                    append(" — ")
+                    append(r.meaning.ifBlank { "—" })
+                }
+            }.toTypedArray()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(folder.name)
+                    .setItems(labels) { _, which ->
+                        val row = rows[which]
+                        startActivity(
+                            WordGrammarDetailActivity.newIntent(
+                                context = this,
+                                occurrenceId = row.occurrenceId,
+                                languageTag = row.languageTag,
+                                itemType = row.itemType,
+                                expression = row.expression,
+                            ),
+                        )
+                    }
+                    .setNegativeButton(R.string.btn_cancel, null)
+                    .show()
+            }
+        }
+    }
+
+    /** Deletion only unassigns words (doc'd in the confirm message) — occurrence history intact. */
+    private fun confirmDeleteFolder(folder: WordFolder) {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setMessage(R.string.folder_delete_title)
+            .setPositiveButton(R.string.word_editor_delete) { _, _ ->
+                ioExecutor.execute {
+                    miningRepository.deleteWordFolder(folder.id)
+                    runOnUiThread { if (!isFinishing && !isDestroyed) loadFolders() }
+                }
+            }
+            .setNegativeButton(R.string.btn_cancel, null)
+            .show()
     }
 
     companion object {

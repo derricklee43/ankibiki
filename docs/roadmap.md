@@ -88,14 +88,16 @@ A. **Card-making loop** (§4 extension): an "add to existing note" path (append
 B. **Review & organization UX** — shipped 2026-11-13/14 in full (sentence word editor,
    出現/単語 tab split, claims queue, gold dashboard, library filters).
    (2026-11-15: laundry-list batch — ten UI/lookup fixes shipped on emulator, evidence in
-   [docs/feature_log.md](feature_log.md). OPEN on this track: four items awaiting user
-   disambiguation (photo flagger palette/placement, 意味 save-vs-runtime + custom definition/notes,
-   word folders + skip-inbox, exact 殺せ mispick sentence) — questions in
-   [docs/pending-disambiguation.md](pending-disambiguation.md); two proposals awaiting a go —
+   [docs/feature_log.md](feature_log.md). Answers batch landed the SAME DAY on schema v11:
+   photo flagger (fixed palette, decoupled storage), user definition/notes (wizard-mappable),
+   word folders with skip-inbox — evidence + the answer->question mapping in
+   [docs/feature_log.md](feature_log.md) and [docs/pending-disambiguation.md](pending-disambiguation.md).
+   OPEN on this track: two proposals awaiting a go —
    [gold sentence-edit reconcile](gold-sentence-edit-reconcile-proposal.md) and
    [cross-view undo](cross-view-undo-proposal.md); homophone spike design in
-   [spikes/005-homophone-disambiguation](../spikes/005-homophone-disambiguation/README.md);
-   Translate chip needs a physical-device pass.)
+   [spikes/005-homophone-disambiguation](../spikes/005-homophone-disambiguation/README.md)
+   un-run (its Option C also owns the pin-which-sense half of the わし question);
+   Translate chip + the new surfaces want a physical-Pixel pass when the phone is attached.)
    Evidence: [docs/feature_log.md](feature_log.md).
 
 C. **Lookup upgrades** (from Secondary): less collection-specific deck/note-type

@@ -43,7 +43,12 @@ fun MiningRepository.getAllScrapedPhotos(): List<ScrapedPhoto> =
  * semantics verbatim (getActiveOccurrences): an UNSEEN occurrence row of an active, non-hidden
  * canonical item — word or grammar, either language — on a KEEP photo.
  */
-fun MiningRepository.getScrapedPhotosFiltered(unseenOnly: Boolean, goldOnly: Boolean, tags: Set<LanguageTag>): List<ScrapedPhoto> {
+fun MiningRepository.getScrapedPhotosFiltered(
+    unseenOnly: Boolean,
+    goldOnly: Boolean,
+    tags: Set<LanguageTag>,
+    flaggedOnly: Boolean = false,
+): List<ScrapedPhoto> {
     val selection = StringBuilder("status = ?")
     val args = mutableListOf(PhotoStatus.KEEP.name)
     if (unseenOnly) {
@@ -56,6 +61,7 @@ fun MiningRepository.getScrapedPhotosFiltered(unseenOnly: Boolean, goldOnly: Boo
         )
     }
     if (goldOnly) selection.append(" AND is_gold = 1")
+    if (flaggedOnly) selection.append(" AND flag_color IS NOT NULL") // v11 flagger facet
     val tagList = tags.toList()
     if (tagList.isNotEmpty() && tagList.size < LanguageTag.entries.size) {
         selection.append(" AND language_tag IN (").append(tagList.joinToString(",") { "?" }).append(")")
@@ -604,6 +610,70 @@ fun MiningRepository.getCanonicalItemDefinitions(
 }
 
 /**
+ * v11 folder contents for the Folders tab (user answer 2026-11-15): mirrors
+ * [getCanonicalItemDefinitions] but by folder membership, scoped to one (language, type)
+ * so the list matches the context the tab was opened in. ARCHIVED still excluded.
+ */
+fun MiningRepository.listWordRowsInFolder(
+    folderId: Long,
+    languageTag: LanguageTag,
+    itemType: ItemType,
+): List<WordDefinitionRow> {
+    val sql = """
+        SELECT
+            i.expression,
+            i.kana,
+            i.meaning,
+            i.level_badge,
+            i.corpus_rank,
+            (
+                SELECT COUNT(*)
+                FROM item_occurrences o2
+                JOIN scraped_photos p2 ON o2.photo_id = p2.media_store_id
+                WHERE o2.language_tag = i.language_tag
+                  AND o2.item_type = i.item_type
+                  AND o2.expression = i.expression
+                  AND o2.state IN ('UNSEEN', 'SEEN')
+                  AND p2.status = 'KEEP'
+            ) AS occurrence_count,
+            IFNULL(l.latest_id, -1)
+        FROM extracted_items i
+        LEFT JOIN (
+            SELECT o.language_tag AS lt, o.item_type AS it, o.expression AS ex,
+                   MAX(o.id) AS latest_id
+            FROM item_occurrences o
+            JOIN scraped_photos p ON o.photo_id = p.media_store_id
+            WHERE o.state IN ('UNSEEN', 'SEEN') AND p.status = 'KEEP'
+            GROUP BY o.language_tag, o.item_type, o.expression
+        ) l
+          ON l.lt = i.language_tag AND l.it = i.item_type AND l.ex = i.expression
+        WHERE i.folder_id = ? AND i.language_tag = ? AND i.item_type = ?
+          AND i.visibility_state != 'ARCHIVED'
+    """.trimIndent()
+    val results = mutableListOf<WordDefinitionRow>()
+    readableDatabase.rawQuery(sql, arrayOf(folderId.toString(), languageTag.name, itemType.name)).use { cursor ->
+        while (cursor.moveToNext()) {
+            results.add(
+                WordDefinitionRow(
+                    occurrenceId = cursor.getLong(6),
+                    languageTag = languageTag,
+                    itemType = itemType,
+                    expression = cursor.getString(0),
+                    kana = cursor.getStringOrNull(1),
+                    meaning = cursor.getString(2) ?: "",
+                    occurrenceCount = cursor.getInt(5),
+                    levelBadge = cursor.getStringOrNull(3),
+                    corpusRank = cursor.getIntOrNull(4),
+                ),
+            )
+        }
+    }
+    return results.sortedWith { a, b ->
+        ItemOrdering.compare(languageTag, a.kana, a.expression, b.kana, b.expression)
+    }
+}
+
+/**
  * Loads the full detail for a canonical word/grammar entry along with all linked photos and
  * matched original sentences from non-deleted occurrences (`UNSEEN` or `SEEN`).
  */
@@ -616,7 +686,8 @@ fun MiningRepository.getItemDetail(
     val itemCursor = db.rawQuery(
         """
         SELECT kanji, kana, meaning, level_badge, corpus_rank,
-               anki_account_id, deck_id, deck_name, anki_note_id, is_hidden, visibility_state
+               anki_account_id, deck_id, deck_name, anki_note_id, is_hidden, visibility_state,
+               user_definition, user_notes, folder_id
         FROM extracted_items
         WHERE language_tag = ? AND item_type = ? AND expression = ?
         """.trimIndent(),
@@ -634,6 +705,9 @@ fun MiningRepository.getItemDetail(
     val ankiNoteId: Long?
     val isHidden: Boolean
     val visibility: ItemVisibility
+    val userDefinition: String?
+    val userNotes: String?
+    val folderId: Long?
 
     itemCursor.use { c ->
         if (!c.moveToFirst()) return null
@@ -658,6 +732,13 @@ fun MiningRepository.getItemDetail(
         visibility = runCatching {
             if (rawVis != null) ItemVisibility.valueOf(rawVis) else null
         }.getOrNull() ?: if (isHidden) ItemVisibility.HIDDEN else ItemVisibility.ACTIVE
+        userDefinition = c.getStringOrNull(11)
+        userNotes = c.getStringOrNull(12)
+        folderId = c.getLongOrNull(13)
+    }
+    val folderName = folderId?.let { id ->
+        db.rawQuery("SELECT name FROM word_folders WHERE id = ?", arrayOf(id.toString()))
+            .use { c -> if (c.moveToFirst()) c.getString(0) else null }
     }
 
     val photos = mutableListOf<ScrapedPhoto>()
@@ -751,6 +832,10 @@ fun MiningRepository.getItemDetail(
         photos = photos,
         sentences = sentences,
         matchedSentences = matchedSentences,
+        userDefinition = userDefinition,
+        userNotes = userNotes,
+        folderId = folderId,
+        folderName = folderName,
     )
 }
 
@@ -781,6 +866,7 @@ private fun MiningRepository.queryScrapedPhotos(
             "duplicate_of_photo_id",
             "modified_by_user_flag",
             "is_gold",
+            "flag_color",
         ),
         selection,
         selectionArgs,
@@ -844,6 +930,8 @@ private fun Cursor.toScrapedPhoto(): ScrapedPhoto =
         modifiedByUserFlag = getInt(8) != 0,
         // Name-based read: projections that predate is_gold (word-view photo joins) map it false.
         isGold = getColumnIndex("is_gold").takeIf { it >= 0 }?.let { getInt(it) != 0 } ?: false,
+        // Same name-based rule for the v11 flag (older projections simply carry no flag).
+        flagColor = getColumnIndex("flag_color").takeIf { it >= 0 }?.let { getStringOrNull(it) },
     )
 
 internal fun Cursor.getStringOrNull(index: Int): String? =

@@ -140,6 +140,108 @@
 
             </LinearLayout>
 
+            <!-- v11 user definition + notes (user answers 2026-11-15: user_definition ABOVE the
+                 dictionary meaning; editable via the pencil dialogs; mappable in the wizard). -->
+            <LinearLayout
+                android:id="@+id/userDefinitionRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingVertical="6dp">
+
+                <TextView
+                    android:textIsSelectable="true"
+                    android:layout_width="64dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_user_definition"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:textIsSelectable="true"
+                    android:id="@+id/userDefinitionValueText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="15sp" />
+
+                <ImageButton
+                    android:id="@+id/userDefinitionEditButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/btn_edit_content_desc"
+                    android:src="@drawable/ic_edit_pencil" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/userNotesRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top"
+                android:orientation="horizontal"
+                android:paddingVertical="6dp">
+
+                <TextView
+                    android:textIsSelectable="true"
+                    android:layout_width="64dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_user_notes"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:textIsSelectable="true"
+                    android:id="@+id/userNotesValueText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="14sp" />
+
+                <ImageButton
+                    android:id="@+id/userNotesEditButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/btn_edit_content_desc"
+                    android:src="@drawable/ic_edit_pencil" />
+
+            </LinearLayout>
+
+            <!-- v11 folder assignment (user answer: one folder per word; managed in the フォダ tab) -->
+            <LinearLayout
+                android:id="@+id/folderRow"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingVertical="6dp">
+
+                <TextView
+                    android:textIsSelectable="true"
+                    android:layout_width="64dp"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_folder"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:textIsSelectable="true"
+                    android:id="@+id/folderValueText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:textSize="15sp" />
+
+                <ImageButton
+                    android:id="@+id/folderEditButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/btn_edit_content_desc"
+                    android:src="@drawable/ic_folder_small" />
+
+            </LinearLayout>
+
             <LinearLayout
                 android:id="@+id/meaningRevealRow"
                 android:layout_width="match_parent"

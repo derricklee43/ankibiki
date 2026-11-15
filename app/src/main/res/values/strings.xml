@@ -76,6 +76,24 @@
     <string name="btn_refresh_thumbnail">↻ サムネイル更新</string>
     <string name="btn_rescan_photo">再スキャン</string>
     <string name="btn_mark_gold">金を付ける</string>
+    <string name="photo_flag_label">旗</string>
+    <string name="photo_flag_clear">解除</string>
+    <!-- v11 word detail user rows + folders (user answers 2026-11-15) -->
+    <string name="label_user_definition">定義</string>
+    <string name="label_user_notes">ノート</string>
+    <string name="label_folder">フォルダ</string>
+    <string name="btn_edit_content_desc">編集</string>
+    <string name="user_definition_dialog_title">自分の定義</string>
+    <string name="user_notes_dialog_title">ノート</string>
+    <string name="folder_pick_title">フォルダを選ぶ</string>
+    <string name="folder_none">フォルダなし</string>
+    <string name="tab_folders">フォルダ</string>
+    <string name="folder_create_button">＋ 新しいフォルダ</string>
+    <string name="folder_name_hint">フォルダ名</string>
+    <string name="folder_skip_inbox_label">保存した単語の今後の出現をinboxに入れない</string>
+    <string name="folder_word_count">%1$d 語</string>
+    <string name="folder_skip_badge">skip inbox</string>
+    <string name="folder_delete_title">フォルダを削除しますか? 単語はフォルダから外れるだけで、消失しません。</string>
     <string name="gold_chip_label">金</string>
     <string name="hint_search_words">検索 — 漢字 / かな / romaji</string>
     <string name="btn_gold_marked">金</string>
@@ -101,6 +119,7 @@
     <!-- Library filters (roadmap B3, 2026-11-14) -->
     <string name="filter_unseen">未読</string>
     <string name="filter_gold">金</string>
+    <string name="filter_flag">旗</string>
     <string name="filter_japanese">日本語</string>
     <string name="filter_chinese">中国語</string>
     <!-- Gold dashboard (roadmap B2, 2026-11-14) -->

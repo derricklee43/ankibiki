@@ -65,6 +65,13 @@
             android:text="@string/filter_gold" />
 
         <com.google.android.material.chip.Chip
+            android:id="@+id/filterFlagChip"
+            style="@style/Widget.MaterialComponents.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/filter_flag" />
+
+        <com.google.android.material.chip.Chip
             android:id="@+id/filterJapaneseChip"
             style="@style/Widget.MaterialComponents.Chip.Filter"
             android:layout_width="wrap_content"

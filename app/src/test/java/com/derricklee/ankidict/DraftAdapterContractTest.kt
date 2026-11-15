@@ -30,6 +30,9 @@ class DraftAdapterContractTest {
         assertEquals("溺れる", v[ExportField.TERM])
         assertEquals("おぼれる", v[ExportField.READING])
         assertEquals("to drown", v[ExportField.MEANING])
+        // v11 (user 2026-11-15): user-authored sources; the fixture draft leaves them unset.
+        assertEquals("", v[ExportField.USER_DEFINITION])
+        assertEquals("", v[ExportField.USER_NOTES])
         assertEquals("彼は湖で溺れた。", v[ExportField.SENTENCE])
         assertEquals("彼、湖、溺れる", v[ExportField.SENTENCE_WORDS])
         assertEquals("", v[ExportField.PHOTO]) // materialized at write time, never plain text
@@ -39,11 +42,19 @@ class DraftAdapterContractTest {
     }
 
     @Test
+    fun userDefinitionAndNotes_resolveWhenSet() {
+        val filled = draft.copy(userDefinition = "水没して死ぬ", userNotes = "compare 溺らす (trans.)")
+        val v = DraftAdapter.resolve(filled)
+        assertEquals("水没して死ぬ", v[ExportField.USER_DEFINITION])
+        assertEquals("compare 溺らす (trans.)", v[ExportField.USER_NOTES])
+    }
+
+    @Test
     fun enumLabels_areStableNames() {
         // These strings are persisted in card_templates; renaming one breaks saved templates.
         assertEquals(
-            listOf("term", "reading", "meaning", "sentence", "sentence_words",
-                "photo", "language", "level", "rank"),
+            listOf("term", "reading", "meaning", "user_definition", "user_notes",
+                "sentence", "sentence_words", "photo", "language", "level", "rank"),
             ExportField.entries.map { it.label },
         )
         assertEquals(ExportField.TERM, ExportField.fromLabel("term"))

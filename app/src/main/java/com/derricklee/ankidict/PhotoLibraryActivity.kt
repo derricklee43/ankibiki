@@ -47,6 +47,7 @@ class PhotoLibraryActivity : AppCompatActivity() {
         // library filters (roadmap B3): each facet toggle re-queries the grid
         binding.filterUnseenChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
         binding.filterGoldChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
+        binding.filterFlagChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
         binding.filterJapaneseChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
         binding.filterChineseChip.setOnCheckedChangeListener { _, _ -> loadPhotos() }
 
@@ -96,6 +97,7 @@ class PhotoLibraryActivity : AppCompatActivity() {
         binding.filterChipGroup.visibility = if (showFullCameraRoll) View.GONE else View.VISIBLE
         val unseen = binding.filterUnseenChip.isChecked
         val gold = binding.filterGoldChip.isChecked
+        val flagged = binding.filterFlagChip.isChecked
         val tags = buildSet {
             if (binding.filterJapaneseChip.isChecked) add(LanguageTag.JAPANESE)
             if (binding.filterChineseChip.isChecked) add(LanguageTag.CHINESE)
@@ -104,7 +106,7 @@ class PhotoLibraryActivity : AppCompatActivity() {
             val photos = if (showFullCameraRoll) {
                 miningRepository.getCameraRollPhotos()
             } else {
-                miningRepository.getScrapedPhotosFiltered(unseen, gold, tags)
+                miningRepository.getScrapedPhotosFiltered(unseen, gold, tags, flagged)
             }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread

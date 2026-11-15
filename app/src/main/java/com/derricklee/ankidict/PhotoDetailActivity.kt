@@ -58,12 +58,111 @@ class PhotoDetailActivity : AppCompatActivity() {
 
     /** Gold state of the photo currently shown; owned by the is_gold column, refreshed on load. */
     private var currentIsGold = false
+    /** v11 flagger (user 2026-11-15): opaque color string — palette key or future hex value. */
+    private var currentFlagColor: String? = null
 
     /**
      * Two-state gold button (user spec 2026-11-13): unmarked = outlined, gold border + gold text
      * "Mark as gold"; marked = background filled gold, text in the previous background color
      * (theme colorSurface, so light/dark both read correctly), label just "Gold".
      */
+    // ---- v11 photo flagger (user 2026-11-15: fixed palette chips next to 金) ----
+
+    /** key -> dot view. Selection ring is the only state decoration; colors come from
+     * PhotoFlagPalette, so swapping in a color selector later touches this block only. */
+    private val flagDotViews = LinkedHashMap<String, android.view.View>()
+
+    private fun dpFlag(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun flagDotDrawable(color: Int, selected: Boolean): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+            cornerRadius = dpFlag(14).toFloat()
+            setColor(color)
+            if (selected) setStroke(dpFlag(3), 0xFF202124.toInt()) else setStroke(dpFlag(1), 0x40000000)
+        }
+
+    private fun buildFlagRow() {
+        val row = binding.flagChipRow
+        row.removeAllViews()
+        flagDotViews.clear()
+        row.addView(android.widget.TextView(this).apply {
+            text = getString(R.string.photo_flag_label)
+            textSize = 13f
+            setPadding(0, 0, dpFlag(6), 0)
+        })
+        for (entry in PhotoFlagPalette.entries) {
+            val color = entry.argb
+            val dot = android.view.View(this).apply {
+                background = flagDotDrawable(color, selected = false)
+                contentDescription = entry.labelJa
+            }
+            val lp = android.widget.LinearLayout.LayoutParams(dpFlag(28), dpFlag(28))
+            lp.marginStart = dpFlag(5); lp.marginEnd = dpFlag(5)
+            dot.layoutParams = lp
+            dot.setOnClickListener { setPhotoFlagTo(entry.key) }
+            row.addView(dot)
+            flagDotViews[entry.key] = dot
+        }
+        val clear = android.widget.TextView(this).apply {
+            text = getString(R.string.photo_flag_clear)
+            textSize = 13f
+            setTextColor(0xFF1565C0.toInt())
+            setPadding(dpFlag(10), dpFlag(4), dpFlag(10), dpFlag(4))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = dpFlag(12).toFloat()
+                setStroke(dpFlag(1), 0x66000000)
+            }
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { marginStart = dpFlag(8) }
+            setOnClickListener { setPhotoFlagTo(null) }
+        }
+        row.addView(clear)
+    }
+
+    private fun renderFlagRow() {
+        val stored = currentFlagColor
+        for ((key, view) in flagDotViews) {
+            val color = PhotoFlagPalette.resolveColor(key) ?: continue
+            view.background = flagDotDrawable(color, selected = key.equals(stored, ignoreCase = true))
+        }
+        binding.flagChipRow.contentDescription =
+            if (stored == null) getString(R.string.photo_flag_label)
+            else getString(R.string.photo_flag_label) + " " + PhotoFlagPalette.displayName(stored)
+    }
+
+    /** Optimistic write; a failed setPhotoFlag restores the truthful prior color (gold pattern). */
+    private fun setPhotoFlagTo(color: String?) {
+        val mediaId = currentMediaStoreId() ?: return
+        if (operationInProgress || loadingText) return
+        val previous = currentFlagColor
+        if (previous != null && previous.equals(color, ignoreCase = true)) return
+        if (previous == null && color == null) return
+        operationInProgress = true
+        currentFlagColor = color
+        renderFlagRow()
+        ioExecutor.execute {
+            var failure: Exception? = null
+            try {
+                miningRepository.setPhotoFlag(mediaId, color)
+            } catch (e: Exception) {
+                failure = e
+            }
+            runOnUiThread {
+                operationInProgress = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (failure != null) {
+                    currentFlagColor = previous
+                    Toast.makeText(this, failure!!.message.orEmpty(), Toast.LENGTH_SHORT).show()
+                }
+                renderFlagRow()
+            }
+        }
+    }
+
     private fun renderGoldButton() {
         // Gold freezes reprocessing surfaces (user 2026-11-13): the rescan button is hidden
         // entirely and the stale-words chip cannot fire (word refresh never runs on gold).
@@ -180,6 +279,8 @@ class PhotoDetailActivity : AppCompatActivity() {
             }
         }
         renderGoldButton()
+        buildFlagRow()
+        renderFlagRow()
 
         pagerAdapter = PhotoPageAdapter()
         binding.photoPager.adapter = pagerAdapter
@@ -412,7 +513,9 @@ class PhotoDetailActivity : AppCompatActivity() {
                     TextLocales.apply(binding.extractedTextDisplay, lastLoadedTag)
                     lastDerivedStale = derivedStale
                     currentIsGold = photo?.isGold == true
+                    currentFlagColor = photo?.flagColor
                     renderGoldButton()
+                    renderFlagRow()
                     binding.extractedTextDisplay.text =
                         text.ifBlank { getString(R.string.no_extracted_text) }
                     renderSentenceLinks(mediaId, text, rows)

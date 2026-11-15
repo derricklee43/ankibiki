@@ -32,7 +32,8 @@ class MiningRepository(
                 status TEXT NOT NULL,
                 duplicate_of_photo_id INTEGER,
                 modified_by_user_flag INTEGER NOT NULL DEFAULT 0,
-                is_gold INTEGER NOT NULL DEFAULT 0
+                is_gold INTEGER NOT NULL DEFAULT 0,
+                flag_color TEXT
             )
             """.trimIndent(),
         )
@@ -61,6 +62,9 @@ class MiningRepository(
                 is_hidden INTEGER NOT NULL DEFAULT 0,
                 visibility_state TEXT NOT NULL DEFAULT 'ACTIVE',
                 sentence_ranks TEXT,
+                user_definition TEXT,
+                user_notes TEXT,
+                folder_id INTEGER,
                 PRIMARY KEY (language_tag, item_type, expression)
             )
             """.trimIndent(),
@@ -97,6 +101,7 @@ class MiningRepository(
         db.execSQL(cardTemplatesDdl())
         createOcrCorrectionsSchema(db)
         createNameplateClaimsSchema(db)
+        createWordFoldersSchema(db)
     }
 
 
@@ -182,6 +187,17 @@ class MiningRepository(
                 )
             }
         }
+        if (oldVersion < 11) {
+            // v11 (user 2026-11-15 laundry-list batch): photo flag_color, per-word
+            // user_definition/user_notes/folder_id, and the word_folders table.
+            // Every ALTER is guarded by the table+column check (addColumnIfMissing) — same
+            // partial/downgraded-harness hazard the v10 migration documented.
+            addColumnIfMissing(db, "scraped_photos", "flag_color", "TEXT")
+            addColumnIfMissing(db, "extracted_items", "user_definition", "TEXT")
+            addColumnIfMissing(db, "extracted_items", "user_notes", "TEXT")
+            addColumnIfMissing(db, "extracted_items", "folder_id", "INTEGER")
+            createWordFoldersSchema(db)
+        }
     }
 
 
@@ -215,12 +231,21 @@ class MiningRepository(
         val db = writableDatabase
         db.beginTransaction()
         try {
-            val previouslyModified = db.rawQuery(
-                "SELECT modified_by_user_flag FROM scraped_photos WHERE media_store_id = ?",
+            val previously = db.rawQuery(
+                "SELECT modified_by_user_flag, flag_color FROM scraped_photos WHERE media_store_id = ?",
                 arrayOf(photo.mediaStoreId.toString()),
-            ).use { cursor -> cursor.moveToFirst() && cursor.getInt(0) != 0 }
-            values.put("modified_by_user_flag", photo.modifiedByUserFlag || previouslyModified)
+            ).use { cursor ->
+                if (cursor.moveToFirst()) {
+                    (cursor.getInt(0) != 0) to cursor.getStringOrNull(1)
+                } else {
+                    false to null
+                }
+            }
+            values.put("modified_by_user_flag", photo.modifiedByUserFlag || previously.first)
             values.put("is_gold", photo.isGold)
+            // Flag is user annotation (v11): a re-mining/REPLACE never clears it unless the
+            // caller carries an explicit value; setPhotoFlag is the only other writer.
+            values.put("flag_color", photo.flagColor ?: previously.second)
             db.insertWithOnConflict("scraped_photos", null, values, SQLiteDatabase.CONFLICT_REPLACE)
             db.setTransactionSuccessful()
         } finally {
@@ -262,6 +287,134 @@ class MiningRepository(
     fun setPhotoIsGold(mediaStoreId: Long, gold: Boolean) {
         val values = ContentValues().apply { put("is_gold", gold) }
         writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
+    }
+
+    /** v11 photo flagger (user 2026-11-15): the ONLY writer of flag_color besides upsertPhoto.
+     * null clears the flag. Value is an opaque color string (palette key or #RRGGBB) — the
+     * storage does not interpret it, so a future color picker needs no schema change. */
+    fun setPhotoFlag(mediaStoreId: Long, color: String?) {
+        val values = ContentValues().apply {
+            if (color == null) putNull("flag_color") else put("flag_color", color)
+        }
+        writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
+    }
+
+    // ---- v11 user definitions, notes & folders (user 2026-11-15 laundry-list batch) ----
+
+    /** Targeted UPDATE (never REPLACE) — user data, survives re-mining. */
+    fun setUserDefinition(languageTag: LanguageTag, itemType: ItemType, expression: String, text: String?) {
+        val values = ContentValues().apply {
+            if (text.isNullOrEmpty()) putNull("user_definition") else put("user_definition", text)
+        }
+        writableDatabase.update(
+            "extracted_items", values,
+            "language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag.name, itemType.name, expression),
+        )
+    }
+
+    fun setUserNotes(languageTag: LanguageTag, itemType: ItemType, expression: String, text: String?) {
+        val values = ContentValues().apply {
+            if (text.isNullOrEmpty()) putNull("user_notes") else put("user_notes", text)
+        }
+        writableDatabase.update(
+            "extracted_items", values,
+            "language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag.name, itemType.name, expression),
+        )
+    }
+
+    /** Create-or-reuse by unique name; returns the folder id. */
+    fun createWordFolder(name: String, skipInbox: Boolean): Long {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return -1L
+        val db = writableDatabase
+        db.insertWithOnConflict(
+            "word_folders", null,
+            ContentValues().apply {
+                put("name", trimmed)
+                put("skip_inbox", if (skipInbox) 1 else 0)
+                put("created_at", System.currentTimeMillis() / 1000L)
+            },
+            SQLiteDatabase.CONFLICT_IGNORE,
+        )
+        return db.rawQuery(
+            "SELECT id FROM word_folders WHERE name = ?", arrayOf(trimmed),
+        ).use { c -> if (c.moveToFirst()) c.getLong(0) else -1L }
+    }
+
+    fun listWordFolders(): List<WordFolder> = readableDatabase.rawQuery(
+        """
+        SELECT f.id, f.name, f.skip_inbox,
+               (SELECT COUNT(*) FROM extracted_items i WHERE i.folder_id = f.id)
+        FROM word_folders f ORDER BY f.name COLLATE NOCASE ASC
+        """.trimIndent(),
+        emptyArray(),
+    ).use { c ->
+        buildList {
+            while (c.moveToNext()) {
+                add(WordFolder(c.getLong(0), c.getString(1), c.getInt(2) != 0, c.getInt(3)))
+            }
+        }
+    }
+
+    /** Deleting a folder only UNASSIGNS its words (occurrence history untouched). */
+    fun deleteWordFolder(folderId: Long) {
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL(
+                "UPDATE extracted_items SET folder_id = NULL WHERE folder_id = ?",
+                arrayOf(folderId.toString()),
+            )
+            db.delete("word_folders", "id = ?", arrayOf(folderId.toString()))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * Move an item into a folder (null = remove from any folder). When moving INTO a
+     * skip-inbox folder, existing UNSEEN occurrences are marked SEEN (user answer 2026-11-15:
+     * "Yes. ... moving a word actually clears your inbox"). Removal never un-sees anything:
+     * SEEN is a triage state, not a punishment.
+     */
+    fun moveItemToFolder(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+        folderId: Long?,
+    ) {
+        val skipInbox = folderId?.let { id ->
+            readableDatabase.rawQuery(
+                "SELECT skip_inbox FROM word_folders WHERE id = ?", arrayOf(id.toString()),
+            ).use { c -> c.moveToFirst() && c.getInt(0) != 0 }
+        } ?: false
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            val values = ContentValues().apply {
+                if (folderId == null) putNull("folder_id") else put("folder_id", folderId)
+            }
+            db.update(
+                "extracted_items", values,
+                "language_tag = ? AND item_type = ? AND expression = ?",
+                arrayOf(languageTag.name, itemType.name, expression),
+            )
+            if (skipInbox) {
+                db.execSQL(
+                    """
+                    UPDATE item_occurrences SET state = 'SEEN'
+                    WHERE language_tag = ? AND item_type = ? AND expression = ? AND state = 'UNSEEN'
+                    """.trimIndent(),
+                    arrayOf(languageTag.name, itemType.name, expression),
+                )
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
 
@@ -782,6 +935,10 @@ class MiningRepository(
         } else {
             ""
         }
+        val existing = readableDatabase.rawQuery(
+            "SELECT user_definition, user_notes, folder_id, sentence_ranks FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag.name, itemType.name, expression),
+        ).use { c -> if (c.moveToFirst()) Quad(c.getStringOrNull(0), c.getStringOrNull(1), c.getLongOrNull(2), c.getStringOrNull(3)) else null }
         val values = ContentValues().apply {
             put("language_tag", languageTag.name)
             put("item_type", itemType.name)
@@ -797,9 +954,20 @@ class MiningRepository(
             if (ankiNoteId != null) put("anki_note_id", ankiNoteId) else putNull("anki_note_id")
             put("is_hidden", if (isHidden || visibility != ItemVisibility.ACTIVE) 1 else 0)
             put("visibility_state", visibility.name)
+            // CONFLICT_REPLACE deletes + reinserts, so USER data on this row must be carried
+            // across or re-mining silently erases it (same hazard upsertPhoto documents for
+            // flag_color). Targeted setters below remain the only writers.
+            existing?.let { q ->
+                if (q.a != null) put("user_definition", q.a) else putNull("user_definition")
+                if (q.b != null) put("user_notes", q.b) else putNull("user_notes")
+                if (q.c != null) put("folder_id", q.c) else putNull("folder_id")
+                if (q.d != null) put("sentence_ranks", q.d) else putNull("sentence_ranks")
+            }
         }
         writableDatabase.insertWithOnConflict("extracted_items", null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
+
+    private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
 
     /** Updates the cached Anki card match (`anki_account_id`, `deck_id`, `deck_name`, `anki_note_id`) for an item. */
     fun updateExtractedItemAnkiMatch(
@@ -862,12 +1030,24 @@ class MiningRepository(
                 false
             }
         }
+        // v11 folder skip (user 2026-11-15): an item filed in a skip-inbox folder is born SEEN —
+        // its occurrences never enter the 出現 inbox. runCatching: harness-built partial DBs may
+        // lack word_folders; the folder check degrades to "no skip", never crashes the insert.
+        val folderSkipsInbox = runCatching {
+            readableDatabase.rawQuery(
+                """
+                SELECT 1 FROM extracted_items i JOIN word_folders f ON i.folder_id = f.id
+                WHERE i.language_tag = ? AND i.item_type = ? AND i.expression = ? AND f.skip_inbox = 1
+                """.trimIndent(),
+                arrayOf(languageTag.name, itemType.name, expression),
+            ).use { it.moveToFirst() }
+        }.getOrDefault(false)
 
         val sentenceModified = modifiedByUserFlag || readableDatabase.rawQuery(
             "SELECT 1 FROM item_occurrences WHERE photo_id = ? AND sentence = ? AND modified_by_user_flag = 1 LIMIT 1",
             arrayOf(photoId.toString(), sentence),
         ).use { it.moveToFirst() }
-        val initialState = if (isHidden) OccurrenceState.SEEN else OccurrenceState.UNSEEN
+        val initialState = if (isHidden || folderSkipsInbox) OccurrenceState.SEEN else OccurrenceState.UNSEEN
         val values = ContentValues().apply {
             put("language_tag", languageTag.name)
             put("item_type", itemType.name)
@@ -889,7 +1069,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 10
+        private const val DB_VERSION = 11
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME
