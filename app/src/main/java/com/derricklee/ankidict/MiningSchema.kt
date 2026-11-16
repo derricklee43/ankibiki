@@ -137,6 +137,24 @@ internal fun MiningRepository.createWordFoldersSchema(db: SQLiteDatabase) {
     )
 }
 
+/** v12 (cross-view undo, user go 2026-11-15): DB-backed undo stack. Newest 50 entries kept;
+ *  `announced` marks the parent-screen Snackbar having been shown (delivery state, not undo
+ *  state — undo always pops the newest row regardless of announcement). */
+internal fun MiningRepository.createUndoLogSchema(db: SQLiteDatabase) {
+    db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS undo_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action_type TEXT NOT NULL,
+            label TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            announced INTEGER NOT NULL DEFAULT 0
+        )
+        """.trimIndent(),
+    )
+}
+
 /** v11 column guards (user 2026-11-15 batch): table AND column must both be checked before
  * ALTER — harnesses hand-build partial or current-schema-then-downgraded DBs (v10 lesson). */
 internal fun MiningRepository.addColumnIfMissing(

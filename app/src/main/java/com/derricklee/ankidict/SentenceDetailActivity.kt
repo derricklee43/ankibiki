@@ -120,6 +120,8 @@ class SentenceDetailActivity : AppCompatActivity() {
                 }
                 Toast.makeText(this, message, Toast.LENGTH_LONG).show()
                 loadParsedWords()
+                // undo delivery: the sentence amendment recorded a whole-photo memento.
+                UndoUi.maybeShow(binding.root, miningRepository) { loadParsedWords() }
             }
         }
     }
@@ -264,6 +266,8 @@ class SentenceDetailActivity : AppCompatActivity() {
                         closeEditor()
                         Toast.makeText(this, getString(R.string.word_editor_saved, changes), Toast.LENGTH_SHORT).show()
                         loadParsedWords()
+                        // undo delivery: the word-editor save recorded a whole-photo memento.
+                        UndoUi.maybeShow(binding.root, miningRepository) { loadParsedWords() }
                     },
                     onFailure = { error ->
                         Toast.makeText(

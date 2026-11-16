@@ -1,7 +1,13 @@
 # Design Proposal: Cross-View Undo System
 
 Date: 2026-11-15
-Status: Proposal (awaiting user go before implementation)
+Status: **SHIPPED 2026-11-15** (user approved the same day). Implemented as specced with the
+deltas recorded in the feature log: the schema bump is **v12** (the doc's "v11" was stale — v11
+was consumed by the same-day laundry batch before this landed), the table carries one extra
+column (`announced`) for
+delivery-once semantics, text/words/ruling mementos snapshot the WHOLE photo row + all its
+occurrence rows (byte-identity over key-set math), and per-action round-trip + guard tests are
+instrumented on real SQLite rather than JVM.
 
 ## Problem Statement
 

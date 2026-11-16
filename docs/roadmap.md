@@ -92,11 +92,12 @@ B. **Review & organization UX** — shipped 2026-11-13/14 in full (sentence word
    photo flagger (fixed palette, decoupled storage), user definition/notes (wizard-mappable),
    word folders with skip-inbox — evidence + the answer->question mapping in
    [docs/feature_log.md](feature_log.md) and [docs/pending-disambiguation.md](pending-disambiguation.md).
-   OPEN on this track: two proposals awaiting a go —
-   [gold sentence-edit reconcile](gold-sentence-edit-reconcile-proposal.md) and
-   [cross-view undo](cross-view-undo-proposal.md); homophone spike design in
+   SHIPPED after approval 2026-11-15 (same day): gold sentence-edit reconcile +
+   cross-view undo (schema v12) — evidence in [docs/feature_log.md](feature_log.md).
+   OPEN on this track: homophone spike design in
    [spikes/005-homophone-disambiguation](../spikes/005-homophone-disambiguation/README.md)
-   un-run (its Option C also owns the pin-which-sense half of the わし question);
+   un-run (its Option C also owns the pin-which-sense half of the わし question; sense
+   dropdown TABLED by user 2026-11-15 pending his thinking);
    Translate chip + the new surfaces want a physical-Pixel pass when the phone is attached.)
    Evidence: [docs/feature_log.md](feature_log.md).
 

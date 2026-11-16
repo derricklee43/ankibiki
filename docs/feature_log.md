@@ -7,6 +7,86 @@ from git history — commit `37f2174` had mangled it to a `|x|` artifact). The r
 convention applies here: checkboxes only flipped when exit evidence was verified, so
 everything below carries its proof record.
 
+## 2026-11-15 · Gold sentence reparse + Cross-view undo (the two approved proposals, shipped together)
+
+User go: "I approve the gold re-extraction doc and the cross-view undo" (+ implement on
+"let's go ahead and implement the first two though"). Homophone sense dropdown TABLED by the
+same message — untouched here. Both docs carry SHIPPED banners with their deltas.
+
+Gold reparse (docs/gold-sentence-edit-reconcile-proposal.md, exactly as specced):
+- `reprocessAmendedSentence` early-return no longer coerces on `isGold` — word re-derivation
+  is gated ONLY by the caller's explicit reprocessWords choice; `reprocessPhotoText`'s
+  `&& !goldPhoto` removed likewise. The existing candidate reconcile already implements every
+  preservation rule (manual rows survive, triaged states ride through, untouched wrong rows
+  severed, new candidates fresh UNSEEN) — flipping gold off the guard was the whole change.
+- Proposal §2 improvement: sentence-removal in the text-reprocess path switched to
+  `deleteNonManualOccurrencesForSentence` (new repo fn; image rescan keeps the blanket variant).
+- Sibling fix found by tracing consumers: the stale-words chip was hidden on gold because
+  refresh could not run there — with reparse approved it must render (it offers the very
+  action now allowed); the image-rescan BUTTON stays hidden (gold still refuses OCR —
+  unchanged guard, exit 6). README gold paragraph rewritten to the new semantics.
+- Exit tests: proposal said "JVM unit tests" but the runner is bound to real Android SQLite
+  and the repo has no JVM seam — shipped as instrumented specs on the existing gold harness
+  (same v10 precedent for this exact contract; stronger: real DB): 2 coercion pins FLIPPED to
+  the new contract (goldAmendedSentence_reprocessesWords_seversUntouchedWrongRow,
+  goldPhotoTextSave_reprocessesWhenUserChooses) + manual-survival + text-only-still-honored
+  specs + counting TextExtractor/ImageTagger fakes proving reparse never runs image OCR
+  (ocrCalls==0). SentenceWordEditorInstrumentedTest 7/7 green standalone; class doc rewritten.
+
+Cross-view undo (docs/cross-view-undo-proposal.md; schema v12 — the doc said v11, consumed
+hours earlier by the laundry batch; corrected in its banner):
+- New pure layer UndoCore.kt: UndoAction enum (9 actions), UndoOccRow/UndoPhotoRow snapshots,
+  UndoMemento + hand-rolled line/field codec with full control-char escaping (JVM round-trip
+  tested — sentences carry tabs; org.json unavailable in JVM tests). UndoStore.kt: recordUndo
+  (insert + newest-50 prune, joins the caller's transaction), announce/mark/read queries,
+  snapshot readers, restore primitives. UndoManager.kt: LIFO pop + per-action dispatch inside
+  ONE transaction; stale-target GUARD (current text/visibility must equal the recorded
+  expected-after, else GUARD_FAILED: warn, never clobber, entry preserved). UndoUi.kt:
+  announce-ONCE Snackbar delivery (latestUnannounced + markAnnounced before showing — child
+  finish()-ing into any of 7 hosts, first resume wins, no double offers); 元に戻す executes
+  undoLatest on AppIo.pipeline and reloads the host.
+- Capture wired into the production mutation sites themselves (same-transaction atomicity):
+  markOccurrenceSeen / deleteOccurrence / setItemVisibility (item + flipped-row capture) /
+  setPhotoIsGold / markPhotoDeleted (WHOLE photo row + all occurrence rows — the delete path
+  drops text/blocks/gold/flag; undo restores every column) / saveSentenceOrder /
+  reprocessPhotoText (new recordUndo=false param) / reprocessAmendedSentence (expectedAfter
+  mirrors updateSentenceText's replace rule; both branches) / saveSentenceWords /
+  NameplateRuling.apply (ONE unified NAMEPLATE_RULING memento per ruling — internal
+  reprocessPhotoText record suppressed via the param, so a ruling never needs two undos).
+  No-op writes (same state, identical re-mark) log nothing.
+- UI: 元に戻す offers on PhotoDetail/SentenceDetail/ClaimsQueue/WordGrammarDetail in-place +
+  onResume delivery on ExtractedList/PhotoLibrary/MainActivity/WordGrammarDetail; Settings →
+  操作履歴 (new UndoHistoryActivity, exported=false) lists the newest 20 with the note that
+  undo is strictly newest-first; only the top row carries the button (LIFO honesty — older
+  rows are context, they become undoable as the stack pops).
+- Version ceremony per the schema checklist: DB_VERSION 12 via onCreate+onUpgrade
+  (CREATE IF NOT EXISTS table, no columns — pre-v12 bundles restore and it materializes);
+  undo_log NOT in any required-columns set; backup_bundle SUPPORTED_USER_VERSIONS += 12;
+  recovery.md prose v12; NameplateClaims hard-pin tripwire re-pinned 11->12 IN THE BUMP
+  COMMIT (it failed loudly first, as designed — the third such pin caught by this chain).
+- Tests: JVM UndoCodecTest 5 specs (hostile-char round-trips, hostile payload rejection);
+  instrumented UndoLogInstrumentedTest 13 specs — fresh-db shape, hand-built v10 corpus ->
+  v12 migration with rows intact + undo usable on the migrated file, per-action round-trips
+  for all 9 actions (asserting field-for-field restoration incl. full photo row equality
+  through delete/undo and the whole-photo restore through ruling/undo), guard-refusal with
+  entry preserved, LIFO double-undo order, announce-once, newest-50 prune, no-op writes.
+- Live walks on emulator-5554 against the REAL corpus copy (snapshotted first):
+  (a) inbox -> word 回復 detail -> 非表示 -> child finish() -> LIST shows 「非表示にしました /
+  元に戻す」 -> tap -> DB readback: item ACTIVE, both occurrence rows UNSEEN again, log
+  consumed; (b) 既読 -> snackbar -> Settings -> 操作履歴 renders the labeled row with
+  timestamp + button -> history-undo -> states UNSEEN, screen back to empty state. Walk
+  mutations restored to pre-walk state afterwards (回復 ACTIVE/UNSEEN, undo_log empty).
+  Lesson recorded: drive the snackbar action by its resource-id (snackbar_action) with a
+  short reappearance-poll before tapping — a text-matched node from the first dump silently
+  no-oped while the resource-id path clicked true.
+- Full suites after everything: instrumented OK (128 tests) on emulator-5554 (110 prior + 16
+  new undo specs + 2 net-new gold specs from the flip), JVM 97/97 (92 prior + 5 codec).
+  Both v12 APKs rebuilt;
+  emulator + Pixel installed (Pixel's live v11 db migrates on first mining open).
+  CORRECTION at commit time: the Pixel unplugged mid-session — the v12 APKs are staged and
+  proven on the emulator only; installing them on the phone (and its live-corpus v11->v12
+  migration, the undo walk, and the 128-suite on-device run) is queued for the next attach.
+
 ## 2026-11-15 · Schema v11 — answers batch (flagger, user definitions/notes, word folders)
 
 The four disambiguation items from the laundry-list batch came back answered the same day

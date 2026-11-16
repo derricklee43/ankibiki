@@ -129,6 +129,8 @@ class ClaimsQueueActivity : AppCompatActivity() {
                     Toast.LENGTH_SHORT,
                 ).show()
                 loadPending()
+                // undo delivery (queue): rulings stay on this screen — offer the memento here.
+                UndoUi.maybeShow(binding.root, miningRepository) { loadPending() }
             }
         }
     }

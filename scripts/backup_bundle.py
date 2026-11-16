@@ -54,7 +54,9 @@ TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # bundles stay restorable. Same for v10's is_manual (word-editor provenance): a restored pre-v10
 # db migrates on first open. Same again for v11 (flag_color, user_definition/user_notes/folder_id,
 # word_folders) — deliberately NOT in MINING_COLUMNS so pre-v11 bundles keep validating.
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+# Same rule for v12 (undo_log table, cross-view undo 2026-11-15): a new table, not carried in
+# any required set — pre-v12 bundles restore and the table materializes on first open.
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

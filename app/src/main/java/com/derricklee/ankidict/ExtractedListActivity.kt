@@ -99,6 +99,8 @@ class ExtractedListActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         loadActiveTab()
+        // undo delivery (inbox/shelf): word actions from the detail screen finish() back here.
+        UndoUi.maybeShow(binding.root, miningRepository) { loadActiveTab() }
     }
 
     private fun setupTabs() {

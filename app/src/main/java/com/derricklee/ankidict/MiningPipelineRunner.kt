@@ -366,6 +366,9 @@ class MiningPipelineRunner(
         // else that was active is what the user deleted.
         val consumed = originals.mapNotNull { it.originalExpression }.toSet()
         val currents = originals.map { it.expression }.toSet()
+        // Undo (user 2026-11-15): whole-photo prior state; text never moves in this path.
+        val prior = miningRepository.undoPhotoRow(photoId)
+        val priorRows = if (prior != null) miningRepository.undoOccRowsForPhoto(photoId) else emptyList()
         return miningRepository.inTransaction {
             var changes = 0
             for (row in originals) {
@@ -408,6 +411,15 @@ class MiningPipelineRunner(
                     )
                 }
                 changes++
+            }
+            if (changes > 0 && prior != null) {
+                miningRepository.recordUndo(UndoMemento(
+                    UndoAction.SENTENCE_WORDS_EDIT,
+                    miningRepository.appContext.getString(R.string.undo_label_words_edit),
+                    listOf(photoId.toString(), prior.extractedText),
+                    photo = prior,
+                    occurrences = priorRows,
+                ))
             }
             changes
         }
@@ -493,6 +505,9 @@ class MiningPipelineRunner(
         mediaStoreId: Long,
         amendedText: String,
         reprocessWords: Boolean,
+        /** NameplateRuling suppresses the internal record and files a single unified
+         *  NAMEPLATE_RULING memento instead (one ruling = one undo step). */
+        recordUndo: Boolean = true,
     ): PhotoTextReprocessSummary {
         val originalPhoto = miningRepository.getPhoto(mediaStoreId)
             ?: return PhotoTextReprocessSummary(textSaved = false, keptSentences = 0)
@@ -522,10 +537,12 @@ class MiningPipelineRunner(
         val addedSentences = (newSet - oldSet).toList()
 
         // Extraction may throw; do it BEFORE any write so a failure changes nothing at all.
-        // Gold photos never re-derive words (finalizing stamp, user 2026-11-13): text edits
-        // on a gold photo save text-only and the curated occurrence set stays exactly as it is.
-        val goldPhoto = miningRepository.getPhoto(mediaStoreId)?.isGold == true
-        val shouldReprocess = reprocessWords && config != null && !goldPhoto
+        // GOLD (user go 2026-11-15, gold-sentence-edit-reconcile proposal): a gold photo's TEXT
+        // edits may re-derive words when the user chose 再解析 — the candidate-granularity
+        // reconcile keeps manual rows and review states; untouched wrong rows for vanished
+        // sentences are fair game to drop. What gold still forbids is IMAGE reprocessing (OCR) —
+        // this path never touches the tagger/extractor or ocr_blocks_json.
+        val shouldReprocess = reprocessWords && config != null
         val addedPlans = if (shouldReprocess) {
             addedSentences.map { sentence ->
                 sentence to analyzeCandidates(config!!, sentence)
@@ -534,12 +551,20 @@ class MiningPipelineRunner(
             emptyList()
         }
 
+        // Undo (user 2026-11-15): full prior state captured OUTSIDE the transaction; the memento
+        // is recorded INSIDE it (atomic with the mutation). expectedAfter = amendedText verbatim.
+        val changed = originalPhoto.extractedText != amendedText
+        val prior = if (changed && recordUndo) miningRepository.undoPhotoRow(mediaStoreId) else null
+        val priorRows = if (prior != null) miningRepository.undoOccRowsForPhoto(mediaStoreId) else emptyList()
+
         miningRepository.inTransaction {
             miningRepository.updatePhotoExtractedText(mediaStoreId, amendedText)
             miningRepository.markSentencesModifiedByUser(mediaStoreId, changedSentences)
             if (shouldReprocess) {
                 for (sentence in removedSentences) {
-                    miningRepository.deleteOccurrencesForSentence(mediaStoreId, sentence)
+                    // Manual rows survive even on removed sentence keys (rule 3, same contract
+                    // as the candidate reconcile below).
+                    miningRepository.deleteNonManualOccurrencesForSentence(mediaStoreId, sentence)
                 }
                 val baseTimestamp = System.currentTimeMillis() / 1000L
                 val photoModified = originalPhoto.modifiedByUserFlag || amendedText != originalPhoto.extractedText
@@ -554,6 +579,15 @@ class MiningPipelineRunner(
                         modifiedByUserFlag = photoModified || sentence in changedSentences,
                     )
                 }
+            }
+            if (prior != null) {
+                miningRepository.recordUndo(UndoMemento(
+                    action = UndoAction.SENTENCE_TEXT_EDIT,
+                    label = miningRepository.appContext.getString(R.string.undo_label_text_edit),
+                    header = listOf(mediaStoreId.toString(), amendedText),
+                    photo = prior,
+                    occurrences = priorRows,
+                ))
             }
         }
         return PhotoTextReprocessSummary(
@@ -584,10 +618,34 @@ class MiningPipelineRunner(
         val sentenceModified = oldSentence != trimmedNew ||
             preFlags[trimmedNew] == true || preFlags[oldSentence] == true
         val photo = miningRepository.getPhoto(photoId)
-        // Gold is the finalizing stamp (user 2026-11-13): never re-derive words on a gold photo;
-        // a text amendment there saves text-only, preserving the curated occurrence set.
-        if (!reprocessWords || photo?.isGold == true) {
-            miningRepository.updateSentenceText(photoId, oldSentence, trimmedNew)
+        // GOLD reparse (user go 2026-11-15): re-derivation is gated ONLY by the caller's explicit
+        // choice. Gold photos re-parse words on 再解析 saves — the reconcile below already preserves
+        // manual rows and review states; image OCR is never invoked on this path for any photo.
+        //
+        // Undo: whole-photo prior state; expectedAfter mirrors updateSentenceText's replace rule.
+        val prior = if (oldSentence != trimmedNew) miningRepository.undoPhotoRow(photoId) else null
+        val priorRows = if (prior != null) miningRepository.undoOccRowsForPhoto(photoId) else emptyList()
+        val expectedAfter = prior?.let { p ->
+            if (oldSentence.isNotEmpty() && p.extractedText.contains(oldSentence))
+                p.extractedText.replace(oldSentence, trimmedNew)
+            else p.extractedText
+        } ?: ""
+        fun recordAmend() {
+            if (prior != null) {
+                miningRepository.recordUndo(UndoMemento(
+                    UndoAction.SENTENCE_TEXT_EDIT,
+                    miningRepository.appContext.getString(R.string.undo_label_text_edit),
+                    listOf(photoId.toString(), expectedAfter),
+                    photo = prior,
+                    occurrences = priorRows,
+                ))
+            }
+        }
+        if (!reprocessWords) {
+            miningRepository.inTransaction {
+                miningRepository.updateSentenceText(photoId, oldSentence, trimmedNew)
+                recordAmend()
+            }
             return SentenceReprocessSummary(textSaved = true, wordsReprocessed = false,
                 keptCandidates = 0, addedCandidates = 0, removedCandidates = 0)
         }
@@ -650,6 +708,7 @@ class MiningPipelineRunner(
                 timestamp = System.currentTimeMillis() / 1000L,
                 modifiedByUserFlag = sentenceModified,
             )
+            recordAmend()
             ReprocessCounters(kept, added, removed, merged)
         }
         return SentenceReprocessSummary(

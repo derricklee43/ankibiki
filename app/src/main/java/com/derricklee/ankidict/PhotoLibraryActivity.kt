@@ -66,6 +66,8 @@ class PhotoLibraryActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         loadPhotos()
+        // undo delivery (library): a photo delete finished back here — offer the undo.
+        UndoUi.maybeShow(binding.root, miningRepository) { loadPhotos() }
     }
 
     override fun onDestroy() {

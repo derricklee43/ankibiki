@@ -32,6 +32,10 @@ object NameplateRuling {
         claim: MiningRepository.NameplateClaim,
         correct: Boolean,
     ) {
+        // Undo (user 2026-11-15): ONE unified memento per ruling — the inline path's internal
+        // SENTENCE_TEXT_EDIT record is suppressed so a ruling never needs two undos.
+        val prior = miningRepository.undoPhotoRow(mediaStoreId)
+        val priorRows = if (prior != null) miningRepository.undoOccRowsForPhoto(mediaStoreId) else emptyList()
         if (claim.contextSentence.isNotEmpty() && correct) {
             // Inline ruling: excise through the reconciled text-edit path so word occurrences
             // rebuild — then settle the verdict (hidden for good on rescan).
@@ -47,11 +51,23 @@ object NameplateRuling {
                     .joinToString("\n") { if (it.trim() == claim.contextSentence.trim()) remainder else it }
                 miningPipelineRunner.reprocessPhotoText(
                     mediaStoreId = mediaStoreId, amendedText = amended, reprocessWords = true,
+                    recordUndo = false,
                 )
             }
             // remainder == null: the merged sentence is already gone from the text (user
             // stripped it manually) — the plate confirmation itself still stands.
         }
         miningRepository.applyNameplateVerdict(claim.id, correct)
+        if (prior != null) {
+            // expectedAfter read AFTER both writes: whatever state the ruling actually produced.
+            val after = miningRepository.undoPhotoText(mediaStoreId) ?: prior.extractedText
+            miningRepository.recordUndo(UndoMemento(
+                UndoAction.NAMEPLATE_RULING,
+                miningRepository.appContext.getString(R.string.undo_label_ruling),
+                listOf(claim.id.toString(), mediaStoreId.toString(), after),
+                photo = prior,
+                occurrences = priorRows,
+            ))
+        }
     }
 }

@@ -259,6 +259,8 @@ class WordGrammarDetailActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         loadDetail()
+        // undo delivery: a screen resumed behind this one may hold the newest memento offer.
+        UndoUi.maybeShow(binding.root, miningRepository) { loadDetail() }
     }
 
     override fun onDestroy() {
@@ -276,6 +278,11 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                     expression = detail.expression,
                     orderedSentences = orderedSentences,
                 )
+            }
+            // undo delivery: a drag persisted a REORDER_SENTENCES memento; offer it here.
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                UndoUi.maybeShow(binding.root, miningRepository) { loadDetail() }
             }
         }
     }

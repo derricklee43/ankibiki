@@ -36,8 +36,10 @@ audit table (reversible per write). Kill switch: `PipelineConfig.ocrCorrectionEn
 
 **Gold standard:** marking a photo 金 (its button, filled when set) is the *only* thing that
 makes it benchmark gold — membership is declared, not inferred from edits. Marking is also
-the finalizing stamp: a gold photo's accepted text is never touched by automatic passes —
-rescans skip it and word re-derivation refuses to coerce it. The JVM harness
+the finalizing stamp against *image* reprocessing: rescans skip gold. Text edits on gold
+photos re-parse words when you explicitly choose 再解析 (user go 2026-11-15) — manual rows
+and review states survive that reconcile; choosing text-only save freezes them instead. The
+JVM harness
 (`GoldBenchmarkTest`) scores sentence-exact / segmentation / char-accuracy against the marked
 set; iteration plan + baselines live in [docs/benchmarks/](docs/benchmarks/).
 
@@ -51,6 +53,14 @@ reprocessing; auto-derived ones never overwrite them. The photo library grid fil
 未読 / 金 / 日本語 / 中国語. Settings → 金ダッシュボード shows the accrued gate evidence
 against the ~200-sample rollout checkpoint, gold counts, a correction-effort proxy, and the
 last recorded benchmark as a static table — nothing there runs OCR.
+
+**Undo (2026-11-15):** every triage mutation — 既読/非表示/アーカイブ/削除, 金 marks, photo
+delete, sentence & word edits, nameplate rulings, sentence reorder — writes a before-state
+memento into a DB-backed undo log (`undo_log`, schema v12), committed atomically with the
+mutation. A 元に戻す Snackbar follows you across screens (the offer surfaces on whichever
+parent resumes first, exactly once), and Settings → 操作履歴 shows the stack. Undo is strictly
+newest-first; an entry whose target was divergently changed later REFUSES (warns, never
+clobbers).
 
 **Nameplate claims (ledger, schema v8/v9):** speaker-nameplate lines the proxy suspects are
 never auto-deleted; they surface as pending claims (standalone lines, or inline merge

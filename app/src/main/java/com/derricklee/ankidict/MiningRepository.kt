@@ -102,6 +102,7 @@ class MiningRepository(
         createOcrCorrectionsSchema(db)
         createNameplateClaimsSchema(db)
         createWordFoldersSchema(db)
+        createUndoLogSchema(db)
     }
 
 
@@ -198,6 +199,12 @@ class MiningRepository(
             addColumnIfMissing(db, "extracted_items", "folder_id", "INTEGER")
             createWordFoldersSchema(db)
         }
+        if (oldVersion < 12) {
+            // v12 (user go 2026-11-15): cross-view undo log. A new table, not columns —
+            // CREATE IF NOT EXISTS is inherently guarded; bundles pre-v12 simply carry no
+            // undo_log table and it materializes on first open after restore.
+            createUndoLogSchema(db)
+        }
     }
 
 
@@ -285,8 +292,19 @@ class MiningRepository(
      * because they replace the text it attests to. The v7 migration does NOT seed marks:
      * membership starts at zero by user decision (2026-11-13), every 金 is declared. */
     fun setPhotoIsGold(mediaStoreId: Long, gold: Boolean) {
-        val values = ContentValues().apply { put("is_gold", gold) }
-        writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
+        // Undo (user 2026-11-15): membership flips are reversible one step at a time.
+        val oldGold = undoGold(mediaStoreId)
+        inTransaction {
+            val values = ContentValues().apply { put("is_gold", gold) }
+            writableDatabase.update("scraped_photos", values, "media_store_id = ?", arrayOf(mediaStoreId.toString()))
+            if (oldGold != gold) {
+                recordUndo(UndoMemento(
+                    UndoAction.TOGGLE_GOLD,
+                    appContext.getString(if (gold) R.string.undo_label_gold_on else R.string.undo_label_gold_off),
+                    listOf(mediaStoreId.toString(), if (oldGold) "1" else "0"),
+                ))
+            }
+        }
     }
 
     /** v11 photo flagger (user 2026-11-15): the ONLY writer of flag_color besides upsertPhoto.
@@ -621,6 +639,17 @@ class MiningRepository(
         )
     }
 
+    /** Text-reprocess removal of a sentence whose key vanished: manual rows survive
+     *  (gold-reconcile rule 3, user 2026-11-15) — same protection as the candidate reconcile.
+     *  Image rescans keep using the blanket [deleteOccurrencesForSentence] (authorized replace). */
+    fun deleteNonManualOccurrencesForSentence(photoId: Long, sentence: String) {
+        writableDatabase.delete(
+            "item_occurrences",
+            "photo_id = ? AND sentence = ? AND is_manual = 0",
+            arrayOf(photoId.toString(), sentence),
+        )
+    }
+
     /**
      * Runs [block] inside one explicit transaction on the writable connection. Nested
      * repository writes on the same thread join it (Android ref-counts transactions per
@@ -706,6 +735,10 @@ class MiningRepository(
      */
     fun markPhotoDeleted(mediaStoreId: Long, contentUri: String, dateAdded: Long) {
         val db = writableDatabase
+        // Undo (user 2026-11-15): capture the WHOLE prior row + all occurrence rows — this
+        // REPLACE drops text, blocks, gold and flag; the memento restores every column.
+        val prior = undoPhotoRow(mediaStoreId)
+        val priorRows = undoOccRowsForPhoto(mediaStoreId)
         db.beginTransaction()
         try {
             val values = ContentValues().apply {
@@ -730,6 +763,15 @@ class MiningRepository(
                 "photo_id = ?",
                 arrayOf(mediaStoreId.toString()),
             )
+            if (prior != null) {
+                recordUndo(UndoMemento(
+                    UndoAction.DELETE_PHOTO,
+                    appContext.getString(R.string.undo_label_photo_deleted),
+                    listOf(mediaStoreId.toString()),
+                    photo = prior,
+                    occurrences = priorRows,
+                ))
+            }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
@@ -766,15 +808,25 @@ class MiningRepository(
      * while keeping it linked to the item's photos/sentences, and allowing future occurrences to appear.
      */
     fun markOccurrenceSeen(occurrenceId: Long) {
-        val values = ContentValues().apply {
-            put("state", OccurrenceState.SEEN.name)
+        // Undo (user 2026-11-15): capture the prior state; no-op re-marks log nothing.
+        val oldState = undoOccState(occurrenceId) ?: return
+        if (oldState == OccurrenceState.SEEN.name) return
+        inTransaction {
+            val values = ContentValues().apply {
+                put("state", OccurrenceState.SEEN.name)
+            }
+            writableDatabase.update(
+                "item_occurrences",
+                values,
+                "id = ?",
+                arrayOf(occurrenceId.toString()),
+            )
+            recordUndo(UndoMemento(
+                UndoAction.MARK_OCCURRENCE_SEEN,
+                appContext.getString(R.string.undo_label_seen),
+                listOf(occurrenceId.toString(), oldState),
+            ))
         }
-        writableDatabase.update(
-            "item_occurrences",
-            values,
-            "id = ?",
-            arrayOf(occurrenceId.toString()),
-        )
     }
 
 
@@ -812,18 +864,29 @@ class MiningRepository(
     ): Boolean {
         if (orderedSentences.isEmpty()) return false
         val distinct = orderedSentences.distinct()
+        // Undo (user 2026-11-15): the prior ranks blob ("" = none) makes drags reversible.
+        val oldRanks = undoSentenceRanks(languageTag.name, itemType.name, expression)
         val values = ContentValues().apply {
             put(
                 "sentence_ranks",
                 org.json.JSONObject(distinct.mapIndexed { i, s -> s to i }.toMap() as Map<String, Any>).toString(),
             )
         }
-        val updated = writableDatabase.update(
-            "extracted_items", values,
-            "language_tag = ? AND item_type = ? AND expression = ?",
-            arrayOf(languageTag.name, itemType.name, expression),
-        )
-        return updated == 1
+        return inTransaction {
+            val updated = writableDatabase.update(
+                "extracted_items", values,
+                "language_tag = ? AND item_type = ? AND expression = ?",
+                arrayOf(languageTag.name, itemType.name, expression),
+            )
+            if (updated == 1) {
+                recordUndo(UndoMemento(
+                    UndoAction.REORDER_SENTENCES,
+                    appContext.getString(R.string.undo_label_order),
+                    listOf(languageTag.name, itemType.name, expression, oldRanks ?: ""),
+                ))
+            }
+            updated == 1
+        }
     }
 
     /**
@@ -839,6 +902,11 @@ class MiningRepository(
         visibility: ItemVisibility,
     ) {
         val db = writableDatabase
+        // Undo (user 2026-11-15): capture the item's prior visibility AND the exact rows this
+        // flip is about to move (UNSEEN→SEEN when hiding/archiving, SEEN→UNSEEN on restore).
+        val prior = undoItemVisibility(languageTag.name, itemType.name, expression)
+        val flipFrom = if (visibility == ItemVisibility.ACTIVE) OccurrenceState.SEEN.name else OccurrenceState.UNSEEN.name
+        val captured = prior?.let { undoItemOccurrenceIdsInState(languageTag.name, itemType.name, expression, flipFrom) } ?: emptyList()
         db.beginTransaction()
         try {
             val isHiddenFlag = if (visibility == ItemVisibility.ACTIVE) 0 else 1
@@ -874,6 +942,21 @@ class MiningRepository(
                     arrayOf(languageTag.name, itemType.name, expression, OccurrenceState.SEEN.name),
                 )
             }
+            if (prior != null) {
+                recordUndo(UndoMemento(
+                    UndoAction.SET_ITEM_VISIBILITY,
+                    appContext.getString(
+                        when (visibility) {
+                            ItemVisibility.HIDDEN -> R.string.undo_label_hidden
+                            ItemVisibility.ARCHIVED -> R.string.undo_label_archived
+                            else -> R.string.undo_label_unhidden
+                        },
+                    ),
+                    // header: lang, type, expr, expectedNewVisibility, oldVisibility, oldIsHidden
+                    listOf(languageTag.name, itemType.name, expression, visibility.name, prior.first, if (prior.second) "1" else "0"),
+                    occurrences = captured,
+                ))
+            }
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
@@ -901,15 +984,25 @@ class MiningRepository(
      * or sentence list, while leaving the canonical entry and any other occurrences untouched.
      */
     fun deleteOccurrence(occurrenceId: Long) {
-        val values = ContentValues().apply {
-            put("state", OccurrenceState.DELETED.name)
+        // Undo (user 2026-11-15): soft delete records its prior state.
+        val oldState = undoOccState(occurrenceId) ?: return
+        if (oldState == OccurrenceState.DELETED.name) return
+        inTransaction {
+            val values = ContentValues().apply {
+                put("state", OccurrenceState.DELETED.name)
+            }
+            writableDatabase.update(
+                "item_occurrences",
+                values,
+                "id = ?",
+                arrayOf(occurrenceId.toString()),
+            )
+            recordUndo(UndoMemento(
+                UndoAction.DELETE_OCCURRENCE,
+                appContext.getString(R.string.undo_label_occurrence_deleted),
+                listOf(occurrenceId.toString(), oldState),
+            ))
         }
-        writableDatabase.update(
-            "item_occurrences",
-            values,
-            "id = ?",
-            arrayOf(occurrenceId.toString()),
-        )
     }
 
     fun upsertExtractedItem(
@@ -1069,7 +1162,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 11
+        private const val DB_VERSION = 12
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

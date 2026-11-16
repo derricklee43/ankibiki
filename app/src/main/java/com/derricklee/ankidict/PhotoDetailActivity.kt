@@ -164,11 +164,14 @@ class PhotoDetailActivity : AppCompatActivity() {
     }
 
     private fun renderGoldButton() {
-        // Gold freezes reprocessing surfaces (user 2026-11-13): the rescan button is hidden
-        // entirely and the stale-words chip cannot fire (word refresh never runs on gold).
+        // Gold refuses IMAGE reprocessing (finalizing stamp): the rescan button stays hidden.
+        // Word refresh is user-approved on gold since 2026-11-15 — the stale chip renders.
         binding.refreshThumbnailButton.visibility = if (currentIsGold) View.GONE else View.VISIBLE
+        // Gold reparse (user 2026-11-15): the chip offers WORD reprocess, which is now allowed
+        // on gold when the user chooses it — the hint no longer hides there. (The image-rescan
+        // button above stays hidden: gold still refuses OCR.)
         binding.staleWordsChip.visibility =
-            if (!currentIsGold && lastLoadedText.isNotBlank() && lastDerivedStale) View.VISIBLE else View.GONE
+            if (lastLoadedText.isNotBlank() && lastDerivedStale) View.VISIBLE else View.GONE
         val gold = androidx.core.content.ContextCompat.getColor(this, R.color.gold)
         val tv = android.util.TypedValue()
         theme.resolveAttribute(com.google.android.material.R.attr.colorSurface, tv, true)
@@ -275,6 +278,8 @@ class PhotoDetailActivity : AppCompatActivity() {
                     }
                     renderGoldButton()
                     updateActionAvailability()
+                    // undo delivery (immediate — the screen stays open): newest memento offer.
+                    UndoUi.maybeShow(binding.root, miningRepository) { renderGoldButton() }
                 }
             }
         }
@@ -688,6 +693,11 @@ class PhotoDetailActivity : AppCompatActivity() {
                 ).show()
                 if (currentMediaStoreId() == mediaId) updateCounterAndLoadExtractedText(currentIndex)
                 updateActionAvailability()
+                // undo delivery: one ruling = one NAMEPLATE_RULING memento (inline text rebuild
+                // folded in); offering it here keeps the photo view the undo loop's home screen.
+                UndoUi.maybeShow(binding.root, miningRepository) {
+                    if (currentMediaStoreId() == mediaId) updateCounterAndLoadExtractedText(currentIndex)
+                }
             }
         }
     }
@@ -716,6 +726,10 @@ class PhotoDetailActivity : AppCompatActivity() {
                         getString(R.string.text_saved_toast)
                     }
                     Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                    // undo delivery after a photo-text save (SENTENCE_TEXT_EDIT memento).
+                    UndoUi.maybeShow(binding.root, miningRepository) {
+                        if (currentMediaStoreId() == mediaId) updateCounterAndLoadExtractedText(currentIndex)
+                    }
                 }
             } catch (error: Exception) {
                 reportOperationFailure(error, mediaId)
@@ -737,7 +751,7 @@ class PhotoDetailActivity : AppCompatActivity() {
             if (raw.isNotEmpty() && raw == lastLoadedText) " " + getString(R.string.raw_ocr_same_as_display) else ""
         applyRawOcrVisibility()
         binding.staleWordsChip.visibility =
-            if (!currentIsGold && lastLoadedText.isNotBlank() && lastDerivedStale) {
+            if (lastLoadedText.isNotBlank() && lastDerivedStale) {
                 View.VISIBLE
             } else {
                 View.GONE

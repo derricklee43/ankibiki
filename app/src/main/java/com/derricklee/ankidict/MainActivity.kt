@@ -181,6 +181,9 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         if (binding.mineContainer.visibility == View.VISIBLE) {
             refreshMiningDashboard()
+            // undo delivery: a child screen (photo delete, word action) that finish()ed back
+            // here owns the newest unannounced memento until this snackbar is offered (once).
+            UndoUi.maybeShow(binding.root, miningRepository) { refreshMiningDashboard() }
         }
     }
 
@@ -391,6 +394,13 @@ class MainActivity : AppCompatActivity() {
         dashboardRow.root.setOnClickListener {
             recoveryPopup?.dismiss()
             startActivity(Intent(this, GoldDashboardActivity::class.java))
+        }
+        // undo history (cross-view undo, user go 2026-11-15): newest-first undo stack viewer
+        val historyRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
+        historyRow.actionLabel.setText(R.string.undo_history_title)
+        historyRow.root.setOnClickListener {
+            recoveryPopup?.dismiss()
+            startActivity(Intent(this, UndoHistoryActivity::class.java))
         }
         // a11y capture health (roadmap D1): read-only status row — a silent WebView
         // selection-capture regression must surface here, not as an "app is broken" debug day

@@ -12,11 +12,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Sentence word editor + gold freeze (user decisions 2026-11-13):
+ * Sentence word editor + gold semantics (user decisions 2026-11-13, gold reparse 2026-11-15):
  *  - the editor edits occurrence rows of ONE sentence: free-form adds (no grounding rule),
  *    renames preserve review state, deletes are soft and re-adding restores;
  *  - manual rows survive candidate-granularity reprocessing;
- *  - gold is the finalizing stamp: rescan refuses, word re-derivation never runs.
+ *  - gold is the finalizing stamp against IMAGE reprocessing: rescan refuses. Word
+ *    re-derivation on gold now RUNS when the user explicitly chooses 再解析 on a text/sentence
+ *    edit (user go 2026-11-15, superseding the v10 text-only coercion); manual rows and review
+ *    states are preserved by the same reconcile, and text-only saves stay honored.
  */
 @RunWith(AndroidJUnit4::class)
 class SentenceWordEditorInstrumentedTest {
@@ -24,6 +27,8 @@ class SentenceWordEditorInstrumentedTest {
     private lateinit var context: Context
     private lateinit var repo: MiningRepository
     private lateinit var runner: MiningPipelineRunner
+    /** Counts any image-OCR entry: reparse paths must leave both at zero (gold rule 1). */
+    private val ocrCalls = intArrayOf(0)
 
     private class NoDup : DuplicatePhotoDetector {
         override fun checkDuplicate(extractedText: String, tag: LanguageTag, config: DuplicateDetectionConfig) =
@@ -55,8 +60,10 @@ class SentenceWordEditorInstrumentedTest {
         val config = PipelineConfig(
             tag = LanguageTag.JAPANESE,
             textExtractor = object : TextExtractor {
-                override fun extract(image: PreparedImage, preflightDocument: OcrDocument?) =
-                    OcrDocument("", emptyList())
+                override fun extract(image: PreparedImage, preflightDocument: OcrDocument?): OcrDocument {
+                    ocrCalls[0]++
+                    return OcrDocument("", emptyList())
+                }
             },
             duplicateDetector = NoDup(),
             sentenceParser = CjkSentenceParser(),
@@ -73,7 +80,10 @@ class SentenceWordEditorInstrumentedTest {
                 override fun prepare(photo: PhotoCandidate, config: ImagePreprocessConfig): PreparedImage? = null
             },
             imageTagger = object : ImageTagger {
-                override fun classify(image: PreparedImage) = TagResult(LanguageTag.JAPANESE, 1f, null)
+                override fun classify(image: PreparedImage): TagResult {
+                    ocrCalls[0]++
+                    return TagResult(LanguageTag.JAPANESE, 1f, null)
+                }
             },
             pipelineConfigs = mapOf(LanguageTag.JAPANESE to config),
         )
@@ -159,32 +169,65 @@ class SentenceWordEditorInstrumentedTest {
     }
 
     @Test
-    fun goldAmendedSentence_savesTextOnly_neverReDerives() {
+    fun goldAmendedSentence_reprocessesWords_seversUntouchedWrongRow() {
+        // GOLD REPARSE (user go 2026-11-15, superseding the v10 coercion contract): fixing a typo
+        // on a gold photo WITH 再解析 must re-derive words. Untouched wrong rows are severed;
+        // manual rows and review states survive; image OCR is never invoked on this path.
         repo.upsertPhoto(photo(6L, text = "金だ。", gold = true))
         repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, " curated", 6L, "金だ。", modifiedByUserFlag = true)
         val summary = runner.reprocessAmendedSentence(6L, "金だ。", "金だ。!", reprocessWords = true)
-        assertFalse("word re-derivation is impossible on gold", summary.wordsReprocessed)
-        val updated = repo.getPhoto(6L)!!
-        assertTrue(updated.extractedText.contains("金だ。!"))
-        val rows = repo.getSentenceCandidates(6L, "金だ。!")
-        assertEquals("curated occurrence set rode through the text amendment", listOf(" curated"), rows.map { it.expression })
+        assertTrue("gold sentence edit re-derives words when the user chose reprocess",
+            summary.wordsReprocessed)
+        assertEquals("untouched wrong occurrence severed", 1, summary.removedCandidates)
+        assertEquals("the amended sentence parses fresh", 1, summary.addedCandidates)
+        val rows = repo.occurrenceRowsForSentence(6L, "金だ。!")
+        assertEquals(listOf("金だ。!"), rows.map { it.expression })
+        assertEquals(OccurrenceState.UNSEEN.name, rows[0].state)
+        assertTrue("reparse does not clear gold", repo.getPhoto(6L)!!.isGold)
+        assertEquals("text-edit reparse never runs image OCR", 0, ocrCalls[0])
     }
 
     @Test
-    fun goldPhotoTextSave_coercesToTextOnly() {
+    fun goldAmendedSentence_manualRowsSurviveReparse() {
+        repo.upsertPhoto(photo(8L, text = "金だ。", gold = true))
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "厳選", 8L, "金だ。", isManual = true)
+        val summary = runner.reprocessAmendedSentence(8L, "金だ。", "金だ。!", reprocessWords = true)
+        assertTrue(summary.wordsReprocessed)
+        assertEquals("manual row is fair-game-proof", 0, summary.removedCandidates)
+        val rows = repo.occurrenceRowsForSentence(8L, "金だ。!")
+        assertTrue("manual row survives under the corrected sentence", rows.any { it.expression == "厳選" && it.isManual })
+        assertTrue("newly parsed candidate added", rows.any { it.expression == "金だ。!" })
+    }
+
+    @Test
+    fun goldPhotoTextSave_reprocessesWhenUserChooses() {
         repo.upsertPhoto(photo(7L, text = "古い文。", gold = true))
         repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "手", 7L, "古い文。", modifiedByUserFlag = true)
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "厳選", 7L, "古い文。", isManual = true)
         val summary = runner.reprocessPhotoText(
             mediaStoreId = 7L,
             amendedText = "新しい文。",
             reprocessWords = true,
         )
-        assertFalse("gold photos never re-derive words", summary.wordsReprocessed)
+        assertTrue("gold no longer coerces text-only when the user chose 再解析", summary.wordsReprocessed)
         assertEquals("新しい文。", repo.getPhoto(7L)!!.extractedText)
-        // Same semantics as any deliberate text-only save: curated rows stay exactly as they
-        // were (old sentence key, untouched). To rebuild a gold photo's words, unmark gold.
-        assertEquals(listOf("手"), repo.occurrenceRowsForSentence(7L, "古い文。").map { it.expression })
-        assertTrue(repo.getSentenceCandidates(7L, "新しい文。").isEmpty())
+        // Removed sentence key: untouched rows severed, manual rows survive under the old key
+        // (they surface via the stale chip / sentence editor — never silently destroyed).
+        assertTrue(repo.occurrenceRowsForSentence(7L, "古い文。").map { it.expression } == listOf("厳選"))
+        assertEquals(listOf("新しい文。"), repo.getSentenceCandidates(7L, "新しい文。").map { it.expression })
+        assertEquals(0, ocrCalls[0])
+    }
+
+    @Test
+    fun goldPhotoTextSave_textOnlyChoiceStillFreezesRows() {
+        // The other rung of the user's choice stays intact: reprocessWords=false is honored
+        // for gold exactly as for non-gold — curated rows stay under the old key untouched.
+        repo.upsertPhoto(photo(9L, text = "古い文。", gold = true))
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "手", 9L, "古い文。", isManual = true)
+        val summary = runner.reprocessPhotoText(9L, "新しい文。", reprocessWords = false)
+        assertFalse(summary.wordsReprocessed)
+        assertEquals(listOf("手"), repo.occurrenceRowsForSentence(9L, "古い文。").map { it.expression })
+        assertTrue(repo.getSentenceCandidates(9L, "新しい文。").isEmpty())
     }
 
     companion object {

@@ -44,6 +44,10 @@
             android:exported="false" />
 
         <activity
+            android:name=".UndoHistoryActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".PhotoDetailActivity"
             android:exported="false" />
 

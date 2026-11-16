@@ -1,7 +1,11 @@
 # Design Proposal: Reparsing Words on Gold Photo Sentence Edits
 
 Date: 2026-11-15
-Status: Proposal (awaiting user go before implementation)
+Status: **SHIPPED 2026-11-15** (user approved the same day). Implemented exactly as specced,
+with two honest deltas recorded in the feature log: the exit-criteria tests live in the
+instrumented suite (the runner is bound to real SQLite; the repo has no JVM seam for it), and
+the stale-words chip / refresh affordance on the photo view was un-hidden for gold as a
+sibling fix (the chip offers word reprocess — which is now the very thing allowed).
 
 ## Problem Statement
 
