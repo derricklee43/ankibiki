@@ -73,6 +73,7 @@ class GoldDashboardStatsInstrumentedTest {
             keepPhotos = c("SELECT COUNT(*) FROM scraped_photos WHERE status = 'KEEP'"),
             goldPhotos = c("SELECT COUNT(*) FROM scraped_photos WHERE is_gold = 1"),
             goldUserEditedPhotos = c("SELECT COUNT(*) FROM scraped_photos WHERE is_gold = 1 AND modified_by_user_flag = 1"),
+            goldUntouchedPhotos = c("SELECT COUNT(*) FROM scraped_photos WHERE is_gold = 1 AND modified_by_user_flag = 0"),
             correctionsApplied = c("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'applied'"),
             correctionsRejected = c("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'rejected'"),
             correctionsExcluded = c("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'excluded'"),
@@ -99,6 +100,7 @@ class GoldDashboardStatsInstrumentedTest {
         assertEquals(4, stats.keepPhotos)
         assertEquals(3, stats.goldPhotos)
         assertEquals(2, stats.goldUserEditedPhotos)
+        assertEquals(1, stats.goldUntouchedPhotos) // FU4: the clean side of the proxy (audit 151-129)
         assertEquals(4, stats.correctionsApplied) // the N the dashboard renders as N/200
         assertEquals(3, stats.correctionsRejected)
         assertEquals(1, stats.correctionsExcluded)
@@ -120,13 +122,14 @@ class GoldDashboardStatsInstrumentedTest {
         assertEquals(scriptedExpectation(), after)
         assertEquals(1, after.goldPhotos)
         assertEquals(0, after.goldUserEditedPhotos) // gold but never edited => clean side of the proxy
+        assertEquals(1, after.goldUntouchedPhotos)
         assertEquals(1, after.correctionsApplied)
         assertEquals(0, after.correctionsRejected)
     }
 
     @Test
     fun stats_emptyCorpus_isZerosNotFailure() {
-        assertEquals(MiningRepository.DashboardStats(0, 0, 0, 0, 0, 0, 0), repo.getDashboardStats())
+        assertEquals(MiningRepository.DashboardStats(0, 0, 0, 0, 0, 0, 0, 0), repo.getDashboardStats())
         assertEquals(scriptedExpectation(), repo.getDashboardStats())
     }
 }

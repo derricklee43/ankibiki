@@ -67,6 +67,7 @@ class GoldDashboardActivity : AppCompatActivity() {
         binding.goldCountText.text = getString(R.string.dashboard_gold_count, stats.goldPhotos)
         binding.effortText.text = getString(
             R.string.dashboard_effort, stats.goldUserEditedPhotos, stats.goldPhotos,
+            stats.goldUntouchedPhotos,
         )
         binding.corpusText.text = getString(R.string.dashboard_corpus, stats.totalPhotos, stats.keepPhotos)
     }

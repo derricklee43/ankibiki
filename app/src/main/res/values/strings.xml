@@ -130,7 +130,7 @@
     <string name="dashboard_gate_note">チェックポイント到達でロールアウト再判断 — 各行は監査台帳に前後のテキスト付きで保存され、元に戻せます</string>
     <string name="dashboard_gold_title">金マーク</string>
     <string name="dashboard_gold_count">金の写真: %1$d 枚</string>
-    <string name="dashboard_effort">修正手間 proxy: マーク前に編集された %1$d / %2$d 枚</string>
+    <string name="dashboard_effort">修正手間 proxy: マーク前に編集された %1$d / %2$d 枚（マークのみ未編集: %3$d）</string>
     <string name="dashboard_corpus">コーパス: 全 %1$d 枚 · KEEP %2$d 枚</string>
     <string name="dashboard_bench_title">記録されたベンチマーク（静的）</string>
     <string name="dashboard_bench_gold_set">ゴールド集合（写真）</string>

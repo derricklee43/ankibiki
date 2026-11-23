@@ -260,8 +260,11 @@ class MiningRepository(
         }
     }
 
-    /** User-edit write path: marks actual text changes without clearing prior edit provenance. */
-    fun updatePhotoExtractedText(mediaStoreId: Long, amendedText: String) {
+    /** User-edit write path: marks actual text changes without clearing prior edit provenance.
+     *  [markModified]=false is for approved-machine edits (nameplate rulings — audit FU1
+     *  2026-11-23): the text changes but a ruling is not authorship, so the photo flag keeps
+     *  whatever provenance it already had. */
+    fun updatePhotoExtractedText(mediaStoreId: Long, amendedText: String, markModified: Boolean = true) {
         val existing = getPhoto(mediaStoreId)
         if (existing != null) {
             val tag = if (existing.languageTag == LanguageTag.NA && amendedText.isNotBlank()) {
@@ -274,7 +277,8 @@ class MiningRepository(
                 existing.copy(
                     languageTag = tag,
                     extractedText = amendedText,
-                    modifiedByUserFlag = existing.modifiedByUserFlag || existing.extractedText != amendedText,
+                    modifiedByUserFlag = existing.modifiedByUserFlag ||
+                        (markModified && existing.extractedText != amendedText),
                     status = status,
                 ),
             )
@@ -512,6 +516,9 @@ class MiningRepository(
         val keepPhotos: Int,
         val goldPhotos: Int,
         val goldUserEditedPhotos: Int,
+        /** Audit FU4 (2026-11-23): gold ∧ never typed — marks made without editing, the clean
+         *  side of the effort proxy (151-129 on the 2026-11-14 measurement). */
+        val goldUntouchedPhotos: Int,
         val correctionsApplied: Int,
         val correctionsRejected: Int,
         val correctionsExcluded: Int,
@@ -700,17 +707,21 @@ class MiningRepository(
         )
     }
 
-    /** Soft state flip for one expression within one sentence (editor delete/restore). */
+    /** Soft state flip for one expression within one sentence (editor delete/restore).
+     *  Audit FU2 (2026-11-23, user-approved): review is NOT authorship — the flag is no
+     *  longer set by default, and it is written STICKILY (only ever raised, never cleared,
+     *  so restoring a genuinely renamed/edited row keeps its authorship). is_manual stays
+     *  the reconcile-protection this flip has always owned. */
     fun setOccurrenceStateForExpression(
         photoId: Long,
         sentence: String,
         expression: String,
         state: OccurrenceState,
-        modifiedByUserFlag: Boolean = true,
+        modifiedByUserFlag: Boolean = false,
     ): Int {
         val values = ContentValues().apply {
             put("state", state.name)
-            put("modified_by_user_flag", modifiedByUserFlag)
+            if (modifiedByUserFlag) put("modified_by_user_flag", true)
             put("is_manual", true)
         }
         return writableDatabase.update(

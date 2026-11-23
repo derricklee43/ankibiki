@@ -52,6 +52,9 @@ object NameplateRuling {
                 miningPipelineRunner.reprocessPhotoText(
                     mediaStoreId = mediaStoreId, amendedText = amended, reprocessWords = true,
                     recordUndo = false,
+                    // Audit FU1 (2026-11-23): ruling ≠ authorship — matches the standalone path,
+                    // which never set the flag. The verdict row is the ruling's provenance.
+                    authorship = false,
                 )
             }
             // remainder == null: the merged sentence is already gone from the text (user

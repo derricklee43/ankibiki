@@ -278,6 +278,8 @@ fun MiningRepository.getDashboardStats(): MiningRepository.DashboardStats {
         goldPhotos = count("SELECT COUNT(*) FROM scraped_photos WHERE is_gold = 1"),
         goldUserEditedPhotos =
             count("SELECT COUNT(*) FROM scraped_photos WHERE is_gold = 1 AND modified_by_user_flag = 1"),
+        goldUntouchedPhotos =
+            count("SELECT COUNT(*) FROM scraped_photos WHERE is_gold = 1 AND modified_by_user_flag = 0"),
         correctionsApplied = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'applied'"),
         correctionsRejected = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'rejected'"),
         correctionsExcluded = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'excluded'"),

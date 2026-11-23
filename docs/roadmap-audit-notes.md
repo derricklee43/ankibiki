@@ -107,7 +107,23 @@ Readings:
   `PhotoGoldFlagInstrumentedTest`, `OcrCorrectionInstrumentedTest`,
   `NameplateClaimsInstrumentedTest` reference the flag in fixtures/asserts.
 
-### Follow-ups the audit suggests (need a go; none implemented)
+### Follow-ups the audit suggests — ALL IMPLEMENTED 2026-11-23 (user: "implement your suggestions for all four")
+
+Status per item (evidence + specs: docs/feature_log.md § "Flag-audit follow-ups"):
+1. DONE (preferred variant): inline rulings now pass `authorship = false` into
+   reprocessPhotoText — flag set nowhere; matches the standalone path.
+2. DONE: `setOccurrenceStateForExpression` default flipped to false AND the write is
+   sticky (only raises, never clears — a restore can't launder a rename's authorship).
+   is_manual stays the reconcile protection.
+3. DONE, with one refinement over the original wording: "per changed sentence" alone
+   regressed `UserTextEditsInstrumentedTest.textOnlySaves_persistModelFlags` — a
+   sentence typed by an EARLIER text-only save is still authorship when its rows are
+   re-derived. Final rule: flag = changed now, OR (photo carries human provenance AND
+   the sentence is not in the stored raw-OCR baseline). Machine-provenance sentences
+   no longer blanket-inherit; typed ones keep it. Per-sentence, both directions.
+4. DONE: dashboard renders gold ∧ never-typed beside the proxy fraction.
+
+### Follow-ups the audit suggests (original wording, 2026-11-14)
 
 1. Decide nameplate-ruling provenance semantics: rulings are user-APPROVED machine
    edits, not authorship. Either make standalone rulings set the flag (consistent

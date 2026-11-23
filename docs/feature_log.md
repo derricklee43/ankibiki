@@ -7,6 +7,55 @@ from git history — commit `37f2174` had mangled it to a `|x|` artifact). The r
 convention applies here: checkboxes only flipped when exit evidence was verified, so
 everything below carries its proof record.
 
+## 2026-11-23 · Flag-audit follow-ups FU1-FU4 shipped (user: "implement your suggestions for all four")
+
+Closes the Secondary item "Revisit `modified_by_user_flag`" — moved here from the roadmap
+with its 2026-11-14 verdict, verbatim: AUDITED 2026-11-14 — VERDICT: keep the photo-level
+flag; the derivation replacement is empirically dead. Full analysis:
+docs/roadmap-audit-notes.md (§ flag). Summary: gold and the flag are different intents
+(certified-forever vs human-typed-ask-before-overwrite); text!=raw-OCR is true on ~96% of
+photos for MACHINE reasons (stitching/gate/excision), so derivation would prompt on every
+photo. Three semantics leaks found worth fixing instead: standalone nameplate rulings don't
+flag while inline ones do (same gesture, two provenance outcomes); editor state flips mark
+rows user-modified (review != authorship); whole-photo reprocess blankets the flag onto
+every freshly derived row, diluting the per-sentence signal its remaining consumers read.
+Bundle REQUIRED_COLUMNS carries the column on both tables (retirement needs the migration
+ceremony). (Original doubt text kept for the record: after schema v10 its job split —
+`is_manual` owns word-editor row provenance (the only reconcile protection) and `is_gold`
+owns the finalizing stamp.)
+
+What shipped (semantics only; no schema change):
+- FU1 ruling ≠ authorship: `reprocessPhotoText` gained `authorship: Boolean = true`;
+  NameplateRuling's inline path passes false — photo row keeps its provenance
+  (`updatePhotoExtractedText(markModified=...)`), `markSentencesModifiedByUser` is skipped,
+  and re-derived candidates get no inherited authorship. The standalone path already
+  never flagged; the two ruling paths now agree. Consequence by design: a ruling alone no
+  longer trips the rescan confirmation gate (a verdict row is the ruling's provenance).
+- FU2 review ≠ authorship: `setOccurrenceStateForExpression` default `modifiedByUserFlag`
+  true→false, and the flag write became STICKY (column omitted unless true) so a
+  delete/restore can never launder an existing authorship flag. `is_manual` stays the
+  reconcile protection the flip has always set.
+- FU3 blanket → per-sentence: reprocess no longer flags every freshly derived row when the
+  photo was ever edited. Final rule for added sentences:
+  `authorship && (sentence in changedSentences || (photoEverEdited && sentence !in
+  machineBaseline))`, machineBaseline = sentences parsed from the stored raw-OCR
+  `ocrBlocksJson.fullText`. The `changedSentences`-alone variant was tried first and
+  regressed `UserTextEditsInstrumentedTest.textOnlySaves_persistModelFlags_andLaterReprocessingRetainsThem`
+  — sentences typed by an earlier text-only save are still authorship when re-derived —
+  hence the raw-baseline half of the rule. Photos without a stored OCR document treat all
+  text as typed (correct: there is no machine baseline).
+- FU4 dashboard: `DashboardStats.goldUntouchedPhotos` (gold ∧ flag=0) rendered beside the
+  effort proxy ("マークのみ未編集: N").
+
+Specs: `ModifiedProvenanceInstrumentedTest` (4 tests: ruling-path sets flag nowhere; state
+flip not authorship + sticky + is_manual survives; typed-vs-machine stale-row re-derivation;
+genuine edit flags only its rows), `RulingAuthorshipCallSiteTest` (JVM drift guard that the
+ruling keeps passing authorship=false), updated `GoldDashboardStatsInstrumentedTest`
+(untouched count both sides). Evidence: JVM 99/99; full instrumented suite on the Pixel
+133/133, 0 ignored (backups/20261123-pixel-suite3-raw.txt). Existing pins kept green without
+edits: SafeReprocessing, PhotoRescan, SentenceWordEditor, NameplateClaims, PhotoGoldFlag,
+UserTextEdits (the FU3 refinement above was chosen precisely so its pin stays true).
+
 ## 2026-11-23 · Connected-Pixel device session (suite + bundle re-cut + six-surface pass + §5 probes)
 
 Phone 57160DLCQ001CG attached; everything below ran on the real device from the current
@@ -38,7 +87,8 @@ tree (app + test APKs installed over the user's app, data-preserving).
   pinned by ManifestProcessTextQueriesTest (JVM grep gate) and
   ProcessTextVisibilityInstrumentedTest (app process must resolve external
   PROCESS_TEXT providers; ran on the Pixel 2026-11-23: 1 test, 0 failed, 0 ignored).
-  Visual toolbar re-check pending the next unlocked-phone session.
+  VISUAL CONFIRMATION 2026-11-23: the user verified the Translate chip now appears in the
+  app's selection toolbar on his phone — pending closed, nothing left on this line.
 - §5 probes: permission-loss DONE on-device (revoke kills the process by design, no crash
   entries; スキャン re-requests at point of use; "Don't allow" = graceful no-op). Editor
   pending-save-target TESTED: kill -9 with unsaved editor text loses the draft (in-memory

@@ -257,22 +257,9 @@ Prefer incremental changes over a wholesale architecture migration.
       equivalent language support.
 - [ ] Make deck/note-type configuration less collection-specific if the app is
       intended for anyone beyond its current personal setup.
-- [ ] **Revisit `modified_by_user_flag`** (user doubt 2026-11-13: "not sure it is
-      useful anymore"). AUDITED 2026-11-14 (user request: "is it useful now that we
-      use the gold marker?") — VERDICT: keep the photo-level flag; the derivation
-      replacement below is empirically dead. Full analysis: docs/roadmap-audit-notes.md
-      (§ flag). Summary: gold and the flag are different intents (certified-forever vs
-      human-typed-ask-before-overwrite); text!=raw-OCR is true on ~96% of photos for
-      MACHINE reasons (stitching/gate/excision), so derivation would prompt on every
-      photo. Three semantics leaks found worth fixing instead: standalone nameplate
-      rulings don't flag while inline ones do (same gesture, two provenance outcomes);
-      editor state flips mark rows user-modified (review != authorship); whole-photo
-      reprocess blankets the flag onto every freshly derived row, diluting the
-      per-sentence signal its remaining consumers read. Bundle REQUIRED_COLUMNS carries
-      the column on both tables (retirement needs the migration ceremony).
-      (Original doubt text kept for the record: after schema v10 its job split —
-      `is_manual` owns word-editor row provenance (the only reconcile protection)
-      and `is_gold` owns the finalizing stamp.)
+
+("Revisit `modified_by_user_flag`" completed here 2026-11-14 (audit, verdict KEEP) and
+2026-11-23 (all four follow-up fixes shipped) — moved verbatim to docs/feature_log.md.)
 
 These should follow demonstrated learning-workflow needs, not expand the scope
 at the expense of data trust and extraction quality.

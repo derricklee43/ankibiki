@@ -508,6 +508,11 @@ class MiningPipelineRunner(
         /** NameplateRuling suppresses the internal record and files a single unified
          *  NAMEPLATE_RULING memento instead (one ruling = one undo step). */
         recordUndo: Boolean = true,
+        /** Audit FU1 (2026-11-23, user-approved): a nameplate ruling is a user-APPROVED machine
+         *  edit, not authorship. When false, this call sets modified_by_user_flag NOWHERE —
+         *  photo row skipped, no per-sentence marking, inserted candidates carry it only via
+         *  insertOccurrence's existing-row inheritance (sentences a human really typed). */
+        authorship: Boolean = true,
     ): PhotoTextReprocessSummary {
         val originalPhoto = miningRepository.getPhoto(mediaStoreId)
             ?: return PhotoTextReprocessSummary(textSaved = false, keptSentences = 0)
@@ -550,6 +555,22 @@ class MiningPipelineRunner(
         } else {
             emptyList()
         }
+        // Audit FU3 (2026-11-23, user-approved): per-SENTENCE provenance replaces the photo
+        // blanket. A re-derived sentence is "typed" when (a) this edit just introduced it
+        // (changedSentences), or (b) the photo carries human-edit provenance and the sentence
+        // is NOT part of the stored machine baseline (raw OCR fullText) — case (b) catches
+        // text typed by an earlier text-only save whose rows went stale. Sentences that raw
+        // OCR itself produced no longer inherit the flag just because the photo was once
+        // edited (the 628/1002 inherited-noise rows the audit measured).
+        val photoEverEdited = originalPhoto.modifiedByUserFlag
+        val machineBaseline: Set<String> =
+            if (shouldReprocess && photoEverEdited) {
+                OcrDocument.fromJsonString(originalPhoto.ocrBlocksJson)
+                    ?.let { parsePhotoText(config, it.fullText).toSet() }
+                    ?: emptySet()
+            } else {
+                emptySet()
+            }
 
         // Undo (user 2026-11-15): full prior state captured OUTSIDE the transaction; the memento
         // is recorded INSIDE it (atomic with the mutation). expectedAfter = amendedText verbatim.
@@ -558,8 +579,10 @@ class MiningPipelineRunner(
         val priorRows = if (prior != null) miningRepository.undoOccRowsForPhoto(mediaStoreId) else emptyList()
 
         miningRepository.inTransaction {
-            miningRepository.updatePhotoExtractedText(mediaStoreId, amendedText)
-            miningRepository.markSentencesModifiedByUser(mediaStoreId, changedSentences)
+            miningRepository.updatePhotoExtractedText(mediaStoreId, amendedText, markModified = authorship)
+            if (authorship) {
+                miningRepository.markSentencesModifiedByUser(mediaStoreId, changedSentences)
+            }
             if (shouldReprocess) {
                 for (sentence in removedSentences) {
                     // Manual rows survive even on removed sentence keys (rule 3, same contract
@@ -567,7 +590,6 @@ class MiningPipelineRunner(
                     miningRepository.deleteNonManualOccurrencesForSentence(mediaStoreId, sentence)
                 }
                 val baseTimestamp = System.currentTimeMillis() / 1000L
-                val photoModified = originalPhoto.modifiedByUserFlag || amendedText != originalPhoto.extractedText
                 for ((index, pair) in addedPlans.withIndex()) {
                     val (sentence, candidates) = pair
                     insertCandidates(
@@ -576,7 +598,11 @@ class MiningPipelineRunner(
                         sentence = sentence,
                         candidates = candidates,
                         timestamp = baseTimestamp + index,
-                        modifiedByUserFlag = photoModified || sentence in changedSentences,
+                        // Audit FU3 (2026-11-23, user-approved): per changed/typed SENTENCE,
+                        // never the photo-level blanket (see machineBaseline above).
+                        modifiedByUserFlag = authorship &&
+                            (sentence in changedSentences ||
+                                (photoEverEdited && sentence !in machineBaseline)),
                     )
                 }
             }
