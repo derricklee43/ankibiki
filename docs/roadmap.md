@@ -85,25 +85,16 @@ A. **Card-making loop** (§4 extension): an "add to existing note" path (append
    validation against the real collection in a device session.
    (The batch "create cards" proposal was pulled by user 2026-11-14 — see Parked ideas.)
 
-B. **Review & organization UX** — shipped 2026-11-13/14 in full (sentence word editor,
-   出現/単語 tab split, claims queue, gold dashboard, library filters).
-   (2026-11-15: laundry-list batch — ten UI/lookup fixes shipped on emulator, evidence in
-   [docs/feature_log.md](feature_log.md). Answers batch landed the SAME DAY on schema v11:
-   photo flagger (fixed palette, decoupled storage), user definition/notes (wizard-mappable),
-   word folders with skip-inbox — evidence + the answer->question mapping in
-   [docs/feature_log.md](feature_log.md) and [docs/pending-disambiguation.md](pending-disambiguation.md).
-   SHIPPED after approval 2026-11-15 (same day): gold sentence-edit reconcile +
-   cross-view undo (schema v12) — evidence in [docs/feature_log.md](feature_log.md).
-   (2026-11-16: six-item UI tweak batch — no sentence bullet, フォルダ column on 出現,
-   folder move marks occurrences SEEN, date-first default sort, "—" for no-definition
-   reveal, chip refresh on resume — walked emulator-5554, rebuilt on the Pixel, committed
-   2026-11-23 with the suite re-run 97/97; evidence in [docs/feature_log.md](feature_log.md).)
-   OPEN on this track: homophone spike design in
-   [spikes/005-homophone-disambiguation](../spikes/005-homophone-disambiguation/README.md)
-   un-run (its Option C also owns the pin-which-sense half of the わし question; sense
-   dropdown TABLED by user 2026-11-15 pending his thinking);
-   Translate chip + the new surfaces want a physical-Pixel pass when the phone is attached.)
-   Evidence: [docs/feature_log.md](feature_log.md).
+B. **Review & organization UX** — DISSOLVED 2026-11-23 by user: "Remove Track B entirely,
+   homophones should live with my other parked items." All its recorded work lives in
+   [docs/feature_log.md](feature_log.md) (2026-11-13/14 shipped in full: sentence word
+   editor, 出現/単語 tab split, claims queue, gold dashboard, library filters; 2026-11-15
+   laundry-list batch + schema-v11 answers batch + schema-v12 approved proposals;
+   2026-11-16 six-item UI tweak batch). Homophone work moved to Parked ideas below.
+   The one open pending — a physical-Pixel pass of the Translate chip + the new surfaces
+   — ran 2026-11-23: all six surfaces verified on-device; the Translate chip is blocked
+   by a device-side missing TextClassificationService (app half verified on-device).
+   Evidence in [docs/feature_log.md](feature_log.md).
 
 C. **Lookup upgrades** (from Secondary): less collection-specific deck/note-type
    configuration (conditional — only if the app is meant to outlive this collection).
@@ -119,8 +110,8 @@ D. **Lifecycle & settings surface** (§5): resumable scans + interruption tests;
    recorded in [docs/feature_log.md](feature_log.md). REMAINING here: the Settings surface
    hosting the correction-gate kill switch toggle — today it lives only in code.)
 
-Suggested ordering (refreshed 2026-11-14: B and D's specced items shipped; the log
-carries the old rationale): **A is the next frontier** — it is the point of the whole
+Suggested ordering (refreshed 2026-11-23: track B dissolved into the log + Parked ideas;
+prior rationale in the log): **A is the next frontier** — it is the point of the whole
 mining loop. C's config item and D's settings-surface toggle are small conditionals.
 §5's progress/cancel/retry UI waits for an itch to spend a real scan on.
 
@@ -256,6 +247,16 @@ proven in real use, not in-process.)
       snapshot, occurrences/claims/totals unchanged (the kill landed before the write
       transaction — the atomicity contract held), app reopened the photo clean. Permission
       loss + editor pending-save-target remain open; box stays unchecked.)
+      (PIXEL SESSION 2026-11-23: PERMISSION LOSS DONE — revoked READ_MEDIA_IMAGES +
+      READ_MEDIA_VISUAL_USER_SELECTED while the app ran: system killed the process
+      (standard revoke behavior), NO crash entries anywhere; relaunch clean; tapping
+      スキャン re-requests at the point of use (system GrantPermissionsActivity);
+      "Don't allow" = graceful no-op back on the tab, no FATAL; permissions restored.
+      EDITOR PENDING-SAVE-TARGET TESTED = NOT PRESERVED: 例文を編集 open with unsaved
+      text, HOME + kill -9 via run-as, task relaunch lands on the word view — the editor
+      activity and its draft are gone (drafts are in-memory only). No data corruption
+      (sentence text unchanged in DB). The requirement is now a demonstrated gap, not an
+      untested claim; box stays unchecked until drafts survive process death.)
 - [ ] Consolidate mutation/reprocessing rules into explicit use cases rather than
       allowing Activity callbacks to become the source of business rules.
 
@@ -291,6 +292,17 @@ These should follow demonstrated learning-workflow needs, not expand the scope
 at the expense of data trust and extraction quality.
 
 ## Parked ideas
+
+### Homophone / sense dropdown (pulled from track B 2026-11-23 by user)
+
+User parked the whole homophone line ("We are parking the homophone"), following the
+2026-11-15 table ("pending my thinking"). The spike DESIGN is written but un-run:
+[spikes/005-homophone-disambiguation](../spikes/005-homophone-disambiguation/README.md)
+— its Option C also owns the pin-which-sense half of the わし question, and the sense
+dropdown was one UI shape it proposes. Production mitigation stays shipped and is the
+current answer for wrong-sense cases: per-word user_definition/user_notes manual
+overrides in the word view (schema v11, [docs/feature_log.md](feature_log.md)).
+No implementation, no experiment run until the user asks. Re-entry trigger: the user asks.
 
 ### Batch "create cards" from the unseen list (pulled from track A 2026-11-14 by user)
 

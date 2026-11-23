@@ -2,6 +2,8 @@
 
 Date: 2026-11-15
 Status: Design (ready to run experiment on live corpus snapshot)
+**PARKED 2026-11-23 (user): the whole homophone line lives under Parked ideas in
+docs/roadmap.md; this design stands as written, un-run, until the user re-asks.**
 
 ## Problem Statement
 

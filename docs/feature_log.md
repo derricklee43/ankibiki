@@ -7,6 +7,44 @@ from git history — commit `37f2174` had mangled it to a `|x|` artifact). The r
 convention applies here: checkboxes only flipped when exit evidence was verified, so
 everything below carries its proof record.
 
+## 2026-11-23 · Connected-Pixel device session (suite + bundle re-cut + six-surface pass + §5 probes)
+
+Phone 57160DLCQ001CG attached; everything below ran on the real device from the current
+tree (app + test APKs installed over the user's app, data-preserving).
+
+- Snapshot first: `backups/20261123-090002/mining.db` (user_version=12, integrity ok;
+  corpus re-measured live: 400 photos / 232 gold / 1 flagged, 1,190 items, 1,666
+  occurrences (407 UNSEEN), 44 pending claims, 100 correct / 42 incorrect, 2 folders,
+  180 ocr_corrections rows (70 applied / 87 rejected / 23 excluded), 50 undo_log rows).
+- Full instrumented suite on-device: `am instrument` OK (128 tests) in 18.7 s, zero
+  failures (raw capture: `backups/20261123-pixel-suite-raw.txt`).
+- Off-device bundle re-cut with photos + SHA-verified copies to Documents & OneDrive:
+  see docs/recovery.md § "Off-device copy re-cut (2026-11-23)".
+- Six-item UI batch (2026-11-16) verified on the phone, closing the last track-B pending:
+  フォルダ column + 日時-first chips (uiautomator: colSecondHeader=フォルダ, sortDateChip
+  left of sortCountChip); folder move marks occurrences SEEN (さだ: UNSEEN 407→406,
+  occurrence SEEN, folder_id=1 — measured from the live DB); no sentence bullet (dump);
+  "—" instead of the reveal button (捕える: meaningValueText shows —, no
+  meaningRevealButton node); onResume chip refresh (pixel-diff of the chip region
+  bright→dark immediately on return after 非表示).
+- Translate chip VERDICT: app half is live and pinned (setTextLocales on the sentence
+  views, TextLocalesInstrumentedTest green on this device, targetSdk 35; the app's
+  PROCESS_TEXT suggestions AnkiBiki/Anki Card render in the selection overflow). The
+  SYSTEM Translate chip appears nowhere on this phone — `dumpsys textclassifier` =
+  "Can't find service", zero registered TextClassificationService; Chrome's Translate
+  entry is Chromium's own implementation, not the system chip. Device-side Google-app
+  provisioning, not an app defect. Re-check after enabling Google app translation
+  settings; until then no native app on this phone can show it.
+- §5 probes: permission-loss + editor pending-save-target — results and the demonstrated
+  draft-loss gap recorded in the roadmap §5 box parenthetical (box stays unchecked).
+- Walk reversals: every mutation (folder assignment, hidden word, editor typing) undone
+  by restoring the pre-walk snapshot over the live DB via /data/local/tmp + `run-as cat`;
+  pulled back byte-identical (sha256 29039e81…), app opened clean, permissions restored,
+  relay/staged files removed, phone slept (keyevent 223). Incident noted: a hung
+  `adb exec-out run-as … cat >` stdin pipe truncated the live mining.db to 0 bytes
+  before the relay method was used — recovered from the session-start snapshot, and the
+  fresh bundle stood as the second copy exactly as designed.
+
 ## 2026-11-16 · Six-item UI tweak batch (word view, occurrences list, folder rule)
 
 User go (verbatim list): "In the word view, each sentence has a bullet point at the front.

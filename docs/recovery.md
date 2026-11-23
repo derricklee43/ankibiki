@@ -181,6 +181,19 @@ verified via the PC tool, copied with matching SHA-256 to BOTH:
 This closes roadmap §1 item 2. Habit going forward: re-export from the phone's Settings menu after
 serious mining sessions and drop the zip into the OneDrive folder.
 
+## Off-device copy re-cut (2026-11-23, connected-Pixel session)
+
+`ankibiki-corpus-20261123-090537.zip` — the phone's current corpus (400 photos / 1,190 items /
+1,666 occurrences, user_version=12, integrity ok) WITH source photos embedded (1.10 GB,
+photos=included; 399/400 staged — media id 1424, an IGNORED photo, is gone from MediaStore,
+pre-existing drift like the 2026-11-14 cut). Copied with matching SHA-256
+(31f15f66…6a7ee9) to BOTH `C:\Users\derri\Documents\AnkiBikiBackups\` and
+`C:\Users\derri\OneDrive\AnkiBikiBackups\`; the COPIED bundles re-verified with
+`backup_bundle.py verify`. Same session exercised the raw file-restore path for real:
+after an accidental truncation of the live `mining.db` (a hung `adb exec-out run-as … cat >`
+stdin pipe), the snapshot was re-pushed via `/data/local/tmp` + `run-as cat`, pulled back
+byte-identical (sha256 29039e81…9e77e), and the app opened the mining tab clean.
+
 ## Off-device copies
 
 The bundle is one small zip — copy it anywhere independent of this machine and
