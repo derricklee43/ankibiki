@@ -310,11 +310,41 @@ stremio-web / stremio-shell / stremio-video), cloned and read 2026-11-23.
                         is a spec test, not a promise).
   [extraction_jobs]     queue rows (videoId, gen) consumed by WorkManager;
                         survives process death; resumable.
-  Cue ingestion uses EXISTING sentences/occurrence tables + source tag
-  'stremio:<imdbId>:SxxEyy'; new columns minimized. Per repo rule the
-  schema-bump ceremony (version gates + bundles) runs once, deliberately:
-  ledger+settings IN bundle contract (corpus state, no secrets); stream
-  URLs/transport secrets OUT. (D7 sign-off required.)
+  Cue sentences/occurrence rows land through the EXISTING tables, but the
+  schema does not accept them as-is, and that is not a given:
+  item_occurrences.photo_id is NOT NULL (MiningRepository.kt:82), joining
+  scraped_photos.media_store_id (a MediaStore photo id, :26) -- and
+  provenance today is photo membership itself (no source column exists).
+  The shape decision is deferred to the 6.1 data-model plan, which is a
+  precondition to S0-E. The schema-bump ceremony (version gates +
+  bundles) runs once, deliberately: ledger+settings IN bundle contract
+  (corpus state, no secrets); stream URLs/transport secrets OUT
+  (D7 signed off by user 2026-11-23).
+
+6.1 DATA-MODEL PLAN (owed before S0-E; a design round, not a spike verdict)
+    The three tables above are the cheap half. The expensive half is how
+    Stremio cues land, and every candidate shape has a price:
+      (a) Fabricate scraped_photos rows for cue batches: pollutes every
+          photo-shaped reader (PhotoRescan, duplicate detector, gold/flags,
+          nameplate machinery). REJECTED on principle; recorded so nobody
+          "discovers" it cheaply later.
+      (b) Generalize occurrences: source-kind column + nullable photo_id (or
+          a cue_batch_id): touches the provenance discipline that stands on
+          photo membership; v14 must run the full schema-versioning
+          ceremony; needs a written-before-decided audit of every photo_id
+          writer/reader (the repo's behavior-question rule: enumerate, don't
+          debate).
+      (c) Parallel stremio_occurrences, unioned at the triage/frequency read
+          layer only: zero risk to photo machinery; risk = two diverging
+          occurrence implementations over time (what the repo hates).
+    The plan must also cover, none of it speccable by analogy: raw-cue
+    retention (re-generations; re-filtering when known-word state changes;
+    the §11.1 mass-delete's run membership); run-membership links
+    (ledger -> cues -> occurrences); watched-snapshot cursors (the §10
+    auto-resume promise); settings-generation identity (content hash of
+    the settings row, not an increment); and which existing flags
+    (is_manual, modified_by_user_flag) mean anything for video-sourced
+    rows -- answers from reading the writer/gate code, not from this doc.
 
 7. SPIKE PLAN — QUESTIONS, PASS, KILL
 --------------------------------------
