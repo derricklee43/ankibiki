@@ -37,13 +37,16 @@ correctness"). Implemented exactly as specced with the deltas recorded in the do
 
 Evidence: ItemDefinitionPickInstrumentedTest 7 specs (write-through, REPLACE-survival via
 re-resolution, stale-key carry, reset, undo, zh pinyin key, v12→v13 migration) against the
-real bundled dictionary; full instrumented suite on emulator-5554 OK (140 tests), 0 ignored
-(backups/20261123-emu-suite3-raw.txt); JVM 99/99; NameplateClaims version pin re-pinned at
-13 (the designed bump ritual). Live walk on the emulator's real わし corpus entry (3 UNSEEN
-occurrences, all 儂 sentences): pick 儂 → "I; me" everywhere, reset → auto restored, walk
-residue cleaned, snapshot backups/20261123-113952 taken before touching the device.
-The Pixel received the v13 APK but dropped off USB before the on-device suite; emulator
-carries the evidence.
+real bundled dictionary; JVM 99/99; NameplateClaims version pin re-pinned at 13 (the
+designed bump ritual). FULL instrumented suite on the Pixel OK (140 tests), 0 failed,
+0 ignored — backups/20261123-pixel-suite4-raw.txt; and on the emulator OK (140) —
+backups/20261123-emu-suite3-raw.txt. Live walks: emulator-5554 on the real わし entry
+(pick 儂 → "I; me", reset → auto), then the PHONE on the real もち entry (dialog showed
+all 6 candidates; picking 餅 wrote "mochi; small rice cake…" + key 餅/もち with
+user_version observed migrating 12→13 lazily on first mining use — the documented path;
+自動選択に戻す restored "of course; for sure; definitely" + NULL). Snapshot
+backups/20261123-120028 pre-walk; totals after walk identical (400/1190/1666), integrity
+ok, walk undo rows removed via /data/local/tmp relay (pull-back sha-verified), phone slept.
 
 ## 2026-11-23 · Flag-audit follow-ups FU1-FU4 shipped (user: "implement your suggestions for all four")
 

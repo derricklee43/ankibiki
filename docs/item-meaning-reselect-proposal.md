@@ -178,7 +178,13 @@ Pre-v13 bundles restore and the guarded ALTERs materialize the columns on first 
 Evidence delta at ship: specs 1-7 shipped as named (ItemDefinitionPickInstrumentedTest,
 7 tests); full instrumented suite on emulator-5554 OK (140 tests), 0 failed, 0 ignored —
 backups/20261123-emu-suite3-raw.txt (the Pixel dropped off USB mid-session after receiving
-the v13 APK; the emulator carries the suite evidence). The version-bump ceremony pin
+the v13 APK; the emulator carries the suite evidence). UPDATE 2026-11-23 later: the phone
+came back and the full suite ran on it too — OK (140), 0 ignored
+(backups/20261123-pixel-suite4-raw.txt) — plus a live picker walk on the phone's real
+もち entry: dialog listed 餅/持ち/黐/糯/望/もち (auto winner, "of course", was the wrong
+one for the rice-cake context), pick 餅 wrote through + fired the lazy v12→v13 migration
+(user_version 13 observed in the pulled DB after first mining-screen use), reset restored
+the auto state. Corpus totals verified unchanged. The version-bump ceremony pin
 (NameplateClaimsInstrumentedTest "re-pinned at v12 bump") was re-pinned at 13 as designed.
 Live walk on emulator-5554 against the REAL corpus わし (3 UNSEEN occurrences, all 儂
 sentences): dialog showed 自動選択に戻す / 和紙·わし [常用] / 鷲·わし [常用] / 儂·わし in
