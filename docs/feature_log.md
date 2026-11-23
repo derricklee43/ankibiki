@@ -7,6 +7,42 @@ from git history — commit `37f2174` had mangled it to a `|x|` artifact). The r
 convention applies here: checkboxes only flipped when exit evidence was verified, so
 everything below carries its proof record.
 
+## 2026-11-16 · Six-item UI tweak batch (word view, occurrences list, folder rule)
+
+User go (verbatim list): "In the word view, each sentence has a bullet point at the front.
+Remove that / Instead of deck column in word list view, give me folder / Moving a word to a
+folder should always make that occurrence as seen / In word view, filter by decedning date,
+put that chip first. Disable filter by frequency by default / If there is no deffiniton, show
+the dash instead of the button / Hiding word after clicking on it in the sentence view,
+doesn't update the styling when immediately returning to the sentence view". Built and
+walked on emulator-5554 the same day; installed on the Pixel per the user's "ok, rebuild it
+on my phone"; the tree sat UNCOMMITTED until 2026-11-23, when the record was finished —
+suite re-run fresh on this exact tree: 97/97 JVM tests, compileDebugAndroidTestKotlin green.
+
+1. No bullet in the word view's sentence rows.
+   - WordGrammarDetailActivity (MatchedSentenceAdapter.bind): binds matched.sentence
+     directly, dropping the "• " prefix.
+2. フォルダ column replaces the deck column on the 出現 tab.
+   - MiningModels: ExtractedOccurrenceRow.folderName. MiningQueries.getActiveOccurrences:
+     LEFT JOIN word_folders ON f.id = i.folder_id, selecting f.name AS folder_name.
+     ExtractedOccurrenceAdapter binds row.folderName (— when blank). Header (tab colSecondHeader
+     + layout) now label_folder ("フォルダ"). Verified via uiautomator dump + screenshot.
+3. Assigning a word to ANY folder marks its existing UNSEEN occurrences SEEN.
+   - MiningRepository.moveItemToFolder: the flip condition changed from the per-folder
+     skip_inbox lookup to `folderId != null`; skip_inbox still governs FUTURE mined
+     occurrences at insertOccurrence (the v11 rule is untouched, the move gesture is added).
+4. Date-descending first by default; frequency sort OFF by default.
+   - activity_extracted_list.xml: 日時 chip before 回数. ExtractedListActivity:
+     dateSortDir = DESC, countSortDir = OFF, sortPriorityOrder = [DATE_ADDED,
+     OCCURRENCE_COUNT, CORPUS_RANK]. Chip boxes verified on emulator-5554.
+5. No-definition words show "—" instead of the reveal button.
+   - WordGrammarDetailActivity.updateRevealViews: detail present and meaning blank or "—"
+     -> meaningRevealButton GONE, meaningValueText shows "—"; real meanings keep the
+     reveal flow.
+6. Returning from the word view refreshes chip styling immediately.
+   - SentenceDetailActivity: loadParsedWords() moved from onCreate into onResume(), so
+     hiding/archiving a word and coming back re-renders the sentence's word chips.
+
 ## 2026-11-15 · Gold sentence reparse + Cross-view undo (the two approved proposals, shipped together)
 
 User go: "I approve the gold re-extraction doc and the cross-view undo" (+ implement on

@@ -404,11 +404,6 @@ class MiningRepository(
         expression: String,
         folderId: Long?,
     ) {
-        val skipInbox = folderId?.let { id ->
-            readableDatabase.rawQuery(
-                "SELECT skip_inbox FROM word_folders WHERE id = ?", arrayOf(id.toString()),
-            ).use { c -> c.moveToFirst() && c.getInt(0) != 0 }
-        } ?: false
         val db = writableDatabase
         db.beginTransaction()
         try {
@@ -420,7 +415,7 @@ class MiningRepository(
                 "language_tag = ? AND item_type = ? AND expression = ?",
                 arrayOf(languageTag.name, itemType.name, expression),
             )
-            if (skipInbox) {
+            if (folderId != null) {
                 db.execSQL(
                     """
                     UPDATE item_occurrences SET state = 'SEEN'

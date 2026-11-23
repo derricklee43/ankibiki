@@ -414,7 +414,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
 
             @SuppressLint("ClickableViewAccessibility")
             fun bind(matched: MatchedSentence, movable: Boolean) {
-                binding.sentenceText.text = "• ${matched.sentence}"
+                binding.sentenceText.text = matched.sentence
                 TextLocales.apply(binding.sentenceText, languageTag)
                 binding.dragHandle.visibility = if (movable) View.VISIBLE else View.GONE
                 binding.dragHandle.setOnTouchListener { _, event ->
@@ -462,10 +462,15 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             binding.kanaValueText.visibility = View.GONE
         }
 
-        if (isMeaningRevealed) {
+        val meaningText = detail?.meaning?.takeIf { it.isNotBlank() }
+        if (detail != null && (meaningText == null || meaningText == "—")) {
             binding.meaningRevealButton.visibility = View.GONE
             binding.meaningValueText.visibility = View.VISIBLE
-            binding.meaningValueText.text = detail?.meaning?.ifBlank { "—" } ?: "—"
+            binding.meaningValueText.text = "—"
+        } else if (isMeaningRevealed) {
+            binding.meaningRevealButton.visibility = View.GONE
+            binding.meaningValueText.visibility = View.VISIBLE
+            binding.meaningValueText.text = meaningText ?: "—"
         } else {
             binding.meaningRevealButton.visibility = View.VISIBLE
             binding.meaningValueText.visibility = View.GONE

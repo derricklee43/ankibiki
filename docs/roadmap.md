@@ -94,6 +94,10 @@ B. **Review & organization UX** — shipped 2026-11-13/14 in full (sentence word
    [docs/feature_log.md](feature_log.md) and [docs/pending-disambiguation.md](pending-disambiguation.md).
    SHIPPED after approval 2026-11-15 (same day): gold sentence-edit reconcile +
    cross-view undo (schema v12) — evidence in [docs/feature_log.md](feature_log.md).
+   (2026-11-16: six-item UI tweak batch — no sentence bullet, フォルダ column on 出現,
+   folder move marks occurrences SEEN, date-first default sort, "—" for no-definition
+   reveal, chip refresh on resume — walked emulator-5554, rebuilt on the Pixel, committed
+   2026-11-23 with the suite re-run 97/97; evidence in [docs/feature_log.md](feature_log.md).)
    OPEN on this track: homophone spike design in
    [spikes/005-homophone-disambiguation](../spikes/005-homophone-disambiguation/README.md)
    un-run (its Option C also owns the pin-which-sense half of the わし question; sense

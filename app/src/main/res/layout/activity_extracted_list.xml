@@ -72,21 +72,21 @@
             app:singleLine="true">
 
             <com.google.android.material.chip.Chip
-                android:id="@+id/sortCountChip"
-                style="@style/Widget.MaterialComponents.Chip.Filter"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checkable="false"
-                android:text="回数 ↓"
-                app:checkedIconVisible="false" />
-
-            <com.google.android.material.chip.Chip
                 android:id="@+id/sortDateChip"
                 style="@style/Widget.MaterialComponents.Chip.Filter"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:checkable="false"
                 android:text="日時 ↓"
+                app:checkedIconVisible="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/sortCountChip"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="false"
+                android:text="回数"
                 app:checkedIconVisible="false" />
 
             <com.google.android.material.chip.Chip
@@ -153,7 +153,7 @@
             android:layout_height="wrap_content"
             android:layout_weight="2"
             android:paddingHorizontal="6dp"
-            android:text="@string/col_deck"
+            android:text="@string/label_folder"
             android:textColor="#888888"
             android:textSize="12sp"
             android:textStyle="bold" />

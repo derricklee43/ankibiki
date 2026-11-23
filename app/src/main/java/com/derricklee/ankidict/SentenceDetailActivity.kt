@@ -78,8 +78,12 @@ class SentenceDetailActivity : AppCompatActivity() {
             binding.wordEditorSaveButton.setOnClickListener { saveEditor() }
         }
 
-        loadParsedWords()
         loadPhoto()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        loadParsedWords()
     }
 
     /** Amend result (port from the word view pencil, user UI tweak 2026-11-13). */

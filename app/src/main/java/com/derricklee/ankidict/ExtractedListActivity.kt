@@ -27,13 +27,13 @@ class ExtractedListActivity : AppCompatActivity() {
     private var currentTab: ListTab = ListTab.OCCURRENCES
 
     // Tri-state togglable sort directions (DESC -> ASC -> OFF)
-    // Default: sort by occurrence count descending first, then date descending.
-    private var countSortDir: SortDirection = SortDirection.DESC
+    // Default: sort by descending date first; frequency/count disabled by default.
+    private var countSortDir: SortDirection = SortDirection.OFF
     private var dateSortDir: SortDirection = SortDirection.DESC
     private var rankSortDir: SortDirection = SortDirection.OFF
     private val sortPriorityOrder = mutableListOf(
-        SortField.OCCURRENCE_COUNT,
         SortField.DATE_ADDED,
+        SortField.OCCURRENCE_COUNT,
         SortField.CORPUS_RANK,
     )
 
@@ -137,7 +137,7 @@ class ExtractedListActivity : AppCompatActivity() {
         // tab pins gojūon order and ACTIVE+HIDDEN membership by spec (user 2026-11-13).
         binding.sortAndFilterScrollView.visibility = if (tab == ListTab.OCCURRENCES) View.VISIBLE else View.GONE
         binding.colSecondHeader.text = when (tab) {
-            ListTab.OCCURRENCES -> getString(R.string.col_deck)
+            ListTab.OCCURRENCES -> getString(R.string.label_folder)
             ListTab.WORDS -> getString(R.string.col_definition)
             ListTab.FOLDERS -> ""
         }

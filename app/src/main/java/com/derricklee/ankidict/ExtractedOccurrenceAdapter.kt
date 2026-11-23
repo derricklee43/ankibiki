@@ -38,7 +38,7 @@ class ExtractedOccurrenceAdapter(
         fun bind(row: ExtractedOccurrenceRow) {
             binding.expressionText.text = row.expression
             TextLocales.apply(binding.expressionText, row.languageTag.takeIf { it != LanguageTag.NA } ?: LanguageTag.JAPANESE)
-            binding.deckNameText.text = row.deckName?.takeIf { it.isNotBlank() } ?: "—"
+            binding.deckNameText.text = row.folderName?.takeIf { it.isNotBlank() } ?: "—"
             binding.frequencyText.text = row.formatFrequencyColumn()
             binding.root.setOnClickListener { onRowClick(row) }
         }

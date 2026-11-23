@@ -506,7 +506,8 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
             i.level_badge,
             i.corpus_rank,
             o.created_at,
-            i.kana
+            i.kana,
+            f.name AS folder_name
         FROM item_occurrences o
         JOIN extracted_items i
           ON o.language_tag = i.language_tag
@@ -514,6 +515,8 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
          AND o.expression = i.expression
         JOIN scraped_photos p
           ON o.photo_id = p.media_store_id
+        LEFT JOIN word_folders f
+          ON f.id = i.folder_id
         WHERE ${whereClauses.joinToString(" AND ")}
         ORDER BY $orderBySql$limitClause
     """.trimIndent()
@@ -533,6 +536,7 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
                     corpusRank = cursor.getIntOrNull(7),
                     createdAt = cursor.getLong(8),
                     kana = cursor.getStringOrNull(9),
+                    folderName = cursor.getStringOrNull(10),
                 ),
             )
         }
