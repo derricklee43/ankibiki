@@ -95,12 +95,17 @@ B. **Review & organization UX** — DISSOLVED 2026-11-23 by user: "Remove Track 
    2026-11-16 six-item UI tweak batch). Homophone work moved to Parked ideas below.
    The one open pending — a physical-Pixel pass of the Translate chip + the new surfaces
    — ran 2026-11-23: all six surfaces verified on-device; the Translate chip's root cause
-   was a missing PROCESS_TEXT intent query in the manifest (fixed + pinned same day,
-   visibility proven on the Pixel; visual toolbar re-check pending an unlocked session).
+   was a missing PROCESS_TEXT intent query in the manifest (fixed + pinned same day; the
+   user visually confirmed the chip appears on the phone — pending fully closed).
    Evidence in [docs/feature_log.md](feature_log.md).
 
 C. **Lookup upgrades** (from Secondary): less collection-specific deck/note-type
    configuration (conditional — only if the app is meant to outlive this collection).
+
+   (2026-11-23: design DRAFT written at user request — [docs/item-meaning-reselect-proposal.md]
+   (item-meaning-reselect-proposal.md): re-select which dictionary entry is an item's system
+   definition (the manual, item-level half of the わし case). Four decision points open (§7),
+   no code, and it explicitly does not un-park spike 005 / the runtime-join question.)
 
    (the shipped halves of this track — whole-word lookup, romaji/pinyin/fuzzy search —
    are recorded in [docs/feature_log.md](feature_log.md); only the config item stays here.)
