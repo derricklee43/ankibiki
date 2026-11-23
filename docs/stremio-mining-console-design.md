@@ -495,8 +495,8 @@ stremio-web / stremio-shell / stremio-video), cloned and read 2026-11-23.
        (player.rs intro_outro_update + skip_gaps, CREDITS_THRESHOLD_COEF)
        and skip-intro-style addons publish them per episode -- a future
        SubtitleBundle sibling could carry ranges alongside the cues.
-       docs/roadmap.md entry pending (repo writes blocked while a
-       parallel session owns it); paste-ready one-liner:
+       ROADMAP ENTRY RECORDED 2026-11-23 (docs/roadmap.md Open issues item 8);
+       the line as pasted read:
          "- [ ] Stremio console thread (parked, user 2026-11-23): exclude
             intro/credits ranges from mined cues; addon-provided skip
             ranges as source. Pin:

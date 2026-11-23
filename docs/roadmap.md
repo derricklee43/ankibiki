@@ -94,6 +94,18 @@ migration.
 7. [ ] **Evaluate Japanese grammar-catalogue coverage and Chinese segmentation
        quality** against the benchmark — BLOCKED behind the parked extraction work; do
        not imply that a language-routing interface means equivalent language support.
+8. [ ] **Stremio Mining Console (manual episode extraction, Android-only)**: design
+       ruled and documented 2026-11-23 (user) in
+       [stremio-mining-console-design.md](stremio-mining-console-design.md) — D1-D10
+       all ruled, spike plan S0-A..S0-G; next step is S0-A (phone-side auth /
+       library / addon discovery + fixtures), execution needs a go. The
+       automatic-scrub / watch-time-capture alternative is PARKED (same ruling)
+       with its verified facts and resume ladder in
+       [stremio-auto-scrub-parked.md](stremio-auto-scrub-parked.md). Design pins
+       the console doc carries: §11.1 mass-delete mining runs (low priority),
+       §11.2 intro/credits-range exclusion (user future thread 2026-11-23,
+       deliberately not hashed), §11.3 cards-with-media phase (deferred,
+       contract preserved in the parked doc §C).
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix
