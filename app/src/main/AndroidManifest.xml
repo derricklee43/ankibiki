@@ -12,6 +12,16 @@
     <!-- Required on Android 11+ to see that AnkiDroid is installed -->
     <queries>
         <package android:name="com.ichi2.anki" />
+        <!-- Process-text visibility (Android translate-chip checklist 2026-11-23): without
+             this intent query the app cannot see GSA/Translate's PROCESS_TEXT components
+             (targetSdk 35), which suppresses the system Translate chip from the app's
+             selection toolbar. Pre-fix absence observed live on the Pixel; post-fix the
+             app process resolves external PROCESS_TEXT providers on that device
+             (ProcessTextVisibilityInstrumentedTest, 0 ignored). -->
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
     </queries>
 
     <application

@@ -52,8 +52,10 @@ evidence; this file keeps open items, parked decisions, and dated pointers.
   grammar extraction and (deliberately) no gate, because the evidence base is JMdict.
 - Lifecycle robustness (§5): refreshed 2026-11-14 with track D — long work now runs on
   process-wide AppIo lanes (rotation + survives-destroy + serial pipeline pinned;
-  kill -9 mid-rescan proven on the Pixel). Still open: resumable scan progress/cancel/retry
-  UI, permission-loss, editor pending-save-target — see §5.
+  kill -9 mid-rescan proven on the Pixel). 2026-11-23: permission-loss tested on-device
+  (clean system kill, point-of-use re-request, deny = no-op) and the editor draft-
+  survival requirement withdrawn by user ruling. Still open: resumable scan
+  progress/cancel/retry UI — see §5.
 
 ## Status tracks (2026-11-13: user parked text processing to build features)
 
@@ -92,8 +94,9 @@ B. **Review & organization UX** — DISSOLVED 2026-11-23 by user: "Remove Track 
    laundry-list batch + schema-v11 answers batch + schema-v12 approved proposals;
    2026-11-16 six-item UI tweak batch). Homophone work moved to Parked ideas below.
    The one open pending — a physical-Pixel pass of the Translate chip + the new surfaces
-   — ran 2026-11-23: all six surfaces verified on-device; the Translate chip is blocked
-   by a device-side missing TextClassificationService (app half verified on-device).
+   — ran 2026-11-23: all six surfaces verified on-device; the Translate chip's root cause
+   was a missing PROCESS_TEXT intent query in the manifest (fixed + pinned same day,
+   visibility proven on the Pixel; visual toolbar re-check pending an unlocked session).
    Evidence in [docs/feature_log.md](feature_log.md).
 
 C. **Lookup upgrades** (from Secondary): less collection-specific deck/note-type
@@ -224,39 +227,22 @@ validation against the user's own collection on device.
 
 (2026-11-14: these boxes were the §5 half of track D — D1/D2/D3 shipped, evidence in
 [docs/feature_log.md](feature_log.md). They STAY open per the evidence rule: what remains
-(progress/cancel/retry UI, permission loss, editor pending-save-target) can only be
-proven in real use, not in-process.)
+(progress/cancel/retry UI) can only be proven in real use, not in-process. The
+rotation/process-death/permission-loss/draft box was tested 2026-11-14 + 2026-11-23 and
+REMOVED 2026-11-23 by user ruling — see the dated note below.)
 
 - [ ] Move long scans toward lifecycle-independent, recoverable execution with
       useful progress, cancellation, and retry behavior.
       (STATUS 2026-11-14, D3: scans now run on the serial AppIo.pipeline lane, survive
       screen teardown, and a re-issued scan naturally skips processed photos — but the
       progress/cancel/retry UI is untouched; stays open.)
-- [ ] Test rotation, backgrounding, process death, permission loss, and interruption
-      during processing; preserve editor drafts and pending save targets.
-      (STATUS 2026-11-14, D3: rotation + work-survives-destroy + one-at-a-time pipeline +
-      reader concurrency pinned by AppIoLifecycleTest 3 specs (99/99 suite) and a live
-      user_rotation walk on emulator-5554; mid-write corpus integrity pinned by the
-      existing rollback suite. REMAINING for a Pixel session: real kill -9 during rescan,
-      permission-loss behavior, editor pending-save-target evidence — in-process
-      simulation cannot honestly fake these, so the box stays unchecked per the evidence rule.)
-      (PIXEL SESSION 2026-11-14: kill -9 mid-rescan DONE on #952 (least-impact target
-      chosen from the snapshot: KEEP, non-gold, never-edited, 10 chars; reached via the
-      claims-queue deep-link, the claim itself left pending): force-stopped ~1s after
-      再スキャン -> pulled DB: integrity ok, photo text byte-identical to the pre-probe
-      snapshot, occurrences/claims/totals unchanged (the kill landed before the write
-      transaction — the atomicity contract held), app reopened the photo clean. Permission
-      loss + editor pending-save-target remain open; box stays unchecked.)
-      (PIXEL SESSION 2026-11-23: PERMISSION LOSS DONE — revoked READ_MEDIA_IMAGES +
-      READ_MEDIA_VISUAL_USER_SELECTED while the app ran: system killed the process
-      (standard revoke behavior), NO crash entries anywhere; relaunch clean; tapping
-      スキャン re-requests at the point of use (system GrantPermissionsActivity);
-      "Don't allow" = graceful no-op back on the tab, no FATAL; permissions restored.
-      EDITOR PENDING-SAVE-TARGET TESTED = NOT PRESERVED: 例文を編集 open with unsaved
-      text, HOME + kill -9 via run-as, task relaunch lands on the word view — the editor
-      activity and its draft are gone (drafts are in-memory only). No data corruption
-      (sentence text unchanged in DB). The requirement is now a demonstrated gap, not an
-      untested claim; box stays unchecked until drafts survive process death.)
+      (Box "Test rotation, backgrounding, process death, permission loss, and interruption
+      during processing; preserve editor drafts and pending save targets" REMOVED
+      2026-11-23 by user: "I feel that is reasonable behavior to lose the draft on exit."
+      The tested halves keep their evidence in docs/feature_log.md — rotation/survives-
+      destroy pinned 2026-11-14 (D3), kill -9 mid-rescan on the Pixel 2026-11-14,
+      permission-loss + editor-draft probes 2026-11-23; the draft-survival requirement is
+      withdrawn, not failed.)
 - [ ] Consolidate mutation/reprocessing rules into explicit use cases rather than
       allowing Activity callbacks to become the source of business rules.
 

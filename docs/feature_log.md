@@ -27,16 +27,25 @@ tree (app + test APKs installed over the user's app, data-preserving).
   "—" instead of the reveal button (捕える: meaningValueText shows —, no
   meaningRevealButton node); onResume chip refresh (pixel-diff of the chip region
   bright→dark immediately on return after 非表示).
-- Translate chip VERDICT: app half is live and pinned (setTextLocales on the sentence
-  views, TextLocalesInstrumentedTest green on this device, targetSdk 35; the app's
-  PROCESS_TEXT suggestions AnkiBiki/Anki Card render in the selection overflow). The
-  SYSTEM Translate chip appears nowhere on this phone — `dumpsys textclassifier` =
-  "Can't find service", zero registered TextClassificationService; Chrome's Translate
-  entry is Chromium's own implementation, not the system chip. Device-side Google-app
-  provisioning, not an app defect. Re-check after enabling Google app translation
-  settings; until then no native app on this phone can show it.
-- §5 probes: permission-loss + editor pending-save-target — results and the demonstrated
-  draft-loss gap recorded in the roadmap §5 box parenthetical (box stays unchecked).
+- Translate chip VERDICT (corrected same day after the user's checklist doc — see below):
+  the app-side locale contract was live all along (setTextLocales, pinned by
+  TextLocalesInstrumentedTest on this device); the chip was suppressed by ANDROID 11+
+  PACKAGE VISIBILITY — the manifest's <queries> named only com.ichi2.anki, so
+  GSA/Translate's PROCESS_TEXT components were invisible to the app and the system could
+  not inject the chip into its selection toolbar. The first verdict ("device-side
+  provisioning") was WRONG: Chrome's Translate is Chromium's own menu, which masked the
+  app-side cause. Fix: PROCESS_TEXT/text/plain <intent> query added to AndroidManifest;
+  pinned by ManifestProcessTextQueriesTest (JVM grep gate) and
+  ProcessTextVisibilityInstrumentedTest (app process must resolve external
+  PROCESS_TEXT providers; ran on the Pixel 2026-11-23: 1 test, 0 failed, 0 ignored).
+  Visual toolbar re-check pending the next unlocked-phone session.
+- §5 probes: permission-loss DONE on-device (revoke kills the process by design, no crash
+  entries; スキャン re-requests at point of use; "Don't allow" = graceful no-op). Editor
+  pending-save-target TESTED: kill -9 with unsaved editor text loses the draft (in-memory
+  only), zero data corruption. User ruling 2026-11-23: losing the draft on exit is
+  reasonable behavior — the §5 box requiring draft survival was REMOVED from the roadmap
+  the same day; the probe evidence lives in this entry (and the kill -9/atomicity evidence
+  in the 2026-11-14 entries).
 - Walk reversals: every mutation (folder assignment, hidden word, editor typing) undone
   by restoring the pre-walk snapshot over the live DB via /data/local/tmp + `run-as cat`;
   pulled back byte-identical (sha256 29039e81…), app opened clean, permissions restored,
