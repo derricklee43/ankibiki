@@ -109,7 +109,7 @@ class NameplateClaimsInstrumentedTest {
                 generateSequence { if (c.moveToNext()) c.getString(1) else null }.toList()
             }.contains("context_sentence"),
         )
-        assertEquals(MiningRepository.expectedUserVersion(), 12) // re-pinned at v12 bump (undo_log, 2026-11-15)
+        assertEquals(MiningRepository.expectedUserVersion(), 13) // re-pinned at v13 bump (entry picks, 2026-11-23)
     }
 
     @Test

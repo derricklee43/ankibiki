@@ -163,6 +163,11 @@ data class ExtractedItemDetail(
     /** v11 folder membership (1:1, user answer 2026-11-15). */
     val folderId: Long? = null,
     val folderName: String? = null,
+    /** v13 (docs/item-meaning-reselect-proposal.md): user-selected dictionary entry key.
+     *  When set, re-mining re-resolves the SYSTEM definition from this entry instead of
+     *  the automatic first-match heuristic. NULL/NULL = auto. */
+    val pickedHeadword: String? = null,
+    val pickedReading: String? = null,
 ) {
     fun formatFrequencyLine(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }

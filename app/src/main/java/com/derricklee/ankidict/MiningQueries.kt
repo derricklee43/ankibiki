@@ -693,7 +693,7 @@ fun MiningRepository.getItemDetail(
         """
         SELECT kanji, kana, meaning, level_badge, corpus_rank,
                anki_account_id, deck_id, deck_name, anki_note_id, is_hidden, visibility_state,
-               user_definition, user_notes, folder_id
+               user_definition, user_notes, folder_id, picked_headword, picked_reading
         FROM extracted_items
         WHERE language_tag = ? AND item_type = ? AND expression = ?
         """.trimIndent(),
@@ -714,6 +714,8 @@ fun MiningRepository.getItemDetail(
     val userDefinition: String?
     val userNotes: String?
     val folderId: Long?
+    val pickedHeadword: String?
+    val pickedReading: String?
 
     itemCursor.use { c ->
         if (!c.moveToFirst()) return null
@@ -741,6 +743,8 @@ fun MiningRepository.getItemDetail(
         userDefinition = c.getStringOrNull(11)
         userNotes = c.getStringOrNull(12)
         folderId = c.getLongOrNull(13)
+        pickedHeadword = c.getStringOrNull(14)
+        pickedReading = c.getStringOrNull(15)
     }
     val folderName = folderId?.let { id ->
         db.rawQuery("SELECT name FROM word_folders WHERE id = ?", arrayOf(id.toString()))
@@ -842,6 +846,8 @@ fun MiningRepository.getItemDetail(
         userNotes = userNotes,
         folderId = folderId,
         folderName = folderName,
+        pickedHeadword = pickedHeadword,
+        pickedReading = pickedReading,
     )
 }
 

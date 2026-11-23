@@ -21,6 +21,7 @@ enum class UndoAction {
     SENTENCE_WORDS_EDIT,
     NAMEPLATE_RULING,
     REORDER_SENTENCES,
+    ITEM_MEANING_PICK,
 }
 
 /** One `item_occurrences` row captured exactly as stored (restore re-inserts with the SAME id). */

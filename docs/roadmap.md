@@ -102,10 +102,11 @@ B. **Review & organization UX** — DISSOLVED 2026-11-23 by user: "Remove Track 
 C. **Lookup upgrades** (from Secondary): less collection-specific deck/note-type
    configuration (conditional — only if the app is meant to outlive this collection).
 
-   (2026-11-23: design DRAFT written at user request — [docs/item-meaning-reselect-proposal.md]
+   (2026-11-23: SHIPPED at user go — [docs/item-meaning-reselect-proposal.md]
    (item-meaning-reselect-proposal.md): re-select which dictionary entry is an item's system
-   definition (the manual, item-level half of the わし case). Four decision points open (§7),
-   no code, and it explicitly does not un-park spike 005 / the runtime-join question.)
+   definition (the manual, item-level half of the わし case). Schema v13, 変更 button on the
+   word view, re-resolve protection on re-mining, one-step undo; evidence in
+   docs/feature_log.md. Per-occurrence senses and the runtime-join question remain PARKED.)
 
    (the shipped halves of this track — whole-word lookup, romaji/pinyin/fuzzy search —
    are recorded in [docs/feature_log.md](feature_log.md); only the config item stays here.)

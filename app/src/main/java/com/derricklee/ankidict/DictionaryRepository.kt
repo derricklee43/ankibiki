@@ -96,6 +96,39 @@ class DictionaryRepository(context: Context) {
         return results
     }
 
+    /** v13 (entry picks): the EXACT (headword, reading) row, bypassing the candidate
+     *  ordering — this is the stable key stored with a user's definition pick. */
+    fun lookupJapaneseEntry(headword: String, reading: String): DictionaryEntry.JapaneseWord? =
+        db.rawQuery(
+            "SELECT headword, reading, glosses, is_common FROM words WHERE headword = ? AND reading = ? LIMIT 1",
+            arrayOf(headword, reading),
+        ).use { c ->
+            if (!c.moveToFirst()) return null
+            DictionaryEntry.JapaneseWord(
+                headword = c.getString(0),
+                reading = c.getString(1),
+                glosses = c.getString(2),
+                isCommon = c.getInt(3) == 1,
+            )
+        }
+
+    /** v13: the EXACT (character-string, pinyin) cedict row — the stable pick key for Chinese,
+     *  whose same-spelled entries differ BY pinyin (好 hao3 vs 好 hao4). */
+    fun lookupChineseEntry(headword: String, pinyin: String): DictionaryEntry.ChineseWord? =
+        db.rawQuery(
+            "SELECT traditional, simplified, pinyin, definitions FROM cedict " +
+                "WHERE (simplified = ? OR traditional = ?) AND pinyin = ? LIMIT 1",
+            arrayOf(headword, headword, pinyin),
+        ).use { c ->
+            if (!c.moveToFirst()) return null
+            DictionaryEntry.ChineseWord(
+                traditional = c.getString(0),
+                simplified = c.getString(1),
+                pinyin = c.getString(2),
+                definitions = c.getString(3),
+            )
+        }
+
     /** Exact matches for [query] against CC-CEDICT's simplified/traditional headwords, ordered
      *  so a surname/proper-noun sense (CC-CEDICT's convention: pinyin capitalized, e.g. "Shao4"
      *  for 绍 the surname vs. "shao4" for 绍 "to continue") never wins over a common-word sense

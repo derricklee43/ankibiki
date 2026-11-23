@@ -189,6 +189,12 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         }
         binding.folderEditButton.setOnClickListener { showFolderPicker() }
 
+        // v13 entry picks (user go 2026-11-23, docs/item-meaning-reselect-proposal.md):
+        // re-select WHICH dictionary entry is this word's system definition. Grammar items
+        // have no candidate list (single-entry catalog, §3.5) — button hidden.
+        binding.meaningPickButton.visibility = if (itemType == ItemType.GRAMMAR) View.GONE else View.VISIBLE
+        binding.meaningPickButton.setOnClickListener { showDefinitionPickDialog() }
+
         binding.ankiCardActionButton.setOnClickListener {
             val detail = currentDetail
             if (detail?.ankiNoteId != null) {
@@ -537,6 +543,77 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             }
         }
     }
+
+    /**
+     * v13: candidate dialog for re-selecting the system definition. Candidates are the same
+     * list the auto-heuristic saw, in the same order (is_common DESC / surname-demote), so
+     * the user sees the ranking that produced the wrong pick. Row 0 resets to auto. One
+     * undo step via pickItemDefinition's ITEM_MEANING_PICK memento.
+     */
+    private fun showDefinitionPickDialog() {
+        val d = currentDetail ?: return
+        if (d.itemType == ItemType.GRAMMAR) return
+        ioExecutor.execute {
+            data class PickRow(val label: String, val headword: String, val reading: String)
+            val rows: List<PickRow> = when (d.languageTag) {
+                LanguageTag.JAPANESE -> dictionaryRepository.lookupJapaneseWords(d.expression)
+                    .map {
+                        PickRow(
+                            "${it.headword} · ${it.reading}${if (it.isCommon) "  [常用]" else ""}\n" +
+                                it.glosses.takeForPicker(),
+                            it.headword,
+                            it.reading,
+                        )
+                    }
+                LanguageTag.CHINESE -> dictionaryRepository.lookupChineseWords(d.expression)
+                    .map {
+                        PickRow(
+                            "${it.simplified}（${it.traditional}） · ${it.pinyin}\n" +
+                                it.definitions.takeForPicker(),
+                            it.simplified,
+                            it.pinyin,
+                        )
+                    }
+                LanguageTag.NA -> emptyList()
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (rows.isEmpty()) return@runOnUiThread
+                val labels = (listOf(getString(R.string.meaning_pick_auto)) + rows.map { it.label }).toTypedArray()
+                val checked = if (d.pickedHeadword != null && d.pickedReading != null) {
+                    rows.indexOfFirst { it.headword == d.pickedHeadword && it.reading == d.pickedReading }
+                        .let { if (it >= 0) it + 1 else 0 }
+                } else {
+                    0
+                }
+                androidx.appcompat.app.AlertDialog.Builder(this)
+                    .setTitle(R.string.title_definition_pick)
+                    .setSingleChoiceItems(labels, checked) { dialog, which ->
+                        dialog.dismiss()
+                        ioExecutor.execute {
+                            val applied = if (which == 0) {
+                                miningRepository.pickItemDefinition(d.languageTag, d.itemType, d.expression, null, null)
+                            } else {
+                                val r = rows[which - 1]
+                                miningRepository.pickItemDefinition(d.languageTag, d.itemType, d.expression, r.headword, r.reading)
+                            }
+                            if (applied) runOnUiThread {
+                                // Design §3.2: the dialog just showed the glosses — the row
+                                // reveals directly, no re-hide ceremony after a deliberate pick.
+                                isMeaningRevealed = true
+                                loadDetail()
+                                UndoUi.maybeShow(binding.root, miningRepository) { loadDetail() }
+                            }
+                        }
+                    }
+                    .setNegativeButton(R.string.btn_cancel, null)
+                    .show()
+            }
+        }
+    }
+
+    private fun String.takeForPicker(): String =
+        if (length <= 90) this else substring(0, 90).trimEnd() + "…"
 
     private fun setActionButtonsEnabled(enabled: Boolean) {
         binding.markSeenButton.isEnabled = enabled

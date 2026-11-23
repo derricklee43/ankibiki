@@ -56,7 +56,9 @@ TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # word_folders) — deliberately NOT in MINING_COLUMNS so pre-v11 bundles keep validating.
 # Same rule for v12 (undo_log table, cross-view undo 2026-11-15): a new table, not carried in
 # any required set — pre-v12 bundles restore and the table materializes on first open.
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+# Same again for v13 (picked_headword/picked_reading entry picks, 2026-11-23): two optional
+# columns, NOT in MINING_COLUMNS — pre-v13 bundles keep validating; the file migrates on open.
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

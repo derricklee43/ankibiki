@@ -65,6 +65,8 @@ class MiningRepository(
                 user_definition TEXT,
                 user_notes TEXT,
                 folder_id INTEGER,
+                picked_headword TEXT,
+                picked_reading TEXT,
                 PRIMARY KEY (language_tag, item_type, expression)
             )
             """.trimIndent(),
@@ -204,6 +206,14 @@ class MiningRepository(
             // CREATE IF NOT EXISTS is inherently guarded; bundles pre-v12 simply carry no
             // undo_log table and it materializes on first open after restore.
             createUndoLogSchema(db)
+        }
+        if (oldVersion < 13) {
+            // v13 (user go 2026-11-23, docs/item-meaning-reselect-proposal.md): entry pick
+            // columns on extracted_items. Same guarded-ALTER discipline as v11; pre-v13
+            // bundles restore fine and the columns materialize on first open (deliberately
+            // NOT in REQUIRED_COLUMNS/MINING_COLUMNS so old bundles keep validating).
+            addColumnIfMissing(db, "extracted_items", "picked_headword", "TEXT")
+            addColumnIfMissing(db, "extracted_items", "picked_reading", "TEXT")
         }
     }
 
@@ -1034,19 +1044,54 @@ class MiningRepository(
         } else {
             ""
         }
+        // v13 entry picks (docs/item-meaning-reselect-proposal.md): when the row carries a
+        // manual pick, the caller's AUTO-picked definition fields are overridden — resolved
+        // fresh from the current bundled dictionary (re-resolve semantics) or, if the picked
+        // key no longer exists in it, carried from the stored row (the stale-pick fallback).
+        // Same REPLACE hazard the user-field carry below documents.
         val existing = readableDatabase.rawQuery(
-            "SELECT user_definition, user_notes, folder_id, sentence_ranks FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
+            "SELECT user_definition, user_notes, folder_id, sentence_ranks, picked_headword, picked_reading, " +
+                "meaning, kanji, kana, level_badge, corpus_rank " +
+                "FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
             arrayOf(languageTag.name, itemType.name, expression),
-        ).use { c -> if (c.moveToFirst()) Quad(c.getStringOrNull(0), c.getStringOrNull(1), c.getLongOrNull(2), c.getStringOrNull(3)) else null }
+        ).use { c ->
+            if (!c.moveToFirst()) null else PickedRowState(
+                userDefinition = c.getStringOrNull(0), userNotes = c.getStringOrNull(1),
+                folderId = c.getLongOrNull(2), sentenceRanks = c.getStringOrNull(3),
+                pickedHeadword = c.getStringOrNull(4), pickedReading = c.getStringOrNull(5),
+                meaning = c.getString(6), kanji = c.getString(7), kana = c.getString(8),
+                levelBadge = c.getStringOrNull(9), corpusRank = c.getIntOrNull(10),
+            )
+        }
+        val pickKey = existing?.pickedHeadword?.let { h -> existing.pickedReading?.let { r -> h to r } }
+        val effectiveMeaning: String
+        val effectiveKana: String
+        val effectiveLevel: String?
+        val effectiveRank: Int?
+        val effectiveKanji: String
+        if (pickKey == null) {
+            effectiveMeaning = meaning; effectiveKana = kana; effectiveLevel = levelBadge
+            effectiveRank = corpusRank; effectiveKanji = sanitizedKanji
+        } else {
+            val resolved = resolveItemPick(languageTag, pickKey.first, pickKey.second)
+            effectiveMeaning = resolved?.meaning ?: existing!!.meaning
+            effectiveKana = resolved?.kana ?: existing!!.kana
+            effectiveLevel = resolved?.levelBadge ?: existing!!.levelBadge
+            effectiveRank = resolved?.corpusRank ?: existing!!.corpusRank
+            val rawKanji = resolved?.kanji ?: existing!!.kanji
+            effectiveKanji = if (expression.any { MlKitImageTagger.isCjkIdeograph(it) } &&
+                rawKanji.any { MlKitImageTagger.isCjkIdeograph(it) }
+            ) rawKanji else ""
+        }
         val values = ContentValues().apply {
             put("language_tag", languageTag.name)
             put("item_type", itemType.name)
             put("expression", expression)
-            put("kanji", sanitizedKanji)
-            put("kana", kana)
-            put("meaning", meaning)
-            put("level_badge", levelBadge)
-            if (corpusRank != null) put("corpus_rank", corpusRank) else putNull("corpus_rank")
+            put("kanji", effectiveKanji)
+            put("kana", effectiveKana)
+            put("meaning", effectiveMeaning)
+            put("level_badge", effectiveLevel)
+            if (effectiveRank != null) put("corpus_rank", effectiveRank) else putNull("corpus_rank")
             put("anki_account_id", ankiAccountId)
             if (deckId != null) put("deck_id", deckId) else putNull("deck_id")
             put("deck_name", deckName)
@@ -1057,16 +1102,168 @@ class MiningRepository(
             // across or re-mining silently erases it (same hazard upsertPhoto documents for
             // flag_color). Targeted setters below remain the only writers.
             existing?.let { q ->
-                if (q.a != null) put("user_definition", q.a) else putNull("user_definition")
-                if (q.b != null) put("user_notes", q.b) else putNull("user_notes")
-                if (q.c != null) put("folder_id", q.c) else putNull("folder_id")
-                if (q.d != null) put("sentence_ranks", q.d) else putNull("sentence_ranks")
+                if (q.userDefinition != null) put("user_definition", q.userDefinition) else putNull("user_definition")
+                if (q.userNotes != null) put("user_notes", q.userNotes) else putNull("user_notes")
+                if (q.folderId != null) put("folder_id", q.folderId) else putNull("folder_id")
+                if (q.sentenceRanks != null) put("sentence_ranks", q.sentenceRanks) else putNull("sentence_ranks")
+                if (q.pickedHeadword != null) put("picked_headword", q.pickedHeadword) else putNull("picked_headword")
+                if (q.pickedReading != null) put("picked_reading", q.pickedReading) else putNull("picked_reading")
             }
         }
         writableDatabase.insertWithOnConflict("extracted_items", null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
-    private data class Quad<A, B, C, D>(val a: A, val b: B, val c: C, val d: D)
+    private data class PickedRowState(
+        val userDefinition: String?,
+        val userNotes: String?,
+        val folderId: Long?,
+        val sentenceRanks: String?,
+        val pickedHeadword: String?,
+        val pickedReading: String?,
+        val meaning: String,
+        val kanji: String,
+        val kana: String,
+        val levelBadge: String?,
+        val corpusRank: Int?,
+    )
+
+    // ---- v13 entry picks (docs/item-meaning-reselect-proposal.md, user go 2026-11-23) ----
+
+    private val pickDictionaryRepository by lazy { DictionaryRepository(appContext) }
+    private val pickHskRepository by lazy { runCatching { HskRepository(appContext) }.getOrNull() }
+
+    private fun resolveItemPick(languageTag: LanguageTag, headword: String, reading: String): DictionaryMetadata? =
+        runCatching {
+            BundledDictionaryProvider(languageTag, pickDictionaryRepository, pickHskRepository)
+                .metadataForPick(headword, reading)
+        }.getOrNull()
+
+    /**
+     * Applies (or resets) the user's system-definition pick for one item. Fields are copied
+     * write-through — meaning/kanji/kana/level_badge/corpus_rank become the chosen entry's, so
+     * every consumer (word view, wizard, export) reads the pick without knowing about it — and
+     * the pick columns record WHY. Null/null resets to the automatic first-match behavior
+     * (recomputed immediately so the stored row reflects the auto winner again).
+     * One undo step (ITEM_MEANING_PICK, seven prior columns). Grammar items have no candidate
+     * list: for them only the RESET path is meaningful; picking requires a WORD resolution and
+     * returns false when the key is not in the bundled dictionary.
+     */
+    fun pickItemDefinition(
+        languageTag: LanguageTag,
+        itemType: ItemType,
+        expression: String,
+        pickedHeadword: String?,
+        pickedReading: String?,
+    ): Boolean {
+        val db = writableDatabase
+        val prior = db.rawQuery(
+            "SELECT meaning, kanji, kana, level_badge, corpus_rank, picked_headword, picked_reading " +
+                "FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag.name, itemType.name, expression),
+        ).use { c ->
+            if (!c.moveToFirst()) return false
+            PriorItemFields(
+                c.getString(0), c.getString(1), c.getString(2),
+                c.getStringOrNull(3), c.getIntOrNull(4), c.getStringOrNull(5), c.getStringOrNull(6),
+            )
+        }
+        val hasPick = pickedHeadword != null && pickedReading != null
+        val fields: DictionaryMetadata? = if (hasPick) {
+            resolveItemPick(languageTag, pickedHeadword!!, pickedReading!!) ?: return false
+        } else {
+            runCatching {
+                BundledDictionaryProvider(languageTag, pickDictionaryRepository, pickHskRepository)
+                    .lookup(expression, itemType, null)
+            }.getOrNull()
+        }
+        val newMeaning = fields?.meaning ?: prior.meaning
+        val newKana = fields?.kana ?: prior.kana
+        val newLevel = if (fields != null) fields.levelBadge else prior.levelBadge
+        val newRank = if (fields != null) fields.corpusRank else prior.corpusRank
+        val rawKanji = fields?.kanji ?: prior.kanji
+        val newKanji = if (expression.any { MlKitImageTagger.isCjkIdeograph(it) } &&
+            rawKanji.any { MlKitImageTagger.isCjkIdeograph(it) }
+        ) rawKanji else ""
+
+        inTransaction {
+            recordUndo(UndoMemento(
+                UndoAction.ITEM_MEANING_PICK,
+                appContext.getString(R.string.undo_label_definition_pick),
+                // header: key, expected-after guard, then the seven prior column values
+                // ("" = NULL sentinel for the nullable ones).
+                listOf(
+                    languageTag.name, itemType.name, expression, newMeaning,
+                    prior.meaning, prior.kanji, prior.kana,
+                    prior.levelBadge ?: "", prior.corpusRank?.toString() ?: "",
+                    prior.pickedHeadword ?: "", prior.pickedReading ?: "",
+                ),
+            ))
+            val values = ContentValues().apply {
+                put("meaning", newMeaning)
+                put("kanji", newKanji)
+                put("kana", newKana)
+                if (newLevel != null) put("level_badge", newLevel) else putNull("level_badge")
+                if (newRank != null) put("corpus_rank", newRank) else putNull("corpus_rank")
+                if (hasPick) {
+                    put("picked_headword", pickedHeadword)
+                    put("picked_reading", pickedReading)
+                } else {
+                    putNull("picked_headword")
+                    putNull("picked_reading")
+                }
+            }
+            db.update(
+                "extracted_items", values,
+                "language_tag = ? AND item_type = ? AND expression = ?",
+                arrayOf(languageTag.name, itemType.name, expression),
+            )
+        }
+        return true
+    }
+
+    private data class PriorItemFields(
+        val meaning: String,
+        val kanji: String,
+        val kana: String,
+        val levelBadge: String?,
+        val corpusRank: Int?,
+        val pickedHeadword: String?,
+        val pickedReading: String?,
+    )
+
+    internal fun undoItemMeaningCurrent(languageTag: String, itemType: String, expression: String): String? =
+        readableDatabase.rawQuery(
+            "SELECT meaning FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag, itemType, expression),
+        ).use { c -> if (c.moveToFirst()) c.getString(0) else null }
+
+    internal fun restoreItemMeaningFields(
+        languageTag: String,
+        itemType: String,
+        expression: String,
+        meaning: String,
+        kanji: String,
+        kana: String,
+        levelBadge: String?,
+        corpusRank: Int?,
+        pickedHeadword: String?,
+        pickedReading: String?,
+    ) {
+        val values = ContentValues().apply {
+            put("meaning", meaning)
+            put("kanji", kanji)
+            put("kana", kana)
+            if (levelBadge != null) put("level_badge", levelBadge) else putNull("level_badge")
+            if (corpusRank != null) put("corpus_rank", corpusRank) else putNull("corpus_rank")
+            if (pickedHeadword != null) put("picked_headword", pickedHeadword) else putNull("picked_headword")
+            if (pickedReading != null) put("picked_reading", pickedReading) else putNull("picked_reading")
+        }
+        writableDatabase.update(
+            "extracted_items", values,
+            "language_tag = ? AND item_type = ? AND expression = ?",
+            arrayOf(languageTag, itemType, expression),
+        )
+    }
 
     /** Updates the cached Anki card match (`anki_account_id`, `deck_id`, `deck_name`, `anki_note_id`) for an item. */
     fun updateExtractedItemAnkiMatch(
@@ -1168,7 +1365,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 12
+        private const val DB_VERSION = 13
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

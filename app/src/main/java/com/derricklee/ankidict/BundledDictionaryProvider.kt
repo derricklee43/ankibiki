@@ -108,6 +108,43 @@ class BundledDictionaryProvider(
         )
     }
 
+    /**
+     * v13 (docs/item-meaning-reselect-proposal.md, user go 2026-11-23): resolve a USER-PICKED
+     * dictionary entry by its stable key, producing the same field set the auto-pick would
+     * write (glosses/definitions text, kanji/kana, level badge, corpus rank). Grammar items
+     * have no candidate list (single-entry catalog) — picks are WORD-only.
+     */
+    fun metadataForPick(headword: String, reading: String): DictionaryMetadata? = when (languageTag) {
+        LanguageTag.JAPANESE -> {
+            val w = dictionaryRepository?.lookupJapaneseEntry(headword, reading) ?: return null
+            // Mirror the auto path's level/rank source: kanji headwords resolve via the
+            // headword, kana-only entries via the (== kana) headword itself.
+            val (levelBadge, corpusRank) = resolveJapaneseLevelAndRank(
+                headword = headword,
+                isCommon = w.isCommon,
+                dictRepo = dictionaryRepository,
+            )
+            DictionaryMetadata(
+                kanji = headword,
+                kana = reading,
+                meaning = w.glosses,
+                levelBadge = levelBadge,
+                corpusRank = corpusRank,
+            )
+        }
+        LanguageTag.CHINESE -> {
+            val c = dictionaryRepository?.lookupChineseEntry(headword, reading) ?: return null
+            DictionaryMetadata(
+                kanji = c.simplified,
+                kana = toDiacriticPinyin(c.pinyin),
+                meaning = c.definitions,
+                levelBadge = resolveHskBadge(c.simplified),
+                corpusRank = null,
+            )
+        }
+        LanguageTag.NA -> null
+    }
+
     private fun lookupChineseWord(
         expression: String,
         readingHint: String?,

@@ -73,6 +73,18 @@ internal object UndoManager {
                 val (lang, type, expr, ranks) = h
                 repo.restoreSentenceRanks(lang, type, expr, ranks.ifEmpty { null })
             }
+            UndoAction.ITEM_MEANING_PICK -> {
+                // header: lang, type, expr, expectedAfterMeaning, then seven prior values
+                // ("" sentinel = NULL). Guard = the meaning is still the one this pick wrote.
+                if (h.size < 11) return true
+                val current = repo.undoItemMeaningCurrent(h[0], h[1], h[2]) ?: return false
+                if (current != h[3]) return false
+                repo.restoreItemMeaningFields(
+                    h[0], h[1], h[2], h[4], h[5], h[6],
+                    h[7].ifEmpty { null }, h[8].toIntOrNull(),
+                    h[9].ifEmpty { null }, h[10].ifEmpty { null },
+                )
+            }
             UndoAction.SENTENCE_TEXT_EDIT -> {
                 // header: mediaStoreId, expectedAfterText. Capture is the whole photo + all its
                 // occurrence rows; restore replaces them (byte-identity without key-set math).

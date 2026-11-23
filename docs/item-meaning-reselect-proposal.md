@@ -1,7 +1,10 @@
 # Design Proposal: Re-Selecting the Matched System Definition
 
 Date: 2026-11-23
-Status: **DRAFT — awaiting user decisions (§7). No code written; nothing here is approved.**
+Status: **SHIPPED 2026-11-23** (user: "Let's go by entry. Let's go ahead and implement this").
+Decisions as answered: entry-level picks only (#1), re-resolve on dictionary upgrade (#2 —
+adopted with the go; freeze remains a one-line change if ever wanted), 変更 button (#3),
+gold survives a pick (#4). Honest deltas from §3.4/§5 below, at the end of §5.
 
 User motivation (2026-11-23): "I want to reselect the matched system definition."
 This is the manual, item-level half of the わし problem recorded in
@@ -121,10 +124,13 @@ this is a corpus-side correction, not a retroactive note edit).
 
 ### 3.4 Backup contract (v11 ceremony)
 
-`picked_headword` / `picked_reading` join `REQUIRED_COLUMNS` / `MINING_COLUMNS` in
-`RecoveryManager` and `scripts/backup_bundle.py` for `extracted_items`. Pre-v13 bundles stay
-restorable (migration adds the columns with NULL defaults before restore-target comparison;
-same story as v12's `undo_log` era).
+**Delta at ship (2026-11-23):** the codebase's actual ceremony for new columns is the
+OPPOSITE of adding them to the contract sets — every prior addition (is_gold v7, is_manual
+v10, flag_color/user_* v11, undo_log v12) deliberately stayed OUT of REQUIRED_COLUMNS /
+MINING_COLUMNS so older bundles keep validating; the whole sqlite file rides in every
+bundle anyway. v13 follows that precedent: `picked_headword`/`picked_reading` are NOT in
+the contract sets; `scripts/backup_bundle.py` just gained 13 to SUPPORTED_USER_VERSIONS.
+Pre-v13 bundles restore and the guarded ALTERs materialize the columns on first open.
 
 ### 3.5 Explicit non-goals
 
@@ -168,6 +174,18 @@ same story as v12's `undo_log` era).
    the existing contract test).
 8. Live walk: emulator-5554 — わし → pick 鷲 → word view + wizard field preview show 鷲's
    glosses; 自動に戻す; undo. Screenshot + dump evidence into the feature log.
+
+Evidence delta at ship: specs 1-7 shipped as named (ItemDefinitionPickInstrumentedTest,
+7 tests); full instrumented suite on emulator-5554 OK (140 tests), 0 failed, 0 ignored —
+backups/20261123-emu-suite3-raw.txt (the Pixel dropped off USB mid-session after receiving
+the v13 APK; the emulator carries the suite evidence). The version-bump ceremony pin
+(NameplateClaimsInstrumentedTest "re-pinned at v12 bump") was re-pinned at 13 as designed.
+Live walk on emulator-5554 against the REAL corpus わし (3 UNSEEN occurrences, all 儂
+sentences): dialog showed 自動選択に戻す / 和紙·わし [常用] / 鷲·わし [常用] / 儂·わし in
+provider order; picking 儂 wrote meaning "I; me" + key, and (delta) the 意味: row now
+reveals directly after a pick — the first build kept it behind 表示, contradicting §3.2;
+fixed and re-walked. 自動に戻す restored "washi; Japanese paper" + NULL key; walk residue
+(undo rows) cleaned; corpus byte-checked back to baseline state.
 
 ## 6. Change inventory
 

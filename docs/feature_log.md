@@ -7,6 +7,44 @@ from git history — commit `37f2174` had mangled it to a `|x|` artifact). The r
 convention applies here: checkboxes only flipped when exit evidence was verified, so
 everything below carries its proof record.
 
+## 2026-11-23 · Entry picks: re-select the matched system definition (schema v13, user go same day)
+
+User ask: "I want to be reselect the matched system definition" → design doc
+(docs/item-meaning-reselect-proposal.md) answered four decisions in-thread: entry-level
+picks only (senses stay parked), re-resolve on dictionary upgrade, 変更 button, gold
+survives a pick ("gold is referring to the OCR correctness and not really the parsed
+correctness"). Implemented exactly as specced with the deltas recorded in the doc.
+
+- Schema v13: `extracted_items.picked_headword/picked_reading` (guarded ALTERs; NOT in the
+  bundle contract sets per the v7→v12 precedent — older bundles keep validating;
+  backup_bundle.py gained version 13 in SUPPORTED_USER_VERSIONS).
+- Write-through pick: choosing an entry copies its glosses/definitions + kanji/kana +
+  level badge + corpus rank into the item columns — every consumer (意味: row, wizard
+  ExportField.MEANING, exports) reads the pick without knowing about it; the key columns
+  record WHY. One pick per WORD applies corpus-wide (the user's Q5 — no per-occurrence
+  selection; that stays spike 005 territory).
+- Re-mining protection: `upsertExtractedItem` re-resolves the stored key against the
+  current bundled dictionary instead of the auto first-match; key gone → stored fields
+  carried verbatim (stale pick).
+- Kana-only homophones are distinct entries keyed by (headword, reading) — 和紙·わし /
+  鷲·わし / 儂·わし; Chinese keys on (simplified, pinyin) — 好·hao3 vs 好·hao4.
+- UI: 変更 button beside 意味: (hidden for GRAMMAR — single-entry catalog); dialog lists
+  candidates in the provider's own ranking order with the auto winner tagged, row 0 resets
+  to auto; the meaning row reveals directly after a deliberate pick (walk caught the first
+  build keeping it behind 表示 — fixed).
+- Undo: ITEM_MEANING_PICK memento captures all seven prior columns; one step; guard =
+  meaning still equals the picked value.
+
+Evidence: ItemDefinitionPickInstrumentedTest 7 specs (write-through, REPLACE-survival via
+re-resolution, stale-key carry, reset, undo, zh pinyin key, v12→v13 migration) against the
+real bundled dictionary; full instrumented suite on emulator-5554 OK (140 tests), 0 ignored
+(backups/20261123-emu-suite3-raw.txt); JVM 99/99; NameplateClaims version pin re-pinned at
+13 (the designed bump ritual). Live walk on the emulator's real わし corpus entry (3 UNSEEN
+occurrences, all 儂 sentences): pick 儂 → "I; me" everywhere, reset → auto restored, walk
+residue cleaned, snapshot backups/20261123-113952 taken before touching the device.
+The Pixel received the v13 APK but dropped off USB before the on-device suite; emulator
+carries the evidence.
+
 ## 2026-11-23 · Flag-audit follow-ups FU1-FU4 shipped (user: "implement your suggestions for all four")
 
 Closes the Secondary item "Revisit `modified_by_user_flag`" — moved here from the roadmap

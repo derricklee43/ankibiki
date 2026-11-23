@@ -30,8 +30,9 @@ closed it, so answers map to questions by CONTENT.
 - **Explicitly still open** (not built, no consent spent): runtime dictionary JOIN vs
   saved-meaning fallback, and the pin-which-sense picker — that is spike 005 Option C
   (spikes/005-homophone-disambiguation), untouched pending a go. (2026-11-23: the MANUAL
-  item-level re-selection was separately designed at user request —
-  docs/item-meaning-reselect-proposal.md, DRAFT; per-occurrence sense pinning remains parked.)
+  item-level re-selection was designed AND shipped at user request —
+  docs/item-meaning-reselect-proposal.md, SHIPPED on schema v13; per-occurrence sense
+  pinning remains parked.)
 - **Evidence**: WordFoldersInstrumentedTest.userDefinitionAndNotes_surviveReplaceUpsert;
   DraftAdapterContractTest (label list + resolve specs); live walk: 定義/ノート/フォルダ
   rows render on the word view.

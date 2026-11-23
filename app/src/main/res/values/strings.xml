@@ -131,6 +131,11 @@
     <string name="dashboard_gold_title">金マーク</string>
     <string name="dashboard_gold_count">金の写真: %1$d 枚</string>
     <string name="dashboard_effort">修正手間 proxy: マーク前に編集された %1$d / %2$d 枚（マークのみ未編集: %3$d）</string>
+    <string name="btn_reselect_definition">変更</string>
+    <string name="title_definition_pick">システム定義を選ぶ</string>
+    <string name="meaning_pick_auto">自動選択に戻す</string>
+    <string name="meaning_pick_stale">（自動の当たり: %1$s）</string>
+    <string name="undo_label_definition_pick">定義の選び直し</string>
     <string name="dashboard_corpus">コーパス: 全 %1$d 枚 · KEEP %2$d 枚</string>
     <string name="dashboard_bench_title">記録されたベンチマーク（静的）</string>
     <string name="dashboard_bench_gold_set">ゴールド集合（写真）</string>
