@@ -103,12 +103,16 @@ class AddonResources(private val transport: StremioTransport) {
          * S0-D2 filename heuristic for RD download-history candidates. PRE-CHECK HINT ONLY —
          * never authority (D9). Handles "S01E04", "1x04", bare "Episode 4", anime "[grp] Show
          * - 04 (1080p)". Returns null when nothing confident.
+         * SPIKE 007a FIX (2026-11-23, live Jimaku corpus): the "NxN" form now requires
+         * non-digit boundaries — "[Gachiakuta - 04 (TBS 1920x1080 x265)]" previously
+         * matched inside the RESOLUTION string as (20,108) and poisoned verification;
+         * real "Show.Name.2x11.720p" stays pinned by the existing spec, unchanged.
          */
         fun parseEpisodeFromFilename(filename: String): ParsedEpisodeRef? {
             Regex("(?i)[\\s._\\-\\[]S(\\d{1,2})\\s*[-_#]?\\s*E(\\d{1,3})").find(filename)?.let {
                 return ParsedEpisodeRef(it.groupValues[1].toInt(), it.groupValues[2].toInt())
             }
-            Regex("(?i)(\\d{1,2})x(\\d{1,3})").find(filename)?.let {
+            Regex("(?i)(?<!\\d)(\\d{1,2})x(\\d{1,3})(?!\\d)").find(filename)?.let {
                 return ParsedEpisodeRef(it.groupValues[1].toInt(), it.groupValues[2].toInt())
             }
             Regex("(?i)Episode[\\s._\\-#]?(\\d{1,3})").find(filename)?.let {

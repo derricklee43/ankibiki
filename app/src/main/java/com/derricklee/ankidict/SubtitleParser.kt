@@ -1,17 +1,30 @@
 package com.derricklee.ankidict
 
 /**
- * .srt / .vtt subtitle parser -> cues (design §5 M5/M7). Deliberately dependency-free:
+ * .srt / .vtt / .ass subtitle parser -> cues (design §5 M5/M7; .ass added by
+ * spike 007a 2026-11-23 — Jimaku/fansub rips ship ASS and shipped code stored
+ * 0 cues on them). Deliberately dependency-free:
  * the repo carries zero new runtime deps (AppIo.kt header). Handles CRLF, BOM, VTT
  * headers/NOTE blocks, inline <i>/<b>/<font>/<c> tags, "<00:01:02.345>" timing tags,
- * alt timestamps (arrows), and dot-vs-comma ms separators.
+ * alt timestamps (arrows), and dot-vs-comma ms separators. ASS: [Events] Format
+ * column order (default order when absent), Dialogue rows only (Comment etc.
+ * ignored), comma-bearing Text fields, {\...} override blocks, \N/\h line breaks.
  */
 object SubtitleParser {
 
     data class RawCue(val startMs: Long, val endMs: Long, val textLines: List<String>)
 
     fun parse(fileName: String, content: String): List<SubtitleCue> =
-        toCues(if (looksLikeVtt(content)) parseVtt(content) else parseSrt(content))
+        toCues(
+            if (looksLikeAss(content)) parseAss(content)
+            else if (looksLikeVtt(content)) parseVtt(content)
+            else parseSrt(content)
+        )
+
+    private fun looksLikeAss(content: String): Boolean =
+        content.trimStart('\uFEFF').replace("\r\n", "\n").let {
+            it.trimStart().startsWith("[Script Info]") || it.contains("\n[Events]")
+        }
 
     private fun looksLikeVtt(content: String): Boolean =
         content.trimStart('\uFEFF').startsWith("WEBVTT")
@@ -85,6 +98,76 @@ object SubtitleParser {
         }
         return out
     }
+
+    /**
+     * ASS/SSA events section -> cues. Field order comes from the [Events] Format:
+     * line when present (V4+ inserts "Layer"/"Name" variants); SSA default order
+     * otherwise. The Text field is split with a limit so comma-bearing dialogue
+     * survives. Comment/DialoguEx/etc lines are skipped (only "Dialogue:" yields).
+     * Known limit (fine for text mining): ASS drawing spans (\p) inside override
+     * blocks across dialogue lines are stripped with the block, not reconstructed.
+     */
+    private fun parseAss(content: String): List<RawCue> {
+        val text = content.trimStart('\uFEFF').replace("\r\n", "\n")
+        var fields = listOf(
+            "Marked", "Start", "End", "Style", "Name",
+            "MarginL", "MarginR", "MarginV", "Effect", "Text",
+        )
+        var inEvents = false
+        val out = ArrayList<RawCue>()
+        for (raw in text.split("\n")) {
+            val line = raw.trim()
+            if (line.startsWith("[") && line.endsWith("]")) {
+                inEvents = line.equals("[Events]", ignoreCase = true)
+                continue
+            }
+            if (!inEvents || !line.contains(":")) continue
+            val key = line.substringBefore(":")
+            val value = line.substringAfter(":")
+            if (key.equals("Format", ignoreCase = true)) {
+                val f = value.split(',').map { it.trim() }.filter { it.isNotEmpty() }
+                if (f.isNotEmpty()) fields = f
+                continue
+            }
+            if (!key.equals("Dialogue", ignoreCase = true)) continue
+            val idxStart = fields.indexOfFirst { it.equals("Start", ignoreCase = true) }
+            val idxEnd = fields.indexOfFirst { it.equals("End", ignoreCase = true) }
+            val idxText = fields.indexOfLast { it.equals("Text", ignoreCase = true) }
+            if (idxStart < 0 || idxEnd < 0 || idxText < 0) continue
+            // No split limit: override blocks like \pos(960,40) carry commas, so a
+            // limit=fields.size cut mis-lands the TEXT field itself (caught by
+            // SubtitleParserTest.parsesBasicAss on first run). Unsplit, then re-merge
+            // any overflow back into Text — ASS convention: Text is the last column.
+            val cols = value.split(',')
+            if (cols.size <= idxText) continue
+            val start = assStamp(cols[idxStart]) ?: continue
+            val end = assStamp(cols[idxEnd]) ?: continue
+            val text = if (idxText == fields.size - 1)
+                cols.drop(idxText).joinToString(",")
+            else cols[idxText]
+            out += RawCue(start, end, listOf(assText(text)))
+        }
+        return out
+    }
+
+    /** "h:mm:ss.cc(.ms)" ASS stamps -> ms; missing/invalid -> null. */
+    private val ASS_TS = Regex("""(\d+):(\d{1,2}):(\d{2})[.](\d{1,3})""")
+
+    private fun assStamp(chunk: String): Long? {
+        val m = ASS_TS.find(chunk.trim()) ?: return null
+        val g = m.groupValues
+        val frac = (g[4] + "000").substring(0, 3).toLong()
+        return ((g[1].toLong() * 3600 + g[2].toLong() * 60 + g[3].toLong()) * 1000) + frac
+    }
+
+    /**
+     * ASS text normalization: override blocks ({...} — NOT \{...}, the leading
+     * backslash belongs to the tags INSIDE the block; first-run lesson from
+     * parsesBasicAss), then \h/\N/simple tags.
+     */
+    private fun assText(value: String): String = value
+        .replace(Regex("""\{[^}]*}"""), " ")
+        .replace(Regex("""\\[a-zA-Z][a-zA-Z0-9]*(?:\([^)]*\))?"""), " ")
 
     /**
      * Apply a user offset (settings offset_ms; player-side nudge semantics): shifts cue

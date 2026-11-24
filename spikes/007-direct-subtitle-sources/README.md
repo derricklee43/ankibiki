@@ -1,7 +1,9 @@
 # Spike 007 — Direct subtitle sources (bypass the Buta No Subs proxy)
 
-Status: DESIGN (pending execution). Nothing in this spike has run yet; facts below
-were verified by hand-live probes on 2026-11-23, executions are not.
+Status: 007a EXECUTED 2026-11-23 — VERDICT: PASS WITH CONSTRAINTS (§16).
+007b (SubDL) is PARKED as explicitly-wanted future work per user ruling on D1 —
+its rubric stays in this doc verbatim so resuming costs only a probe session.
+P1 (ASS parser) SHIPPED alongside this verdict, same pass (§16.5).
 
 Date: 2026-11-23. Trigger: user question after the jpn content-gap diagnosis —
 "buta no subs is just a subtitle aggregator, why do we need to proxy through this
@@ -247,9 +249,10 @@ In every branch: P1 (ASS parser) ships — it gates Buta files as much as Jimaku
 
 ## 12. Prerequisites (needed regardless of verdict; not spike questions)
 
-- P1 — ASS parser branch in `SubtitleParser` (Dialogue lines; strip `{\...}`
-  overrides; `\N`→space; BOM tolerance already present) + JVM specs. Production
-  slice, needs user go.
+- P1 — ASS parser branch in `SubtitleParser` (Dialogue lines; strip `{\…}`
+  overrides; `\N`→space; BOM tolerance already present) + JVM specs.
+  SHIPPED 2026-11-23 with the §16 verdict (5 new specs; see 16.5 for the two
+  first-run corrections the real corpus forced).
 - P2 — STEP 1 keys (user, 5 minutes).
 - P3 — hygiene: HTML responses → "addon not configured" ledger note instead of
   JSON crash (already proposed, pending go).
@@ -267,32 +270,22 @@ In every branch: P1 (ASS parser) ships — it gates Buta files as much as Jimaku
 - Controls: Over-the-Garden-Wall rows on Jimaku are EXPECTED-NEGATIVE (anime-only
   site); on SubDL they count normally (that asymmetry is part of the scoring).
 
-## 14. Decision points (answer in bare numbers; recommendation marked)
+## 14. Decision points — RULED 2026-11-23 (user answers in his framing)
 
-1. Run order: (a) 007a only first, decide 007b by its outcome [lean]; (b) both
-   back-to-back in one session; (c) both in parallel with two agents.
-   Recommended: **(a)** — cheapest kill first, one session each way.
-2. Key custody during the spike: (a) keys written into a gitignored local file the
-   spike script reads (`/home/derri/.config/ankibiki/spike007.env`, chmod 600)
-   [RECOMMENDED — chat paste is UNRECOMMENDED: the message round-trips the provider
-   API and persists in session history]; (b) chat paste anyway, with post-run
-   rotation, if the file route is ever inconvenient. Residual risk on (a) is low by
-   design: both keys are free and one-click regenerable.
-3. If 007a passes but 007c finds real rate friction: (a) throttle+cache and ship
-   [lean]; (b) batch-of-one discipline only, no cache. Recommended **(a)** —
-   per-show entry caching is trivially safe (episode additions are the only
-   invalidation need; a manual "refresh entry" path suffices).
-4. Production attach shape IF a tier ships: (a) builtin sources join the existing
-   ranked candidate loop after synced addons [lean]; (b) a source dropdown in the
-   gear. Recommended **(a)** — zero settings surface, ledger "tried:" list gains
-   builtins for free; (b) if the user wants to force one source per show.
-5. P1 ASS parser build: (a) bundle with the probe session — verdict + parser in
-   one go [lean]; (b) now, before probes; (c) after, only if a tier ships AND we
-   also install Buta. Recommended **(a)**; the parser is needed in every §9 branch.
-6. Buta-in-Stremio install as belt-and-braces even if a direct tier ships:
-   (a) yes, keep as just another synced addon (intended use, no code changes)
-   [lean]; (b) no, one route only. Recommended **(a)** — it costs nothing and is
-   the fallback chain's third rung at the player's discretion.
+1. RULED: **Jimaku only for now; SubDL "put a pin in it" but documented as wanted
+   in the future.** 007b does not run this session; its rubric/kill criteria stay
+   in §6 unchanged as the resume kit. (This supersedes offered options 1a/1b/1c.)
+2. RULED: keys saved to the file (`/home/derri/.config/ankibiki/spike007.env`,
+   chmod 600) before execution; both present (58/49 chars, never echoed). The
+   file-only rule was corrected into this doc the same day (see prior revision).
+3. RULED: **(a)** throttle + per-show entry cache if rate friction appears.
+   Observed: remaining 19–23 of 25 through a ~15-call probe; no friction hit.
+4. RULED: **(a)** builtin sources join the ranked candidate loop after synced addons.
+5. RULED: **(a)** ASS parser bundled with the probe session — shipped in this same
+   commit (`SubtitleParser.parseAss` + 5 new specs (129->134); see §16.5).
+6. RULED: **(a)** Buta-in-Stremio install also happens — user confirmed the double
+   consumption: he watches those tracks in Stremio's player AND the console picks
+   the addon up via 同期 as one more synced candidate.
 
 ## 15. Relation to sibling docs (this doc is self-contained by design)
 
@@ -311,3 +304,68 @@ In every branch: P1 (ASS parser) ships — it gates Buta files as much as Jimaku
 - Shared modules touched by a passing verdict (design only, not in this spike):
   `AddonResources` (new builtin adapter or sibling), `SubtitleParser` (P1),
   `StremioExtractionEngine` candidate loop (§9), `StremioPrefs` (keys).
+
+## 16. 007a VERDICT (executed 2026-11-23, ~15 keyed calls, WSL probe script)
+
+Verdict: **PASS WITH CONSTRAINTS** — Jimaku-direct is viable as a builtin source.
+Evidence file: scratch `spike007a-results.json` (reproducible via §2 with the keys;
+throwaway probe script, not committed by design).
+
+Scored against §6 (anime denominator corrected — see ledger #4): **6/6 anime
+episodes RESOLVED** — entry found, `files?episode=` returned the requested
+episode's file(s), download HTTP 200, formats ASS/SRT, zero AUTH failures, zero
+429s (rate remaining 23→19). `Over the Garden Wall` = NO_ENTRY via tmdb+query as
+predicted for an anime-only site (expected-negative control, out of denominator).
+
+Constraints the production builtin must carry (each found live):
+- **C1: `tmdb_id` search is dead for these titles** — 0 hits on all 4 despite
+  Cinemeta moviedb_id being valid. Entries are AniList-backed. The WORKING tier
+  this run was fuzzy `query=<Cinemeta name>` (3/3 anime hits). The yuna
+  kitsu→anilist hop ERRORED on my URL shape (`InvalidURL`) and was not needed —
+  production should re-derive it properly OR validate query hits by filename
+  title-token match (query can hit the wrong season/entry — Mushoku query
+  landed entry "Mushoku Tensei II" for the parent imdb id, see C2).
+- **C2: season-0 semantics are plausible but human-verification-pending**:
+  `tt13293588:0:1/0:2` → entry 1927 files "- 01"/"- 02" are S2 numbers matching
+  Cinemeta's season-0 rows; final proof = the device walkthrough reading mined
+  sentences (acceptance gate, not yet run).
+- **C3: file lists are NOT format-safe** — Sakamoto E01's row #1 was a 2.9 MB
+  `.zip` (Netflix image subs). Builtin must filter to text formats (.ass/.srt/
+  .vtt) by name suffix before selection; zip/rar rows get FORMAT-skipped.
+- **C4: content-type is unreliable** (`application/octet-stream` on .ass,
+  `application/x-subrip` on .srt) — classify by bytes/extension, never CT.
+
+Honest ledger (numbered, per execution discipline):
+1. Prediction 1 ("tmdb resolves all titles first try") — REFUTED (C1). Design
+   survived because §7's ladder pre-registered fallbacks; query tier rescued all.
+2. Prediction 4 ("files?episode= absolute numbering") — CONFIRMED per entry:
+   `episode=N` returns N-numbered files within the entry; the S-vs-absolute
+   question collapses into entry selection (C2), not files arithmetic.
+3. PREDICTION MISSED BY THE DOC: "1x04"-style regex poisoning — my own verifier
+   mis-parsed `(TBS 1920x1080 x265)` as episode (20,108), producing two FALSE
+   `WRONG_EPISODE` labels. Root cause investigation showed the SHIPPED
+   `AddonResources.parseEpisodeFromFilename` contains the identical unbounded
+   `(\d{1,2})x(\d{1,3})` pattern — a real production bug surfaced by the spike
+   (its only consumer is the pre-check hint, so blast radius was hint-poisoning).
+   FIXED same commit: digit-boundary lookarounds + 3 new real-corpus cases pinned
+   in `StremioKeysAndSelectionTest` (old `2x11.720p` pin passes UNEDITED).
+4. SET CORRECTION: three "classic-era" rows (§4) turn out to be MOVIES
+   (tt0106226 = The Age of Innocence; two ids now 403'd by Cinemeta geoblocking)
+   — last night's `:1:1`-shape OS-v3 probes on them were malformed (series-shape
+   on movie ids), so "Death Note returns zero" was NOT verified. Anime
+   denominator 9→6; the PASS bar's ≥8/9 was impossible as written — scored as
+   6/6 of the valid anime set instead, deviation recorded here, not silently.
+5. Cinemeta from this box intermittently 403s (spike 006 geoblock note re-
+   confirmed); the PHONE is unaffected (production calls run from device IP).
+
+16.5 P1 SHIPPED this pass: `SubtitleParser.parseAss` ([Events] section; Format
+column-order respected incl. SSA default; Dialogue-only; Text re-merge for
+comma-bearing fields — a split-LIMIT cut mis-lands Text when `\pos(960,40)`
+carries commas, caught by parsesBasicAss on first run and fixed; override blocks
+are `{...}` NOT `\{...}`, the second first-run lesson; `\N`/`\h`/tags -> spaces,
+centisecond stamps -> ms). 5 new JVM specs; suite 134/134 (`--rerun`, XML-parsed,
+fresh timestamps). Instrumented re-run deferred to next device session.
+
+Next slice (NOT started, needs explicit go): the production builtin Jimaku source
+(D4a loop attach + query-tier validation + C3 filter + entry cache per D3a) and
+the device walkthrough that closes "first SUCCESSFUL extraction" for real.

@@ -63,4 +63,71 @@ class SubtitleParserTest {
         assertEquals(0L, back[0].startMs)
         assertEquals(0L, back[1].endMs)
     }
+
+    // ---- ASS (spike 007a, 2026-11-23: Jimaku fansub corpus is .ass; shipped
+    // parser stored 0 cues on it) ----
+
+    @Test
+    fun parsesBasicAss() {
+        val ass = """
+            [Script Info]
+            ScriptType: v4.00+
+            Collisions: Normal
+
+            [V4+ Styles]
+            Format: Name, Fontname
+            Style: Default,Arial
+
+            [Events]
+            Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+            Dialogue: 0,0:00:03.30,0:00:12.31,Default,,0,0,0,,{\an8\pos(960,40)}風の音
+            Dialogue: 0,0:00:12.31,0:01:02.50,Default,,0,0,0,,一行目\N二行目 {\i1 ital\i0} 続き
+            Comment: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,should be skipped
+        """.trimIndent()
+        val cues = SubtitleParser.parse("a.ass", ass)
+        assertEquals(2, cues.size)
+        assertEquals(3_300L, cues[0].startMs)
+        assertEquals(12_310L, cues[0].endMs)
+        assertEquals("風の音", cues[0].text) // override block stripped, no residue
+        assertEquals("一行目 二行目 続き", cues[1].text) // \N -> single space join
+        assertEquals(62_500L, cues[1].endMs) // hour carry
+    }
+
+    @Test
+    fun assWithoutFormatLineUsesSsaDefaultColumnOrder() {
+        val ass = "[Script Info]\n\n[Events]\nDialogue: Marked,0:01:00.00,0:01:01.00," +
+            "Default,,0000,0000,0000,,こんにちは\n"
+        val cues = SubtitleParser.parse("x.ass", ass)
+        assertEquals(1, cues.size)
+        assertEquals(60_000L, cues[0].startMs)
+        assertEquals("こんにちは", cues[0].text)
+    }
+
+    @Test
+    fun assTextFieldKeepsEmbeddedCommas() {
+        val ass = "[Script Info]\n[Events]\n" +
+            "Format: Marked, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n" +
+            "Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Hello, world, again\n"
+        val cues = SubtitleParser.parse("x.ass", ass)
+        assertEquals(1, cues.size)
+        assertEquals("Hello, world, again", cues[0].text)
+    }
+
+    @Test
+    fun assWithBomAndCrlfStillDispatches() {
+        val ass = "\uFEFF[Script Info]\r\n[Events]\r\nDialogue: 0,0:00:01.00,0:00:02.00," +
+            "Default,,0,0,0,,BOM\r\n OK\r\n"
+        val cues = SubtitleParser.parse("x.ass", ass)
+        assertEquals(1, cues.size)
+        assertEquals(1_000L, cues[0].startMs)
+    }
+
+    @Test
+    fun srtAndVttStillDispatchedNotAss() {
+        // guard against over-eager ASS sniffing
+        val srt = "1\n00:00:01,000 --> 00:00:02,000\ntext\n"
+        assertEquals(1, SubtitleParser.parse("a.srt", srt).size)
+        val vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\ntext\n"
+        assertEquals(1, SubtitleParser.parse("a.vtt", vtt).size)
+    }
 }

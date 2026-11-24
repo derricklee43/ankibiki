@@ -30,6 +30,11 @@ class StremioKeysAndSelectionTest {
             "Show Name Episode 12 [1080p]" to (1 to 12),
             "Show.Name.S03E01v2" to (3 to 1),
             "Show S02 - E08" to (2 to 8),
+            // spike 007a (2026-11-23): REAL Jimaku corpus names — these three were
+            // mis-parsed as (20,108)/(1,440x…) before the NxN digit-boundary fix:
+            "[NanakoRaws] Gachiakuta - 04 (TBS 1920x1080 x265 AAC)" to (1 to 4),
+            "[shincaps] Gachiakuta - 09 (AT-X 1440x1080 MPEG2 AAC)" to (1 to 9),
+            "[MiniMTBB] Mushoku Tensei S2 - 01 (BD 1080p) [A768CC6C]" to (1 to 1),
         )
         var parsed = 0
         for ((name, expected) in cases) {

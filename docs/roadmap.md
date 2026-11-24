@@ -125,8 +125,11 @@ migration.
        deliberately not hashed), §11.3 cards-with-media phase (deferred,
        contract preserved in the parked doc §C). Direct-upstream subtitle sourcing
        (Jimaku/SubDL official APIs, bypassing the Buta proxy per its author's
-       ask) DESIGNED 2026-11-23 as spikes/007-direct-subtitle-sources/README.md
-       — docs-only, execution pending STEP-1 keys + user go on numbered decisions.
+       ask) designed AND EXECUTED 2026-11-23: 007a Jimaku probe PASSED with
+       constraints (6/6 anime eps via query-tier + native per-episode files;
+       tmdb_id tier dead — spikes/007 README §16); SubDL pinned as future work
+       (user ruling); ASS parser P1 SHIPPED same pass (+ prod filename bugfix);
+       production builtin source slice + device walkthrough await explicit go.
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix
