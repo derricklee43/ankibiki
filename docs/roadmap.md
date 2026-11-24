@@ -28,6 +28,8 @@ This roadmap complements those designs rather than replacing them.
 **Maintenance rule (2026-11-14):** completed items live in
 [the feature log](feature_log.md) — shipped work moves there verbatim with its exit
 evidence; this file keeps open items, parked decisions, and dated pointers.
+Small optional/low-priority features are ledged in
+[parked-features.md](parked-features.md), not here.
 
 **Organization note (2026-11-23):** the numbered assessment sections (§1–§5) and the
 lettered tracks (A–D) are retired — open work now lives once, in **Open issues** below.

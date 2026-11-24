@@ -204,19 +204,17 @@ M3 (EAV attrs / wide typed columns per kind on occurrences, REJECTED):
     explicitly NOT promised (documented one-way door, consistent with
     feature_log precedent).
 
-## 8. USER DECISIONS OWED (blocking only D-gates, not SM-1)
-  D1 Ceremony: (a) ONE v15 rebuild doing pointer+backfill (recommended,
-     smaller surface) vs (b) staged additive-then-rebuild (D1b/R1c) if
-     dual-write soak is preferred over one-shot confidence.
-  D2 attrs_json on media_refs: allowed (recommended, keeps the table
-     immutable across kinds) vs strictly typed columns.
-  D3 Inbox default filter after U2 ships: ALL kinds mixed (matches the
-     single-inbox ruling) vs photos-default.
-  D4 Non-photo row appearance in the inbox in M1: text card + kind chip
-     only (recommended; no media until extraction) vs a poster placeholder
-     pulled from stremio_library when kind='video_cues'.
-  D5 M2 sentence-promotion trigger: explicitly "first need arises"
-     (recommended) vs a scheduled follow-up regardless.
+## 8. USER DECISIONS — RULED 2026-11-23
+  D1 RULED (a): single v15 ceremony doing pointer + backfill + photo_id
+     nullability in one guarded transaction; failure path = automatic
+     ROLLBACK (pre-RENAME), plus takeBundleBackup restore as the deep
+     defense.
+  D2 RULED: attrs_json allowed on media_refs (kinds never churn schema).
+  D3 RULED: inbox default = ALL kinds mixed; single inbox confirmed.
+  D4 RULED: M1 video rows are text card + kind chip, no fake thumbnails.
+     Poster variant PARKED as docs/parked-features.md PF-2.
+  D5 RULED: M2 sentence-promotion is trigger-gated, not scheduled.
+  (Filter-control upgrade to a dropdown: PARKED, PF-1.)
 
 ## 9. WHAT THIS RETIRES / RELATES TO
   - Retires the negative-photo_id namespace (console design §6.1 stage-1
