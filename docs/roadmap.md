@@ -101,11 +101,15 @@ migration.
        IMPLEMENTED — v14 schema + ceremony, engine on the shared CorpusInsertion
        path (photo path rewired verbatim, suite green with zero test-body edits),
        console + episodes UI wired into the settings popup; evidence table in
-       spikes/006-stremio-console/README.md (JVM 121/121, instrumented 146/146 on
-       emulator; physical device deliberately untouched). Still open: S0-A LIVE
-       pin (needs the user's link-flow approval), first UI walkthrough, S0-D2
-       (RD token on device), stage-2 reader LEFT-JOIN generalization (needs its
-       own go). The
+       spikes/006-stremio-console/README.md (JVM 129/129, instrumented 146/146 on
+       emulator). LIVE on device 2026-11-23: link flow + authKey OK, library +
+       addons sync OK (descriptor envelope pinned), episodes render; four
+       live bugs found and fixed via ledger/logcat evidence (spikes/006 debug
+       log). Still open: first SUCCESSFUL extraction (gear subtitle language
+       unset + kitsu-subtitle-addon ranking fix pending user retry), S0-A
+       closeout items (44->13 parse gap, time_offset unit), stage-2 reader
+       generalization PLANNED (docs/stremio-stage2-plan.md; user go + device
+       session owed). The
        automatic-scrub / watch-time-capture alternative is PARKED (same ruling)
        with its verified facts and resume ladder in
        [stremio-auto-scrub-parked.md](stremio-auto-scrub-parked.md). Design pins

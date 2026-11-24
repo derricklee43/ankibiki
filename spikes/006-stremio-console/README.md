@@ -75,3 +75,29 @@ app's line in the merger) -- cloud backup/device transfer could replicate the
 prefs off-device. Fixed in 84e6eee: allowBackup=false + tools:replace, merged
 manifest verified. Residual user actions: clear any pre-fix cloud backup of the
 app (Settings > Google > Backup > Manage backup); optionally rotate the RD key.
+
+## Live device debugging log (2026-11-23, user's first console session)
+The fail-loud instrumentation earned its keep; each report below was
+diagnosed from on-device evidence (ledger text / StremioSync logcat /
+exec-out db pull), never from guesses.
+- Blank episodes page #1: resourcePath appended to transportUrl without
+  stripping /manifest.json -> every call 404'd into a silent catch (ed5f172).
+- Blank episodes page #2: addonCollectionGet entries are DESCRIPTORS
+  {manifest:{...}, transportUrl(key-bearing)} -> id/resources were read at
+  the wrong level, 7 rows parsed to 0 (132fa74; S0-A envelope pin: rows=44
+  parsed=13 for datastoreGet top keys [result]; addon ids seen: cinemeta,
+  channels, opensubtitles v3+v1, local, torrentio(configured RD segment),
+  kitsu). Descriptor-level transportUrl is the CONFIGURED one -> wins.
+- "failed to mine": engine picked Anime KITSU as subtitle addon (alphabetical
+  first match; kitsu STUBS a subtitles resource -> 404, error text verbatim
+  from ledger) -> ranked candidates + try-loop, pure-subtitle addons first
+  (7f1017b).
+- "no meta addon cached AFTER a good sync": plausible empty-response cache
+  wipe (replace = DELETE-all+insert) -> guarded; empty responses now keep the
+  last good snapshot and say so (3a340c1). Could NOT confirm live (phone
+  disconnected at report time) -- if it recurs, StremioSync logcat settles it.
+- OPEN (S0-A closeout items):
+  * datastoreGet rows=44 vs parsed=13 -- needs per-row skip-reason diag or
+    user's real library count (stage-2 plan I10).
+  * time_offset unit (ms vs s) still heuristic (stage-2 plan I11).
+  * user must set gear subtitle language before next extraction retry.
