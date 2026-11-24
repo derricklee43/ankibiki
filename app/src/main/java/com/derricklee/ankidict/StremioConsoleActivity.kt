@@ -132,17 +132,35 @@ class StremioConsoleActivity : AppCompatActivity() {
                 val library = client.fetchLibrary(authKey, log)
                 val addons = client.fetchAddonCollection(authKey, log)
                 val now = System.currentTimeMillis()
-                miningRepository.replaceStremioLibrary(library, now)
-                miningRepository.replaceStremioAddons(addons, now)
+                // A transient empty/200-with-no-rows response must never
+                // destructively downgrade a working cache (real bug class found
+                // 2026-11-23: replace = DELETE-all+insert; empty result on
+                // hiccup wiped addons -> "no meta addon cached" after a sync
+                // that had previously worked). Keep the last good snapshot.
+                if (library.isNotEmpty()) {
+                    miningRepository.replaceStremioLibrary(library, now)
+                } else {
+                    android.util.Log.w("StremioSync",
+                        "library returned 0 rows; keeping previous cache")
+                }
+                if (addons.isNotEmpty()) {
+                    miningRepository.replaceStremioAddons(addons, now)
+                } else {
+                    android.util.Log.w("StremioSync",
+                        "addons returned 0 rows; keeping previous cache")
+                }
                 for (item in library) {
                     miningRepository.saveStremioWatchSnapshot(item.baseId, item.state, now)
                 }
                 prefs.lastSyncAt = now
                 runOnUiThread {
-                    rows.clear(); rows.addAll(library); adapter.notifyDataSetChanged()
+                    rows.clear(); rows.addAll(miningRepository.loadStremioLibrary())
+                    adapter.notifyDataSetChanged()
                     renderHeader()
                     syncing = false
-                    Toast.makeText(this, "synced: ${library.size} titles, ${addons.size} addons",
+                    val shown = rows.size
+                    val addonNote = if (addons.isEmpty()) " (addons: kept cache)" else ""
+                    Toast.makeText(this, "synced: $shown titles, ${addons.size} addons$addonNote",
                         Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
