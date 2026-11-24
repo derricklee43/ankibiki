@@ -2,6 +2,7 @@ package com.derricklee.ankidict
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -151,6 +152,42 @@ class AddonResourceUrlTest {
         AddonResources(transport).streams(addon, "series", "tt1:1:1")
         assertEquals("https://torrentio.strem.fun/configure/abc/stream/series/tt1:1:1.json",
             seen)
+    }
+
+    /** Spike 007 P3 hygiene: the bare (unconfigured) OpenSubtitles v1 endpoint
+     *  answers HTTP 200 with its HTML config page. That must read as "not
+     *  configured", never as an org.json crash (live ledger evidence 2026-11-23:
+     *  "java.lang.String cannot be converted to JSONObject"). */
+    @Test
+    fun htmlFromUnconfiguredAddon_reportsActionablyNotAsJsonCrash() {
+        val html = "<!DOCTYPE html>\n<head><title>OpenSubtitles - Stremio Addon</title>"
+        val transport = object : StremioTransport {
+            override fun get(url: String, headers: Map<String, String>) = html
+            override fun post(url: String, body: String, contentType: String,
+                              headers: Map<String, String>) = "{}"
+        }
+        val bare = StremioAddon("org.stremio.opensubtitles", "OpenSubtitles", "1",
+            "https://opensubtitles.strem.io/stremio/v1", setOf("subtitles"))
+        val e = assertThrows(IllegalStateException::class.java) {
+            AddonResources(transport).subtitles(bare, "series", "tt1:1:1", "jpn")
+        }
+        // engine keeps the TAIL (50 chars) of failure messages: the actionable
+        // phrase must survive truncation verbatim
+        assertTrue(e.message!!.length <= 50)
+        assertTrue(e.message!!.startsWith("HTML response"))
+    }
+
+    @Test
+    fun whitespaceBeforeHtmlStillDetected() {
+        val transport = object : StremioTransport {
+            override fun get(url: String, headers: Map<String, String>) = "\r\n <html>"
+            override fun post(url: String, body: String, contentType: String,
+                              headers: Map<String, String>) = "{}"
+        }
+        val bare = StremioAddon("os", "OS", "1", "https://os.example/v1", setOf("meta"))
+        assertThrows(IllegalStateException::class.java) {
+            AddonResources(transport).metaEpisodes(bare, "series", "tt1")
+        }
     }
 }
 

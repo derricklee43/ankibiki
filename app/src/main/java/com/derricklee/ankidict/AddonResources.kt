@@ -19,10 +19,27 @@ class AddonResources(private val transport: StremioTransport) {
         return "$base/$resource/$type/$id.json"
     }
 
+    /**
+     * Spike 007 P3 hygiene (2026-11-23): UNCONFIGURED addons (the bare
+     * https://opensubtitles.strem.io/stremio/v1 transport is the live instance)
+     * answer HTTP 200 with an HTML landing page. Old behavior: org.json's crash
+     * "String cannot be converted to JSONObject" — indistinguishable from an app
+     * bug in the ledger. New: a clean human-actionable error. The engine renders
+     * the LAST 50 chars of failure messages, so the actionable phrase is the tail.
+     */
+    private fun parseJsonBody(body: String, url: String): JSONObject {
+        val trimmed = body.trimStart('\uFEFF', ' ', '\t', '\n', '\r')
+        if (trimmed.startsWith("<")) {
+            throw IllegalStateException("HTML response - configure this addon in Stremio")
+        }
+        return JSONObject(trimmed)
+    }
+
     /** videos[] from a meta addon for the series/movie; season/episode parsed from ids
      *  ("<imdb>:<season>:<episode>") with title fallback. */
     fun metaEpisodes(metaAddon: StremioAddon, type: String, baseId: String): List<MetaEpisode> {
-        val root = JSONObject(transport.get(resourcePath(metaAddon, "meta", type, baseId)))
+        val url = resourcePath(metaAddon, "meta", type, baseId)
+        val root = parseJsonBody(transport.get(url), url)
         val meta = root.optJSONObject("meta") ?: return emptyList()
         val videos = meta.optJSONArray("videos") ?: JSONArray()
         val out = ArrayList<MetaEpisode>()
@@ -43,7 +60,8 @@ class AddonResources(private val transport: StremioTransport) {
 
     /** subtitle list filtered by ISO language prefix (e.g. "jpn"/"eng"). */
     fun subtitles(subtitleAddon: StremioAddon, type: String, videoId: String, lang: String): List<SubtitleChoice> {
-        val root = JSONObject(transport.get(resourcePath(subtitleAddon, "subtitles", type, videoId)))
+        val url = resourcePath(subtitleAddon, "subtitles", type, videoId)
+        val root = parseJsonBody(transport.get(url), url)
         val rows = root.optJSONArray("subtitles") ?: JSONArray()
         val out = ArrayList<SubtitleChoice>()
         for (i in 0 until rows.length()) {
@@ -70,7 +88,8 @@ class AddonResources(private val transport: StremioTransport) {
      * present (addon protocol stream fields). externalUrl/magnet-less rows land with nulls.
      */
     fun streams(streamAddon: StremioAddon, type: String, videoId: String): List<StreamCandidate> {
-        val root = JSONObject(transport.get(resourcePath(streamAddon, "stream", type, videoId)))
+        val url = resourcePath(streamAddon, "stream", type, videoId)
+        val root = parseJsonBody(transport.get(url), url)
         val rows = root.optJSONArray("streams") ?: JSONArray()
         val out = ArrayList<StreamCandidate>()
         for (i in 0 until rows.length()) {

@@ -255,7 +255,9 @@ In every branch: P1 (ASS parser) ships — it gates Buta files as much as Jimaku
   first-run corrections the real corpus forced).
 - P2 — STEP 1 keys (user, 5 minutes).
 - P3 — hygiene: HTML responses → "addon not configured" ledger note instead of
-  JSON crash (already proposed, pending go).
+  JSON crash. SHIPPED 2026-11-23 (`AddonResources.parseJsonBody` guards meta/
+  subtitles/streams parsing; 2 JVM specs pin the actionable-tail wording so the
+  engine's keep-last-50 rendering survives truncation intact).
 
 ## 13. Evaluation method
 
