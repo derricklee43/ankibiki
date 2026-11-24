@@ -161,12 +161,15 @@ object SubtitleParser {
     }
 
     /**
-     * ASS text normalization: override blocks ({...} — NOT \{...}, the leading
-     * backslash belongs to the tags INSIDE the block; first-run lesson from
-     * parsesBasicAss), then \h/\N/simple tags.
+     * ASS text normalization: override blocks, then \h/\N/simple tags.
+     * PATTERN SPELLING IS LOAD-BEARING: a DEVICE-FOUND BUG 2026-11-23 (ledger:
+     * PatternSyntaxException near index 8 on "\\{[^}]*}") — desktop JDK accepts
+     * the quoted brace, Android's java.util.regex does NOT. Use the [{]
+     * character-class form (portable). Same hazard as the Collator JVM/device
+     * divergence rule: JVM specs green does NOT prove the device regex engine.
      */
     private fun assText(value: String): String = value
-        .replace(Regex("""\{[^}]*}"""), " ")
+        .replace(Regex("""[{][^}]*}"""), " ")
         .replace(Regex("""\\[a-zA-Z][a-zA-Z0-9]*(?:\([^)]*\))?"""), " ")
 
     /**

@@ -359,6 +359,15 @@ Honest ledger (numbered, per execution discipline):
    6/6 of the valid anime set instead, deviation recorded here, not silently.
 5. Cinemeta from this box intermittently 403s (spike 006 geoblock note re-
    confirmed); the PHONE is unaffected (production calls run from device IP).
+6. DEVICE WALKTHROUGH 2026-11-23 (first real use of the builtin, post-9676605):
+   extraction reached Jimaku, resolved the entry, downloaded the .ass — then
+   died `PatternSyntaxException near index 8: \{[^}]*}`. Desktop JDK compiles
+   quoted punctuation `\{`; ANDROID'S java.util.regex does NOT — the JVM specs
+   were green precisely because the JVM engine is laxer. Fixed to the portable
+   `[{]` class form (SubtitleParser.assText) with a load-bearing comment; full
+   main-source scan: no other `\{` patterns ship. RULE LEARNED: a regex spec
+   passing on JVM does not prove the device engine; brace-quantifiers after
+   atoms are fine, escaped braces are a divergence trap.
 
 16.5 P1 SHIPPED this pass: `SubtitleParser.parseAss` ([Events] section; Format
 column-order respected incl. SSA default; Dialogue-only; Text re-merge for
