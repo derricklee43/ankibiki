@@ -66,3 +66,12 @@ Two bugs only a real device run could surface, both fixed same day:
    third-party design assumed).
    JVM suite re-run: 123/123. Remaining S0-A: user approves a code once, then
    the REAL datastore responses pin the row-level field spellings.
+
+## Secret-storage audit (user question 2026-11-23, after RD token entry)
+Token + authKey live in app-private shared_prefs (StremioPrefs), outside the db
+and therefore outside every bundle. FINDING: the merged manifest had had
+allowBackup=true ALL ALONG (the AnkiDroid api library's manifest wins over the
+app's line in the merger) -- cloud backup/device transfer could replicate the
+prefs off-device. Fixed in 84e6eee: allowBackup=false + tools:replace, merged
+manifest verified. Residual user actions: clear any pre-fix cloud backup of the
+app (Settings > Google > Backup > Manage backup); optionally rotate the RD key.
