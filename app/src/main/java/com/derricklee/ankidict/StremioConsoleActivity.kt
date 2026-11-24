@@ -115,7 +115,7 @@ class StremioConsoleActivity : AppCompatActivity() {
      * later and a new Refresh picks it up (S0-A acceptance: shape, not instant success).
      */
     private fun runLinkFlow(): String? {
-        val (code, key) = client.linkCreate()
+        val (code, _) = client.linkCreate()
         var confirmed: String? = null
         linkDialogCancelled = false
         val dialog = AlertDialog.Builder(this)
@@ -129,7 +129,7 @@ class StremioConsoleActivity : AppCompatActivity() {
         runOnUiThread { dialog.show() }
         for (i in 0 until 40) {
             Thread.sleep(3_000)
-            confirmed = runCatching { client.linkPoll(key) }.getOrNull()
+            confirmed = client.linkPoll(code)
             if (confirmed != null || linkDialogCancelled) break
         }
         runOnUiThread { if (dialog.isShowing()) dialog.dismiss() }

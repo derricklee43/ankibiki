@@ -16,24 +16,32 @@ class StremioClient(
     private val linkApiUrl: String = "https://link.stremio.com",
 ) {
 
-    /** Step 1 of the link flow: returns (code to show, key that later authenticates). */
+    /**
+     * Step 1 of the link flow. LIVE-VERIFIED envelope 2026-11-23:
+     * {"result":{"success":true,"code":"XXXX","link":...,"qrcode":...}}.
+     * Returns the human-entered code (poll handle) and the pairing link for display.
+     */
     fun linkCreate(): Pair<String, String> {
-        val body = transport.get("$linkApiUrl/api/v2/create?type=Create")
-        val json = JSONObject(body)
-        val code = json.getString("code")
-        val key = json.getString("key")
-        return code to key
+        val body = JSONObject(transport.get("$linkApiUrl/api/v2/create?type=Create"))
+        val result = body.optJSONObject("result")
+            ?: throw StremioHttpException(-1, "link create: no result envelope: $body")
+        val code = result.optString("code").takeIf { it.isNotEmpty() }
+            ?: throw StremioHttpException(-1, "link create: no code in result")
+        return code to result.optString("link", "")
     }
 
     /**
-     * Step 2: poll until the user approves on any signed-in Stremio client.
-     * Returns the authKey when ready, null while pending.
+     * Step 2: poll with the CODE (query "type=Read&code=..." per LinkRequest serde).
+     * Pending/denied arrives as an error envelope or 4xx (observed: error code 101)
+     * -- both read as "keep waiting"; only {"result":{"authKey":...}} resolves.
      */
-    fun linkPoll(key: String): String? {
-        val json = JSONObject(transport.get("$linkApiUrl/api/v2/read?key=$key"))
-        // "response" is an object once approved, a plain string ("pending") before
-        val response = json.opt("response") as? JSONObject ?: return null
-        return response.optString("authKey").takeIf { it.isNotEmpty() }
+    fun linkPoll(code: String): String? = try {
+        JSONObject(transport.get("$linkApiUrl/api/v2/read?type=Read&code=$code"))
+            .optJSONObject("result")
+            ?.optString("authKey")
+            ?.takeIf { it.isNotEmpty() }
+    } catch (e: Exception) {
+        null // not approved yet (or transient); the caller's loop keeps polling
     }
 
     /**
@@ -54,7 +62,10 @@ class StremioClient(
             transport.post("$apiUrl/api/datastoreGet", request.toString()),
         )
         val out = ArrayList<StremioLibraryItem>()
-        val rows = response.optJSONArray("events") ?: JSONArray()
+        // v1 datastoreGet answers {"events":[...]}; tolerate a bare "result" array too
+        // (which spelling is real is part of what S0-A's live capture pins).
+        val rows = response.optJSONArray("events")
+            ?: response.optJSONArray("result") ?: JSONArray()
         for (i in 0 until rows.length()) {
             val row = rows.optJSONObject(i) ?: continue
             val baseId = row.optString("_id").takeIf { it.isNotEmpty() } ?: continue

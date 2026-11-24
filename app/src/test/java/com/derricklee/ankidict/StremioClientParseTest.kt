@@ -14,8 +14,11 @@ class StremioClientParseTest {
     private class FakeTransport(private val routes: Map<String, String>) : StremioTransport {
         var lastPostUrl: String? = null
         var lastPostBody: String? = null
-        override fun get(url: String, headers: Map<String, String>): String =
-            routes.entries.first { url.startsWith(it.key) }.value
+        var lastGetUrl: String? = null
+        override fun get(url: String, headers: Map<String, String>): String {
+            lastGetUrl = url
+            return routes.entries.first { url.startsWith(it.key) }.value
+        }
         override fun post(url: String, body: String, contentType: String,
                           headers: Map<String, String>): String {
             lastPostUrl = url; lastPostBody = body
@@ -24,26 +27,52 @@ class StremioClientParseTest {
     }
 
     @Test
-    fun linkCreateAndPollParses() {
+    fun linkCreateAndPollParsesLiveEnvelope() {
+        // shapes captured from the live endpoints 2026-11-23 (curl create/read probes)
         val t = FakeTransport(
             mapOf(
                 "https://link.stremio.com/api/v2/create" to
-                    """{"code":"ABC123","key":"key-xyz"}""",
+                    """{"result":{"success":true,"code":"1Z1S",
+                       "link":"https://link.stremio.com/1Z1S",
+                       "qrcode":"https://link.stremio.com/qr?data=x"}}""",
                 "https://link.stremio.com/api/v2/read" to
-                    """{"response":{"authKey":"AUTHKEY123"}}""",
+                    """{"result":{"authKey":"AUTHKEY123"}}""",
             ),
         )
         val client = StremioClient(t)
-        assertEquals("ABC123" to "key-xyz", client.linkCreate())
-        assertEquals("AUTHKEY123", client.linkPoll("key-xyz"))
+        assertEquals("1Z1S" to "https://link.stremio.com/1Z1S", client.linkCreate())
+        assertEquals("AUTHKEY123", client.linkPoll("1Z1S"))
     }
 
     @Test
-    fun linkPollPendingReturnsNull() {
+    fun linkPollPendingIsErrorEnvelopeOrHttpExceptionNotCrash() {
+        // live pending read returns HTTP 4xx with {"error":{"code":101,...}}
         val t = FakeTransport(
-            mapOf("https://link.stremio.com/api/v2/read" to """{"response":"pending"}"""),
+            mapOf("https://link.stremio.com/api/v2/read" to
+                """{"error":{"code":101,"message":"Invalid or expired token"}}"""),
         )
-        assertNull(StremioClient(t).linkPoll("k"))
+        assertNull(StremioClient(t).linkPoll("ABCD"))
+        val throwing = object : StremioTransport {
+            override fun get(url: String, headers: Map<String, String>) =
+                throw StremioHttpException(401, "GET $url")
+            override fun post(url: String, body: String, contentType: String,
+                              headers: Map<String, String>) = "{}"
+        }
+        assertNull(StremioClient(throwing).linkPoll("ABCD"))
+    }
+
+    @Test
+    fun linkPollUsesCodeQueryNotKey() {
+        val t = FakeTransport(
+            mapOf("https://link.stremio.com/api/v2/read" to
+                """{"result":{"authKey":"K"}}"""),
+        )
+        StremioClient(t).linkPoll("WXYZ")
+        // LinkRequest serde: internally-tagged enum -> query carries BOTH type and code
+        assertEquals(
+            "https://link.stremio.com/api/v2/read?type=Read&code=WXYZ",
+            t.lastGetUrl,
+        )
     }
 
     @Test
