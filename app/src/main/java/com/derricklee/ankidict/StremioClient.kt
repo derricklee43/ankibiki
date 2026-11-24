@@ -140,12 +140,22 @@ class StremioClient(
         val out = ArrayList<StremioAddon>()
         var skipped = 0
         for (i in 0 until addons.length()) {
-            val manifest = addons.optJSONObject(i) ?: continue
-            val id = manifest.optString("id").takeIf { it.isNotEmpty() } ?: continue
-            val transportUrl = manifest.optString("transportUrl")
+            val entry = addons.optJSONObject(i) ?: continue
+            // v2 addonCollectionGet entries are DESCRIPTORS (stremio-core
+            // descriptor.rs:8): {manifest:{id,name,resources,...}, transportUrl}.
+            // For CONFIGURED addons the descriptor-level transportUrl is the
+            // key-bearing base (e.g. torrentio with the RD segment) while the
+            // manifest's own transportUrl is the unconfigured template --
+            // descriptor level wins. Legacy bare-manifest entries still parse.
+            val descriptorUrl = entry.optString("transportUrl")
                 .takeIf { it.isNotEmpty() }
+            val manifest = entry.optJSONObject("manifest") ?: entry
+            val id = manifest.optString("id").takeIf { it.isNotEmpty() }
+                ?: entry.optString("id").takeIf { it.isNotEmpty() }
+            val transportUrl = descriptorUrl
+                ?: manifest.optString("transportUrl").takeIf { it.isNotEmpty() }
                 ?: manifest.optString("manifestUrl").takeIf { it.isNotEmpty() }
-            if (transportUrl == null) { skipped++; continue }
+            if (id == null || transportUrl == null) { skipped++; continue }
             val resources = HashSet<String>()
             manifest.optJSONArray("resources").let { arr ->
                 if (arr != null) for (r in 0 until arr.length()) {
@@ -170,7 +180,15 @@ class StremioClient(
             )
         }
         diagnostics("addons rows=${addons.length()} parsed=${out.size} " +
-            "no-transportUrl=$skipped ids=${out.map { it.addonId }}")
+            "skipped=$skipped ids=${out.map { it.addonId }}")
+        if (out.isEmpty() && addons.length() > 0) {
+            // shape-drift alarm: one entry's KEY PATHS only (never values)
+            val first = addons.optJSONObject(0)
+            diagnostics("WARN addon envelope drift, entry0 keys=" +
+                first?.keys()?.asSequence()?.toList()?.joinToString() +
+                " manifest keys=" + first?.optJSONObject("manifest")
+                    ?.keys()?.asSequence()?.toList()?.joinToString())
+        }
         return out
     }
 }

@@ -119,7 +119,57 @@ class StremioClientParseTest {
     }
 
     @Test
-    fun addonCollectionParsesObjectAndStringResourceForms() {
+    fun addonCollectionParsesDescriptorEnvelopes() {
+        // v2 REAL shape (stremio-core descriptor.rs:8): entries are
+        // {manifest:{id,resources}, transportUrl(key-bearing), flags}.
+        // Regression: the old parser read id/resources at the ENTRY level
+        // and silently produced 0 addons -> blank episodes page.
+        val response = """
+            {"result":{"addons":[
+              {"manifest":{"id":"torrentio","name":"Torrentio","version":"1.0",
+                 "resources":[{"name":"stream","types":["series"]},{"name":"subtitle"}],
+                 "transportUrl":"https://torrentio.strem.fun/manifest.json"},
+               "transportUrl":"https://torrentio.strem.fun/quality=480p/configure/RDKEY/manifest.json",
+               "flags":{"official":false,"protected":false}},
+              {"manifest":{"id":"cinemeta","name":"Cinemeta","version":"1.0",
+                 "resources":["meta","catalog"],"transportUrl":"https://v3-cinemeta.strem.io/manifest.json"},
+               "transportUrl":"https://v3-cinemeta.strem.io/manifest.json"}
+            ]}}
+        """.trimIndent()
+        val t = FakeTransport(mapOf("https://api.strem.io/api/addonCollectionGet" to response))
+        val addons = StremioClient(t).fetchAddonCollection("auth")
+        assertEquals(2, addons.size)
+        val torrentio = addons.first { it.addonId == "torrentio" }
+        // descriptor-level (CONFIGURED, key-bearing) transportUrl wins
+        assertEquals(
+            "https://torrentio.strem.fun/quality=480p/configure/RDKEY/manifest.json",
+            torrentio.transportUrl,
+        )
+        assertEquals(setOf("stream", "subtitle"), torrentio.resourceTypes)
+        assertEquals(setOf("meta", "catalog"), addons.first { it.addonId == "cinemeta" }.resourceTypes)
+    }
+
+    @Test
+    fun addonDiagnosticsReportZeroParseWithoutSilentFailure() {
+        // 7 descriptor rows must parse to 7; if a future envelope changes so
+        // they don't, the diagnostics line is the alarm (this asserts the
+        // happy count so a silent 0 becomes a test failure, not a blank page).
+        val entries = (1..7).joinToString(",") {
+            """{"manifest":{"id":"a$it","resources":["meta"],"transportUrl":
+               "https://x$it/manifest.json"},"transportUrl":"https://x$it/manifest.json"}"""
+        }
+        val response = """{"result":{"addons":[""" + entries + "]}}"
+        val t = FakeTransport(
+            mapOf("https://api.strem.io/api/addonCollectionGet" to response),
+        )
+        var diag = ""
+        val addons = StremioClient(t).fetchAddonCollection("auth") { diag += it }
+        assertEquals(7, addons.size)
+        assertTrue(diag.contains("parsed=7"))
+    }
+
+    @Test
+    fun addonCollectionParsesLegacyTopLevelForm() {
         val response = """
             {"addons":[
               {"id":"torrentio","name":"Torrentio","version":"1.0",
