@@ -2,6 +2,7 @@ package com.derricklee.ankidict
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -77,8 +78,8 @@ class StremioClientParseTest {
 
     @Test
     fun libraryParsesBothFieldSpellingsAndSkipsRemoved() {
-        val events = """
-            {"events":[
+        val envelope = """
+            {"result":[
               {"_id":"tt111","type":"series","name":"Show One",
                "state":{"videoId":"tt111:1:2","timeOffset":95000,"duration":1400,"timesWatched":1,"flaggedWatched":0,"watched":"BLOB"}},
               {"_id":"tt222","type":"movie","name":"Movie Two","removed":true,
@@ -87,7 +88,7 @@ class StremioClientParseTest {
                "state":{"video_id":"tt333:2:1","time_offset":61,"duration":100}}
             ]}
         """.trimIndent()
-        val t = FakeTransport(mapOf("https://api.strem.io/api/datastoreGet" to events))
+        val t = FakeTransport(mapOf("https://api.strem.io/api/datastoreGet" to envelope))
         val items = StremioClient(t).fetchLibrary("auth")
         assertEquals(2, items.size) // removed row skipped
         val first = items.first { it.baseId == "tt111" }
@@ -97,6 +98,24 @@ class StremioClientParseTest {
         val third = items.first { it.baseId == "tt333" }
         assertEquals("tt333:2:1", third.state?.videoId) // snake_case fallback parsed
         assertEquals(61L, third.state?.timeOffset)
+        // LIVE-verified REQUEST shape (array bodies are rejected by the server):
+        val sent = org.json.JSONObject(requireNotNull(t.lastPostBody))
+        assertEquals("auth", sent.getString("authKey"))
+        assertEquals("libraryItem", sent.getString("collection"))
+        assertTrue(sent.getBoolean("all"))
+    }
+
+    @Test
+    fun apiErrorsSurfaceAsExceptionsNotSilentEmptyLists() {
+        // keyless live probes showed {"error":{"code":1,"message":"Session does
+        // not exist"}} is what a bad key yields -- must throw, not return 0 rows
+        val t = FakeTransport(
+            mapOf("https://api.strem.io/api/datastoreGet" to
+                """{"error":{"code":1,"message":"Session does not exist"}}"""),
+        )
+        val thrown = runCatching { StremioClient(t).fetchLibrary("bad") }.exceptionOrNull()
+        assertTrue(thrown is StremioHttpException)
+        assertTrue(thrown!!.message!!.contains("Session does not exist"))
     }
 
     @Test

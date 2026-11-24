@@ -30,6 +30,7 @@ class StremioConsoleActivity : AppCompatActivity() {
     private lateinit var adapter: ConsoleAdapter
     @Volatile private var syncing = false
     @Volatile private var linkDialogCancelled = false
+    private var linkDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,12 +74,60 @@ class StremioConsoleActivity : AppCompatActivity() {
         if (syncing) return
         syncing = true
         Toast.makeText(this, "syncing…", Toast.LENGTH_SHORT).show()
+        val existing = prefs.authKey
+        if (existing != null) {
+            fetchAndStore(existing)
+            return
+        }
+        // link flow first: network off-main, dialog ON main (AlertDialog cannot be
+        // created on a worker thread -- the v1 crash "Can't create handler inside
+        // thread" was exactly this; user-reported 2026-11-23)
+        AppIo.io.execute {
+            val created = runCatching { client.linkCreate() }
+                .getOrElse { e ->
+                    doneOnUiThread("link create failed: ${e.message?.take(140)}")
+                    return@execute
+                }
+            runOnUiThread { showLinkDialog(created.first) }
+        }
+    }
+
+    private fun showLinkDialog(code: String) {
+        linkDialogCancelled = false
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Link Stremio account")
+            .setMessage("In any signed-in Stremio app: Settings → Addons/Account → " +
+                "\"Link devices\" → enter code $code (also usable at stremio.com/pair).\n\n" +
+                "This screen keeps polling; you can also approve later and hit " +
+                "同期 again.")
+            .setOnCancelListener { linkDialogCancelled = true }
+            .create()
+        linkDialog = dialog
+        dialog.show()
+        AppIo.io.execute {
+            var confirmed: String? = null
+            for (i in 0 until 40) {
+                Thread.sleep(3_000)
+                confirmed = client.linkPoll(code)
+                if (confirmed != null || linkDialogCancelled) break
+            }
+            val key = confirmed
+            runOnUiThread {
+                if (linkDialog === dialog && dialog.isShowing()) dialog.dismiss()
+            }
+            linkDialog = null
+            if (key != null) {
+                prefs.authKey = key
+                fetchAndStore(key)
+            } else {
+                doneOnUiThread("link cancelled/unconfirmed")
+            }
+        }
+    }
+
+    private fun fetchAndStore(authKey: String) {
         AppIo.io.execute {
             try {
-                var authKey = prefs.authKey
-                if (authKey == null) {
-                    authKey = runLinkFlow() ?: return@execute doneOnUiThread("link cancelled/unconfirmed")
-                }
                 val library = client.fetchLibrary(authKey)
                 val addons = client.fetchAddonCollection(authKey)
                 val now = System.currentTimeMillis()
@@ -96,7 +145,7 @@ class StremioConsoleActivity : AppCompatActivity() {
                         Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
-                doneOnUiThread("sync failed: ${e.message?.take(120)}")
+                doneOnUiThread("sync failed: ${e.message?.take(140)}")
             }
         }
     }
@@ -107,34 +156,6 @@ class StremioConsoleActivity : AppCompatActivity() {
             Toast.makeText(this, message, Toast.LENGTH_LONG).show()
             renderHeader()
         }
-    }
-
-    /**
-     * link.stremio.com flow: create -> show code (user enters it in any Stremio client,
-     * "Link devices") -> poll. Pending while away is FINE: the key persists when approved
-     * later and a new Refresh picks it up (S0-A acceptance: shape, not instant success).
-     */
-    private fun runLinkFlow(): String? {
-        val (code, _) = client.linkCreate()
-        var confirmed: String? = null
-        linkDialogCancelled = false
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Link Stremio account")
-            .setMessage("In any signed-in Stremio app: Settings → Addons/Account → " +
-                "\"Link devices\" → enter code $code (also usable at stremio.com/pair).\n\n" +
-                "Keeping this screen open speeds up the handshake; you can approve later " +
-                "and hit Refresh again.")
-            .setOnCancelListener { linkDialogCancelled = true }
-            .create()
-        runOnUiThread { dialog.show() }
-        for (i in 0 until 40) {
-            Thread.sleep(3_000)
-            confirmed = client.linkPoll(code)
-            if (confirmed != null || linkDialogCancelled) break
-        }
-        runOnUiThread { if (dialog.isShowing()) dialog.dismiss() }
-        confirmed?.let { prefs.authKey = it }
-        return confirmed
     }
 
     private fun promptRdToken() {

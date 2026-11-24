@@ -4,17 +4,32 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * Stremio cloud client (docs/stremio-mining-console-design.md §4). Endpoints and field
- * names verified against stremio-core src/types/api/request.rs + constants.rs
- * (API_URL=https://api.strem.io, collection name "libraryItem", addonCollectionGet)
- * on 2026-11-23. The cloud API is unofficial: every parser must be exercised against
- * fixtures and fail loudly on shape drift (S0-A live pin pending).
+ * Stremio cloud client (docs/stremio-mining-console-design.md §4).
+ *
+ * Request bodies pinned LIVE from this account-less box 2026-11-23: api.strem.io
+ * expects SINGLE OBJECTS mirroring stremio-core serde (datastoreGet
+ * {authKey, collection, all}, addonCollectionGet {authKey, update}); the legacy
+ * JSON-array bodies are now REJECTED with "JSON unmarshal err", while object
+ * bodies reach auth validation ("Session does not exist" with a fake key).
+ * Responses arrive in {"result": ...} / {"error": {code, message}} envelopes.
+ * Inner libraryItem field spellings are still unobserved without a real key:
+ * row parsers accept camelCase AND snake_case; S0-A's on-device capture pins
+ * which is real.
  */
 class StremioClient(
     private val transport: StremioTransport,
     private val apiUrl: String = "https://api.strem.io",
     private val linkApiUrl: String = "https://link.stremio.com",
 ) {
+
+    private fun checkError(response: JSONObject, context: String) {
+        response.optJSONObject("error")?.let { err ->
+            throw StremioHttpException(
+                err.optInt("code", -1),
+                "$context: ${err.optString("message")}",
+            )
+        }
+    }
 
     /**
      * Step 1 of the link flow. LIVE-VERIFIED envelope 2026-11-23:
@@ -23,8 +38,9 @@ class StremioClient(
      */
     fun linkCreate(): Pair<String, String> {
         val body = JSONObject(transport.get("$linkApiUrl/api/v2/create?type=Create"))
+        checkError(body, "link create")
         val result = body.optJSONObject("result")
-            ?: throw StremioHttpException(-1, "link create: no result envelope: $body")
+            ?: throw StremioHttpException(-1, "link create: no result envelope")
         val code = result.optString("code").takeIf { it.isNotEmpty() }
             ?: throw StremioHttpException(-1, "link create: no code in result")
         return code to result.optString("link", "")
@@ -32,7 +48,7 @@ class StremioClient(
 
     /**
      * Step 2: poll with the CODE (query "type=Read&code=..." per LinkRequest serde).
-     * Pending/denied arrives as an error envelope or 4xx (observed: error code 101)
+     * Pending/denied arrives as an error envelope or 4xx (observed: code 101)
      * -- both read as "keep waiting"; only {"result":{"authKey":...}} resolves.
      */
     fun linkPoll(code: String): String? = try {
@@ -49,23 +65,16 @@ class StremioClient(
      * the console lists what it can parse and S0-A records the diff.
      */
     fun fetchLibrary(authKey: String): List<StremioLibraryItem> {
-        val request = JSONArray().apply {
-            put(JSONObject()
-                .put("type", "datastore")
-                .put("auth", authKey)
-                .put("body", JSONObject()
-                    .put("api_version", "1.1")
-                    .put("type", "libraryItem")
-                    .put("auth", authKey)))
-        }
-        val response = JSONObject(
-            transport.post("$apiUrl/api/datastoreGet", request.toString()),
-        )
+        val body = JSONObject()
+            .put("authKey", authKey)
+            .put("collection", "libraryItem")
+            .put("all", true)
+        val response = JSONObject(transport.post("$apiUrl/api/datastoreGet", body.toString()))
+        checkError(response, "datastoreGet")
+        val rows = response.optJSONArray("result")
+            ?: response.optJSONArray("events")
+            ?: JSONArray()
         val out = ArrayList<StremioLibraryItem>()
-        // v1 datastoreGet answers {"events":[...]}; tolerate a bare "result" array too
-        // (which spelling is real is part of what S0-A's live capture pins).
-        val rows = response.optJSONArray("events")
-            ?: response.optJSONArray("result") ?: JSONArray()
         for (i in 0 until rows.length()) {
             val row = rows.optJSONObject(i) ?: continue
             val baseId = row.optString("_id").takeIf { it.isNotEmpty() } ?: continue
@@ -97,24 +106,23 @@ class StremioClient(
 
     /**
      * The user's installed addons WITH config URLs (torrentio etc. embed keys there).
-     * Response shape per stremio-core AddonCollectionGet: { addons: [manifest...] } where
-     * manifests carry id/name/version/transportUrl/resources[{name,types}].
+     * core serde request {authKey, update}; response {result:{addons:[manifest...]}}
+     * with legacy top-level addons still tolerated. Manifests carry
+     * id/name/version/transportUrl/resources (string names OR {name,types} objects).
      */
     fun fetchAddonCollection(authKey: String): List<StremioAddon> {
-        val request = JSONArray().apply {
-            put(JSONObject()
-                .put("type", "addons")
-                .put("auth", authKey)
-                .put("body", JSONObject()
-                    .put("api_version", "1.1")
-                    .put("auth", authKey)
-                    .put("metaTemplate", "")))
-        }
+        val body = JSONObject()
+            .put("authKey", authKey)
+            .put("update", true)
         val response = JSONObject(
-            transport.post("$apiUrl/api/addonCollectionGet", request.toString()),
+            transport.post("$apiUrl/api/addonCollectionGet", body.toString()),
         )
+        checkError(response, "addonCollectionGet")
+        val result = response.optJSONObject("result")
+        val addons = result?.optJSONArray("addons")
+            ?: response.optJSONArray("addons")
+            ?: JSONArray()
         val out = ArrayList<StremioAddon>()
-        val addons = response.optJSONArray("addons") ?: JSONArray()
         for (i in 0 until addons.length()) {
             val manifest = addons.optJSONObject(i) ?: continue
             val id = manifest.optString("id").takeIf { it.isNotEmpty() } ?: continue

@@ -43,3 +43,23 @@ Console + episodes activities built, registered, and reachable (Settings popup
 row "Stremio コンソール"); layouts compile and the flows are exercised only by
 instrumented tests so far — **no human walkthrough yet** (repo rule: not
 "done"; first live session should follow references/device-session.md hygiene).
+
+## On-device findings (user test 2026-11-23, first real Sync attempts)
+Two bugs only a real device run could surface, both fixed same day:
+1. "Can't create handler inside thread" — the link dialog was constructed on
+   the AppIo worker thread. Sync flow split: network off-main, AlertDialog
+   created+shown on main, polling continues off-main (StremioConsoleActivity).
+2. REQUEST-BODY FORMAT: api.strem.io REJECTS the legacy JSON-array bodies
+   ("JSON unmarshal err") that third-party examples use. Keyless live probes
+   pinned the working shapes — single objects mirroring stremio-core serde:
+   datastoreGet {"authKey","collection":"libraryItem","all":true};
+   addonCollectionGet {"authKey","update":true}; success responses ride in
+   {"result":...}, failures in {"error":{code,message}} (fake key ->
+   "Session does not exist", observed live). Client rewritten to that truth;
+   error envelopes now THROW with the server message instead of silently
+   parsing to empty lists (spec-pinned). Link envelopes re-verified live too:
+   create -> {"result":{"success","code","link","qrcode"}}; read pending ->
+   error code 101; poll query is type=Read&code=XXX (not the key the original
+   third-party design assumed).
+   JVM suite re-run: 123/123. Remaining S0-A: user approves a code once, then
+   the REAL datastore responses pin the row-level field spellings.
