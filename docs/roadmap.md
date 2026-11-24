@@ -109,7 +109,10 @@ migration.
        unset + kitsu-subtitle-addon ranking fix pending user retry), S0-A
        closeout items (44->13 parse gap, time_offset unit), stage-2 reader
        generalization PLANNED (docs/stremio-stage2-plan.md; user go + device
-       session owed). The
+       session owed) -- DIRECTION CHANGED 2026-11-23 by user ruling: media
+       becomes an optional extensible reference on occurrences via
+       [sentence-media-refs-design.md](sentence-media-refs-design.md), which
+       supersedes that plan's mechanism but absorbs its issue inventory. The
        automatic-scrub / watch-time-capture alternative is PARKED (same ruling)
        with its verified facts and resume ladder in
        [stremio-auto-scrub-parked.md](stremio-auto-scrub-parked.md). Design pins

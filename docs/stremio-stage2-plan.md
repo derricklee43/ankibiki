@@ -1,8 +1,11 @@
 # Stremio Stage-2 plan — make video sentences first-class
-Status: PLANNING DOCUMENT (walk-through + issue inventory). No code in this
-round. User go required before implementation, plus a device session for
-acceptance (per docs/stremio-mining-console-design.md §6.1: "needs its own go
-+ device session").
+Status: PARTIALLY SUPERSEDED 2026-11-23 — the user ruled the data-model
+direction on the sentence-media spike design (docs/sentence-media-refs-design.md):
+occurrences gain an optional media-reference FK making media a first-class
+extensible concept, replacing this doc's §1 VIEW mechanism and §5.1. What
+SURVIVES here: the R1-R7 reader inventory (§2, file:lines still exact), and
+expected issues I1 (generation dedupe), I4 (undo pinning), I8 (Anki media
+gating), I10/I11 (S0-A closeout taps).
 Date: 2026-11-23. Grounded by live debugging the same day (commits ed5f172 →
 7f1017b; device ledger + StremioSync logcat pinned descriptor envelope and the
 kitsu-stub lesson).
