@@ -431,7 +431,7 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
     val whereClauses = mutableListOf(
         "o.language_tag = ?",
         "o.item_type = ?",
-        "p.status = ?",
+        "(m.kind <> 'photo' OR p.status = ?)",
     )
     val args = mutableListOf(
         query.languageTag.name,
@@ -498,12 +498,14 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
             (
                 SELECT COUNT(*)
                 FROM item_occurrences o2
-                JOIN scraped_photos p2 ON o2.photo_id = p2.media_store_id
+                JOIN media_refs m2 ON o2.media_id = m2.id AND m2.active = 1
+                LEFT JOIN scraped_photos p2 ON m2.kind = 'photo'
+                     AND p2.media_store_id = m2.ref_int
                 WHERE o2.language_tag = o.language_tag
                   AND o2.item_type = o.item_type
                   AND o2.expression = o.expression
                   AND o2.state IN ('UNSEEN', 'SEEN')
-                  AND p2.status = 'KEEP'
+                  AND (m2.kind <> 'photo' OR p2.status = 'KEEP')
             ) AS occurrence_count,
             i.level_badge,
             i.corpus_rank,
@@ -515,8 +517,10 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
           ON o.language_tag = i.language_tag
          AND o.item_type = i.item_type
          AND o.expression = i.expression
-        JOIN scraped_photos p
-          ON o.photo_id = p.media_store_id
+        JOIN media_refs m
+          ON o.media_id = m.id AND m.active = 1
+        LEFT JOIN scraped_photos p
+          ON m.kind = 'photo' AND p.media_store_id = m.ref_int
         LEFT JOIN word_folders f
           ON f.id = i.folder_id
         WHERE ${whereClauses.joinToString(" AND ")}
@@ -567,12 +571,16 @@ fun MiningRepository.getCanonicalItemDefinitions(
             (
                 SELECT COUNT(*)
                 FROM item_occurrences o2
-                JOIN scraped_photos p2 ON o2.photo_id = p2.media_store_id
+                -- v15 media_refs: photo rows keep the KEEP filter through the
+                -- kind join; non-photo rows pass on active refs (design §4).
+                JOIN media_refs m2 ON o2.media_id = m2.id AND m2.active = 1
+                LEFT JOIN scraped_photos p2 ON m2.kind = 'photo'
+                     AND p2.media_store_id = m2.ref_int
                 WHERE o2.language_tag = i.language_tag
                   AND o2.item_type = i.item_type
                   AND o2.expression = i.expression
                   AND o2.state IN ('UNSEEN', 'SEEN')
-                  AND p2.status = 'KEEP'
+                  AND (m2.kind <> 'photo' OR p2.status = 'KEEP')
             ) AS occurrence_count,
             IFNULL(l.latest_id, -1)
         FROM extracted_items i
@@ -580,8 +588,9 @@ fun MiningRepository.getCanonicalItemDefinitions(
             SELECT o.language_tag AS lt, o.item_type AS it, o.expression AS ex,
                    MAX(o.id) AS latest_id
             FROM item_occurrences o
-            JOIN scraped_photos p ON o.photo_id = p.media_store_id
-            WHERE o.state IN ('UNSEEN', 'SEEN') AND p.status = 'KEEP'
+            JOIN media_refs m ON o.media_id = m.id AND m.active = 1
+            LEFT JOIN scraped_photos p ON m.kind = 'photo' AND p.media_store_id = m.ref_int
+            WHERE o.state IN ('UNSEEN', 'SEEN') AND (m.kind <> 'photo' OR p.status = 'KEEP')
             GROUP BY o.language_tag, o.item_type, o.expression
         ) l
           ON l.lt = i.language_tag AND l.it = i.item_type AND l.ex = i.expression
@@ -635,12 +644,16 @@ fun MiningRepository.listWordRowsInFolder(
             (
                 SELECT COUNT(*)
                 FROM item_occurrences o2
-                JOIN scraped_photos p2 ON o2.photo_id = p2.media_store_id
+                -- v15 media_refs: photo rows keep the KEEP filter through the
+                -- kind join; non-photo rows pass on active refs (design §4).
+                JOIN media_refs m2 ON o2.media_id = m2.id AND m2.active = 1
+                LEFT JOIN scraped_photos p2 ON m2.kind = 'photo'
+                     AND p2.media_store_id = m2.ref_int
                 WHERE o2.language_tag = i.language_tag
                   AND o2.item_type = i.item_type
                   AND o2.expression = i.expression
                   AND o2.state IN ('UNSEEN', 'SEEN')
-                  AND p2.status = 'KEEP'
+                  AND (m2.kind <> 'photo' OR p2.status = 'KEEP')
             ) AS occurrence_count,
             IFNULL(l.latest_id, -1)
         FROM extracted_items i
@@ -648,8 +661,9 @@ fun MiningRepository.listWordRowsInFolder(
             SELECT o.language_tag AS lt, o.item_type AS it, o.expression AS ex,
                    MAX(o.id) AS latest_id
             FROM item_occurrences o
-            JOIN scraped_photos p ON o.photo_id = p.media_store_id
-            WHERE o.state IN ('UNSEEN', 'SEEN') AND p.status = 'KEEP'
+            JOIN media_refs m ON o.media_id = m.id AND m.active = 1
+            LEFT JOIN scraped_photos p ON m.kind = 'photo' AND p.media_store_id = m.ref_int
+            WHERE o.state IN ('UNSEEN', 'SEEN') AND (m.kind <> 'photo' OR p.status = 'KEEP')
             GROUP BY o.language_tag, o.item_type, o.expression
         ) l
           ON l.lt = i.language_tag AND l.it = i.item_type AND l.ex = i.expression
@@ -778,14 +792,16 @@ fun MiningRepository.getItemDetail(
     val matchedSentences = mutableListOf<MatchedSentence>()
     db.rawQuery(
         """
-        SELECT o.id, o.photo_id, o.sentence, o.modified_by_user_flag, o.created_at
+        SELECT o.id, CASE WHEN m.kind = 'photo' THEN o.photo_id ELSE -1 END,
+               o.sentence, o.modified_by_user_flag, o.created_at, m.kind, m.label
         FROM item_occurrences o
-        JOIN scraped_photos p ON o.photo_id = p.media_store_id
+        JOIN media_refs m ON o.media_id = m.id AND m.active = 1
+        LEFT JOIN scraped_photos p ON m.kind = 'photo' AND p.media_store_id = m.ref_int
         WHERE o.language_tag = ?
           AND o.item_type = ?
           AND o.expression = ?
           AND o.state IN ('UNSEEN', 'SEEN')
-          AND p.status = 'KEEP'
+          AND (m.kind <> 'photo' OR p.status = 'KEEP')
         ORDER BY o.created_at ASC, o.id ASC
         """.trimIndent(),
         arrayOf(languageTag.name, itemType.name, expression),
@@ -803,6 +819,8 @@ fun MiningRepository.getItemDetail(
                         sentence = sentence,
                         modifiedByUserFlag = c.getInt(3) != 0,
                         createdAt = c.getLong(4),
+                        mediaKind = c.getString(5) ?: "photo",
+                        mediaLabel = c.getStringOrNull(6),
                     ),
                 )
             }
@@ -920,9 +938,10 @@ internal fun distinctSentencesByDate(
 ): List<String> = db.rawQuery(
     """
     SELECT o.sentence FROM item_occurrences o
-    JOIN scraped_photos p ON o.photo_id = p.media_store_id
+    JOIN media_refs m ON o.media_id = m.id AND m.active = 1
+    LEFT JOIN scraped_photos p ON m.kind = 'photo' AND p.media_store_id = m.ref_int
     WHERE o.language_tag = ? AND o.item_type = ? AND o.expression = ?
-      AND o.state IN ('UNSEEN', 'SEEN') AND p.status = 'KEEP'
+      AND o.state IN ('UNSEEN', 'SEEN') AND (m.kind <> 'photo' OR p.status = 'KEEP')
       AND TRIM(o.sentence) != ''
     GROUP BY o.sentence ORDER BY MIN(o.created_at) ASC, MIN(o.id) ASC
     """.trimIndent(),

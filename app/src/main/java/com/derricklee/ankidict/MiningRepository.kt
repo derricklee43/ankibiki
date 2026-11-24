@@ -20,6 +20,7 @@ class MiningRepository(
     internal val appContext = context.applicationContext
 
     override fun onCreate(db: SQLiteDatabase) {
+        createMediaRefsSchema(db)
         db.execSQL(
             """
             CREATE TABLE scraped_photos (
@@ -79,12 +80,13 @@ class MiningRepository(
                 language_tag TEXT NOT NULL,
                 item_type TEXT NOT NULL,
                 expression TEXT NOT NULL,
-                photo_id INTEGER NOT NULL,
+                photo_id INTEGER,
                 sentence TEXT NOT NULL,
                 created_at INTEGER NOT NULL,
                 state TEXT NOT NULL,
                 modified_by_user_flag INTEGER NOT NULL DEFAULT 0,
-                is_manual INTEGER NOT NULL DEFAULT 0
+                is_manual INTEGER NOT NULL DEFAULT 0,
+                media_id INTEGER REFERENCES media_refs(id)
             )
             """.trimIndent(),
         )
@@ -98,6 +100,12 @@ class MiningRepository(
             """
             CREATE INDEX idx_occurrences_item
                 ON item_occurrences(language_tag, item_type, expression, state)
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE INDEX idx_occurrences_media
+                ON item_occurrences(media_id)
             """.trimIndent(),
         )
         db.execSQL(cardTemplatesDdl())
@@ -227,6 +235,193 @@ class MiningRepository(
             // versions; pre-v14 bundles restore and the tables materialize on first open.
             createStremioSchema(db)
         }
+        if (oldVersion < 15) {
+            // v15 (user go 2026-11-23, docs/sentence-media-refs-design.md D1a):
+            // media becomes an optional, kind-extensible reference. ONE guarded
+            // ceremony: media_refs + item_occurrences rebuilt with
+            // (photo_id NULL, media_id), backfilling refs for photo rows AND
+            // stage-1 negative photo_id rows, parity-asserted BEFORE commit;
+            // any throw rolls back to the untouched v14 table (the DROP/RENAME
+            // is the last write). The negative namespace retires here.
+            migrateToV15(db)
+        }
+    }
+
+    /** media_refs registry (v15). CREATE IF NOT EXISTS = self-guarding. */
+    private fun createMediaRefsSchema(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS media_refs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL,
+                ref_key TEXT NOT NULL,
+                ref_int INTEGER,
+                label TEXT,
+                attrs_json TEXT,
+                active INTEGER NOT NULL DEFAULT 1,
+                created_at INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(kind, ref_key)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS idx_media_refs_kind ON media_refs(kind, active)",
+        )
+    }
+
+    /**
+     * v15 single-ceremony migration. Idempotence: if the rebuild already ran
+     * (media_id column present) it returns; a throw mid-flight leaves the old
+     * table physically untouched, so the next open retries cleanly and the
+     * INSERT OR IGNORE ref backfill is replay-safe.
+     */
+    private fun migrateToV15(db: SQLiteDatabase) {
+        createMediaRefsSchema(db)
+        val hasTable = db.rawQuery(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='item_occurrences'", null,
+        ).use { it.moveToFirst() }
+        if (!hasTable) return
+        val already = db.rawQuery(
+            "SELECT 1 FROM pragma_table_info('item_occurrences') WHERE name = 'media_id'",
+            null,
+        ).use { it.moveToFirst() }
+        if (already) return
+
+        // Normalize first (repo's own idiom from v7/v11): pre-v10 stub corpora
+        // legitimately lack the late columns; add them so the rebuilt table is
+        // always the full current shape (runtime writers assume it).
+        addColumnIfMissing(db, "item_occurrences", "modified_by_user_flag", "INTEGER NOT NULL DEFAULT 0")
+        addColumnIfMissing(db, "item_occurrences", "is_manual", "INTEGER NOT NULL DEFAULT 0")
+        val have = db.rawQuery(
+            "SELECT name FROM pragma_table_info('item_occurrences')", null,
+        ).use { c -> buildSet { while (c.moveToNext()) add(c.getString(0)) } }
+        check("photo_id" in have && "sentence" in have && "state" in have) {
+            "v15: unexpected item_occurrences shape: $have"
+        }
+        val copyCols = listOf(
+            "id", "language_tag", "item_type", "expression", "photo_id", "sentence",
+            "created_at", "state", "modified_by_user_flag", "is_manual",
+        ).filter { it in have }
+
+        val oldCount = db.rawQuery("SELECT COUNT(*) FROM item_occurrences", null)
+            .use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+
+        db.beginTransaction()
+        try {
+            db.execSQL(
+                """
+                INSERT OR IGNORE INTO media_refs(kind, ref_key, ref_int, created_at)
+                SELECT DISTINCT 'photo', CAST(o.photo_id AS TEXT), o.photo_id, 0
+                FROM item_occurrences o WHERE o.photo_id > 0
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT OR IGNORE INTO media_refs(kind, ref_key, ref_int, label, attrs_json, created_at)
+                SELECT DISTINCT 'video_cues', CAST(-o.photo_id AS TEXT), -o.photo_id,
+                       COALESCE(d.video_id, 'video'),
+                       CASE WHEN d.id IS NULL THEN NULL
+                            ELSE '{"doc_id":' || d.id || ',"video_id":"' || d.video_id ||
+                                 '","generation":"' || d.generation || '"}' END,
+                       COALESCE(d.created_at, 0)
+                FROM item_occurrences o
+                LEFT JOIN stremio_cue_documents d ON d.id = -o.photo_id
+                WHERE o.photo_id < 0
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                CREATE TABLE item_occurrences_v15 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    language_tag TEXT NOT NULL,
+                    item_type TEXT NOT NULL,
+                    expression TEXT NOT NULL,
+                    photo_id INTEGER,
+                    sentence TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    state TEXT NOT NULL,
+                    modified_by_user_flag INTEGER NOT NULL DEFAULT 0,
+                    is_manual INTEGER NOT NULL DEFAULT 0,
+                    media_id INTEGER REFERENCES media_refs(id)
+                )
+                """.trimIndent(),
+            )
+            val colList = copyCols.joinToString(", ")
+            // photo_id gets the namespace conversion: positives mirror through,
+            // stage-1 negatives become NULL (their truth moves to media_refs).
+            val selectList = copyCols.joinToString(", ") { col ->
+                if (col == "photo_id") {
+                    "CASE WHEN o.photo_id > 0 THEN o.photo_id ELSE NULL END"
+                } else "o.$col"
+            }
+            db.execSQL(
+                "INSERT INTO item_occurrences_v15($colList, media_id) " +
+                    "SELECT $selectList, m.id FROM item_occurrences o " +
+                    "JOIN media_refs m " +
+                    "ON m.ref_int = CASE WHEN o.photo_id > 0 THEN o.photo_id ELSE -o.photo_id END " +
+                    "AND m.kind = CASE WHEN o.photo_id > 0 THEN 'photo' ELSE 'video_cues' END",
+            )
+            val newCount = db.rawQuery("SELECT COUNT(*) FROM item_occurrences_v15", null)
+                .use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+            val orphanMedia = db.rawQuery(
+                "SELECT COUNT(*) FROM item_occurrences_v15 WHERE media_id IS NULL", null,
+            ).use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+            val negatives = db.rawQuery(
+                "SELECT COUNT(*) FROM item_occurrences_v15 WHERE photo_id < 0", null,
+            ).use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+            val integrityOk = db.rawQuery("PRAGMA integrity_check", null)
+                .use { c -> c.moveToFirst() && c.getString(0) == "ok" }
+            check(newCount == oldCount && orphanMedia == 0L && negatives == 0L && integrityOk) {
+                "v15 parity failed: old=$oldCount new=$newCount nullMedia=$orphanMedia " +
+                    "negatives=$negatives integrity=$integrityOk -- rollback, v14 shape kept"
+            }
+            db.execSQL("DROP TABLE item_occurrences")
+            db.execSQL("ALTER TABLE item_occurrences_v15 RENAME TO item_occurrences")
+            db.execSQL(
+                "CREATE INDEX idx_occurrences_active ON item_occurrences" +
+                    "(language_tag, item_type, state, created_at DESC)",
+            )
+            db.execSQL(
+                "CREATE INDEX idx_occurrences_item ON item_occurrences" +
+                    "(language_tag, item_type, expression, state)",
+            )
+            db.execSQL("CREATE INDEX idx_occurrences_media ON item_occurrences(media_id)")
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /**
+     * Resolve-or-create the media_refs row for one (kind, numeric key). The
+     * single entry point every occurrence writer goes through; new media
+     * kinds are just new kind values (design §3 M1 extensibility contract).
+     */
+    fun getOrCreateMediaRef(
+        kind: String,
+        refInt: Long,
+        label: String? = null,
+        attrsJson: String? = null,
+    ): Long {
+        val refKey = refInt.toString()
+        readableDatabase.rawQuery(
+            "SELECT id FROM media_refs WHERE kind = ? AND ref_key = ?",
+            arrayOf(kind, refKey),
+        ).use { c -> if (c.moveToFirst()) return c.getLong(0) }
+        val values = ContentValues().apply {
+            put("kind", kind)
+            put("ref_key", refKey)
+            put("ref_int", refInt)
+            put("label", label)
+            put("attrs_json", attrsJson)
+            put("created_at", System.currentTimeMillis() / 1000L)
+        }
+        return writableDatabase.insertWithOnConflict(
+            "media_refs", null, values, SQLiteDatabase.CONFLICT_IGNORE,
+        ).takeIf { it > 0 } ?: readableDatabase.rawQuery(
+            "SELECT id FROM media_refs WHERE kind = ? AND ref_key = ?",
+            arrayOf(kind, refKey),
+        ).use { c -> if (c.moveToFirst()) c.getLong(0) else error("media_ref lost race") }
     }
 
     /** Stremio Mining Console tables (v14). CREATE IF NOT EXISTS = self-guarding. */
@@ -1424,12 +1619,21 @@ class MiningRepository(
         languageTag: LanguageTag,
         itemType: ItemType,
         expression: String,
-        photoId: Long,
+        photoId: Long? = null,
         sentence: String,
         createdAt: Long = System.currentTimeMillis() / 1000L,
         modifiedByUserFlag: Boolean = false,
         isManual: Boolean = false,
+        mediaId: Long? = null,
     ): Long {
+        require(photoId != null || mediaId != null) {
+            "an occurrence needs a photo mirror or a media ref (v15)"
+        }
+        // v15 (docs/sentence-media-refs-design.md): media_refs is the source of
+        // truth for provenance; photo_id stays dual-written for photo rows so
+        // every legacy photo-keyed helper (undo, edits, rescan, nameplate,
+        // gold) keeps working untouched. Non-photo media: photo_id NULL.
+        val refId = mediaId ?: getOrCreateMediaRef("photo", photoId!!)
         val isHidden = readableDatabase.rawQuery(
             "SELECT is_hidden, visibility_state FROM extracted_items WHERE language_tag = ? AND item_type = ? AND expression = ?",
             arrayOf(languageTag.name, itemType.name, expression),
@@ -1456,8 +1660,8 @@ class MiningRepository(
         }.getOrDefault(false)
 
         val sentenceModified = modifiedByUserFlag || readableDatabase.rawQuery(
-            "SELECT 1 FROM item_occurrences WHERE photo_id = ? AND sentence = ? AND modified_by_user_flag = 1 LIMIT 1",
-            arrayOf(photoId.toString(), sentence),
+            "SELECT 1 FROM item_occurrences WHERE media_id = ? AND sentence = ? AND modified_by_user_flag = 1 LIMIT 1",
+            arrayOf(refId.toString(), sentence),
         ).use { it.moveToFirst() }
         val initialState = if (isHidden || folderSkipsInbox) OccurrenceState.SEEN else OccurrenceState.UNSEEN
         val values = ContentValues().apply {
@@ -1470,6 +1674,7 @@ class MiningRepository(
             put("state", initialState.name)
             put("modified_by_user_flag", sentenceModified)
             put("is_manual", isManual)
+            put("media_id", refId)
         }
         return writableDatabase.insert("item_occurrences", null, values)
     }
@@ -1481,7 +1686,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 14
+        private const val DB_VERSION = 15
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

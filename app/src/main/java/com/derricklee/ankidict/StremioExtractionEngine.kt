@@ -8,7 +8,8 @@ import java.security.MessageDigest
  * resource). Pipeline position: subtitle addon list -> pick by settings (pin > pattern >
  * first, D1) -> download -> hash -> SubtitleParser -> per-cue CorpusInsertion into the
  * EXISTING vocabulary + occurrence machinery (D4: no new engines), with the cue document
- * as the provenance key (negative photo_id, §6.1 stage-1).
+ * as the provenance key via media_refs kind='video_cues' (v15; the stage-1 negative
+ * photo_id landing shape was retired by docs/sentence-media-refs-design.md).
  *
  * Threading: callers run this on AppIo.pipeline (the single serial corpus lane); this
  * class itself is synchronous and transport-injected, so JVM specs can drive it with a
@@ -98,7 +99,18 @@ class StremioExtractionEngine(
             )
             repo.replaceStremioCues(docId, cues)
 
-            // replace-in-place for THIS doc only (negative-namespace guard inside helper)
+            // v15: occurrences hang off a media_refs row; the doc's ref is
+            // stable across re-runs of the same generation (UNIQUE keeps one).
+            val mediaRefId = repo.getOrCreateMediaRef(
+                kind = "video_cues",
+                refInt = docId,
+                label = videoId,
+                attrsJson = """{"doc_id":$docId,"video_id":"$videoId",
+"generation":"$generation"}""",
+            )
+            // I1 dedupe: this generation becomes the active one for the video.
+            repo.retireStaleVideoMediaRefs(videoId, keepDocId = docId)
+            // replace-in-place for THIS doc only (kind-scoped lock in helper)
             repo.deleteStremioOccurrencesForDoc(docId)
 
             val tag = tagForLang(settings.subtitleLang)
@@ -112,7 +124,8 @@ class StremioExtractionEngine(
                     val candidates = CorpusInsertion.analyzeCandidates(config, cue.text)
                     if (candidates.isEmpty()) continue
                     occurrences += CorpusInsertion.insertCandidates(
-                        repo, config, -docId, cue.text, candidates, createdAt,
+                        repo, config, mediaId = mediaRefId, photoId = null,
+                        sentence = cue.text, candidates = candidates, timestamp = createdAt,
                     )
                 }
             }

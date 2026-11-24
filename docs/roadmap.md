@@ -110,11 +110,12 @@ migration.
        log). Still open: first SUCCESSFUL extraction (gear subtitle language
        unset + kitsu-subtitle-addon ranking fix pending user retry), S0-A
        closeout items (44->13 parse gap, time_offset unit), stage-2 reader
-       generalization PLANNED (docs/stremio-stage2-plan.md; user go + device
-       session owed) -- DIRECTION CHANGED 2026-11-23 by user ruling: media
-       becomes an optional extensible reference on occurrences via
-       [sentence-media-refs-design.md](sentence-media-refs-design.md), which
-       supersedes that plan's mechanism but absorbs its issue inventory. The
+       generalization LANDED 2026-11-23 as schema v15 media_refs under
+       [sentence-media-refs-design.md](sentence-media-refs-design.md) (user
+       go; negative photo_id namespace retired, video sentences now visible
+       in inbox/counts, I1 dedupe via active refs) -- supersedes the
+       stage-2-plan mechanism, keeps its issue inventory. Device smoke
+       (SM-3/SM-4) + first real extraction pending user session. The
        automatic-scrub / watch-time-capture alternative is PARKED (same ruling)
        with its verified facts and resume ladder in
        [stremio-auto-scrub-parked.md](stremio-auto-scrub-parked.md). Design pins

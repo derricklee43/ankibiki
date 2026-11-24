@@ -135,6 +135,10 @@ data class MatchedSentence(
     /** Persists through text reprocessing; fresh image rescans generate new, unmodified sentences. */
     val modifiedByUserFlag: Boolean = false,
     val createdAt: Long = 0L,
+    /** v15 media_refs.kind ('photo' | 'video_cues' | future). Non-photo rows are
+     *  text-only viewers (U4: read-only until the media stages land). */
+    val mediaKind: String = "photo",
+    val mediaLabel: String? = null,
 )
 
 data class ExtractedItemDetail(

@@ -14,7 +14,8 @@ import org.junit.runner.RunWith
  * Stremio Mining Console stage-1 acceptance (docs/stremio-mining-console-design.md S0-E,
  * build-pass 2026-11-23). Runs the REAL engine + repository against a throwaway db with a
  * FAKE transport (network calls belong to S0-A on-device, not here). Pins:
- *  - cues land with NEGATIVE photo_id only (stage-1 §6.1 shape);
+ *  - cues land on media_refs kind='video_cues' rows (v15; the stage-1 negative
+ *    photo_id namespace is retired by the migration spec below);
  *  - vocabulary/occurrences go through the SAME CorpusInsertion path as photos;
  *  - re-running identical settings+file is replace-in-place, never duplicating;
  *  - photo rows (positive ids) can NEVER be touched by cue-doc operations;
@@ -92,17 +93,22 @@ class StremioConsoleInstrumentedTest {
             .use { it.moveToFirst(); it.getInt(0) }
 
     @Test
-    fun extraction_landsCuesThroughSharedEngine_withNegativePhotoNamespace() {
+    fun extraction_landsCuesThroughSharedEngine_withMediaRefs() {
         val outcome = engine.runJob("tt999:1:1", "series", "tt999")
         assertEquals(StremioLedgerStatus.MINED, outcome.status)
         assertEquals(2, outcome.cuesStored)
         assertNotNull("doc id assigned", outcome.docId)
         assertTrue("occurrences exist", outcome.occurrencesCreated > 0)
-        // all rows for this doc carry the negative sentinel photo_id
+        // v15: rows hang off a kind='video_cues' media_ref (ref_key = doc id)
+        // and carry photo_id NULL -- the stage-1 negative namespace is retired.
         val docId = outcome.docId!!
         assertEquals(outcome.occurrencesCreated,
-            occurrenceCount("photo_id = ?", arrayOf((-docId).toString())))
-        assertEquals(0, occurrenceCount("photo_id > 0"))
+            occurrenceCount(
+                "media_id = (SELECT id FROM media_refs WHERE kind = 'video_cues'" +
+                    " AND ref_key = ?)",
+                arrayOf(docId.toString()),
+            ))
+        assertEquals(0, occurrenceCount("photo_id IS NOT NULL"))
         // cues retained for the media phase + §11.1 deletion
         repo.readableDatabase.rawQuery(
             "SELECT COUNT(*) FROM stremio_cues WHERE doc_id = ?", arrayOf(docId.toString()),
@@ -125,10 +131,10 @@ class StremioConsoleInstrumentedTest {
     @Test
     fun reExtraction_sameSettingsSameFile_replacesInPlace_neverDuplicates() {
         val first = engine.runJob("tt999:1:1", "series", "tt999")
-        val countA = occurrenceCount("photo_id < 0")
+        val countA = occurrenceCount("photo_id IS NULL")
         val second = engine.runJob("tt999:1:1", "series", "tt999")
         assertEquals("same doc reused", first.docId, second.docId)
-        assertEquals("no duplicate rows", countA, occurrenceCount("photo_id < 0"))
+        assertEquals("no duplicate rows", countA, occurrenceCount("photo_id IS NULL"))
         repo.readableDatabase.rawQuery(
             "SELECT COUNT(*) FROM stremio_cue_documents", null,
         ).use { c -> assertTrue(c.moveToFirst()); assertEquals(1, c.getInt(0)) }
@@ -167,6 +173,20 @@ class StremioConsoleInstrumentedTest {
         repo.readableDatabase.rawQuery(
             "SELECT COUNT(*) FROM stremio_cue_documents", null,
         ).use { c -> assertTrue(c.moveToFirst()); assertEquals(2, c.getInt(0)) }
+        // I1 dedupe (v15): the superseded generation's media_ref goes inactive
+        // (rows kept for audit) and the ACTIVE ref holds exactly one copy.
+        repo.readableDatabase.rawQuery(
+            "SELECT active FROM media_refs WHERE kind = 'video_cues' ORDER BY id", null,
+        ).use { c ->
+            val flags = ArrayList<Int>()
+            while (c.moveToNext()) flags.add(c.getInt(0))
+            assertEquals(listOf(0, 1), flags)
+        }
+        val active = occurrenceCount(
+            "media_id IN (SELECT id FROM media_refs WHERE kind = 'video_cues' AND active = 1)",
+        )
+        assertEquals(second.occurrencesCreated, active)
+        assertEquals(second.occurrencesCreated * 2, occurrenceCount("photo_id IS NULL"))
     }
 
     @Test
@@ -207,6 +227,69 @@ class StremioConsoleInstrumentedTest {
             .use { assertTrue(it.moveToFirst()) }
         reopened.readableDatabase.rawQuery("SELECT COUNT(*) FROM stremio_ledger", null)
             .use { assertTrue(it.moveToFirst()) }
+        reopened.close()
+        repo = reopened
+    }
+
+    @Test
+    fun migration_v14Shape_rebuildsToMediaRefs_retiringNegativeNamespace() {
+        // Simulate a stage-1 (v14) landing: v14-shaped item_occurrences holding
+        // BOTH namespaces -- one photo row (positive) and one video row with
+        // the retired negative sentinel -- then reopen so migrateToV15 runs.
+        val outcome = engine.runJob("tt999:1:1", "series", "tt999")
+        val docId = outcome.docId!!
+        val db = repo.writableDatabase
+        db.execSQL("DROP TABLE IF EXISTS item_occurrences")
+        db.execSQL("DROP TABLE IF EXISTS item_occurrences_v14shape")
+        db.execSQL(
+            """
+            CREATE TABLE item_occurrences_v14shape (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                language_tag TEXT NOT NULL, item_type TEXT NOT NULL,
+                expression TEXT NOT NULL, photo_id INTEGER NOT NULL,
+                sentence TEXT NOT NULL, created_at INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                modified_by_user_flag INTEGER NOT NULL DEFAULT 0,
+                is_manual INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "INSERT INTO item_occurrences_v14shape(language_tag, item_type, expression," +
+                " photo_id, sentence, created_at, state) VALUES (?,?,?,?,?,?,?), (?,?,?,?,?,?,?)",
+            arrayOf(
+                "JAPANESE", "WORD", "海賊", (-docId).toString(), "今日は海賊の話をする。", 1, "UNSEEN",
+                "JAPANESE", "WORD", "海賊", "12345", "今日は海賊の話をする。", 2, "UNSEEN",
+            ),
+        )
+        db.execSQL("ALTER TABLE item_occurrences_v14shape RENAME TO item_occurrences")
+        db.execSQL("PRAGMA user_version = 14")
+        repo.close()
+
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val reopened = MiningRepository(context, TEST_DB_NAME)
+        reopened.readableDatabase.rawQuery("PRAGMA user_version", null)
+            .use { assertTrue(it.moveToFirst() && it.getInt(0) == MiningRepository.expectedUserVersion()) }
+        // negatives retired; every row resolved to a media ref; mirrors kept
+        reopened.readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM item_occurrences WHERE photo_id < 0 OR media_id IS NULL", null,
+        ).use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)) }
+        reopened.readableDatabase.rawQuery(
+            "SELECT m.kind, o.photo_id FROM item_occurrences o" +
+                " JOIN media_refs m ON m.id = o.media_id WHERE o.created_at = 1", null,
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("video_cues", c.getString(0))
+            assertTrue("negative sentinel became photo_id NULL", c.isNull(1))
+        }
+        reopened.readableDatabase.rawQuery(
+            "SELECT m.kind, o.photo_id FROM item_occurrences o" +
+                " JOIN media_refs m ON m.id = o.media_id WHERE o.created_at = 2", null,
+        ).use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals("photo", c.getString(0))
+            assertEquals(12345L, c.getLong(1))
+        }
         reopened.close()
         repo = reopened
     }

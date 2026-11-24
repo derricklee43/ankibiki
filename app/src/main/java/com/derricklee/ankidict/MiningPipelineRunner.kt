@@ -719,7 +719,11 @@ class MiningPipelineRunner(
         timestamp: Long,
         modifiedByUserFlag: Boolean,
     ): Int = CorpusInsertion.insertCandidates(
-        miningRepository, config, photoId, sentence, candidates, timestamp, modifiedByUserFlag,
+        miningRepository, config,
+        mediaId = miningRepository.getOrCreateMediaRef("photo", photoId),
+        photoId = photoId,
+        sentence = sentence, candidates = candidates,
+        timestamp = timestamp, modifiedByUserFlag = modifiedByUserFlag,
     )
 
     private fun parsePhotoText(config: PipelineConfig?, text: String): List<String> {

@@ -5,10 +5,11 @@ import org.json.JSONObject
 
 /**
  * Stremio Mining Console storage (design §6; extensions follow the MiningNameplateWrites.kt
- * pattern). Tables land in schema v14. NOTHING here touches photo machinery: stremio
- * occurrence rows are scoped by the negative photo_id namespace (§6.1 stage-1 shape) and
- * every helper here filters on photo_id < 0 so a positive id can never be deleted by
- * accident.
+ * pattern). Tables land in schema v14. NOTHING here touches photo machinery: v15
+ * (docs/sentence-media-refs-design.md) gives video occurrence rows a media_refs id of
+ * kind 'video_cues' with photo_id NULL — the stage-1 negative-photo_id namespace was
+ * retired by the v15 migration, and every helper stays kind-scoped so a photo row can
+ * never be touched from the video path.
  */
 
 data class StremioSettingsRow(
@@ -325,15 +326,33 @@ fun MiningRepository.replaceStremioCues(docId: Long, cues: List<SubtitleCue>) {
 }
 
 /**
- * Guarded removal of the occurrence rows a cue doc attested to. The negative-only WHERE
- * makes it IMPOSSIBLE to hit photo rows: photo_id = -docId AND photo_id < 0 double lock.
+ * Guarded removal of the occurrence rows a cue doc attested to. v15 shape:
+ * the kind-scoped media_ref lookup is the lock — photo rows point at
+ * kind='photo' refs, so a video_cues ref id can never select them.
  */
 fun MiningRepository.deleteStremioOccurrencesForDoc(docId: Long): Int =
     writableDatabase.delete(
         "item_occurrences",
-        "photo_id = ? AND photo_id < 0",
-        arrayOf((-docId).toString()),
+        "media_id = (SELECT id FROM media_refs WHERE kind = 'video_cues' AND ref_key = ?)",
+        arrayOf(docId.toString()),
     )
+
+/**
+ * I1 dedupe (stage-2 plan; all-kinds inbox ruling D3): when a NEW generation
+ * mines the same video_id, the previous docs' refs go inactive. Their
+ * occurrence rows stay for audit (D6 coexistence kept) but every reader
+ * filters media_refs.active = 1, so one episode counts once. Returns retired
+ * ref count.
+ */
+fun MiningRepository.retireStaleVideoMediaRefs(videoId: String, keepDocId: Long): Int {
+    val c = ContentValues().apply { put("active", 0) }
+    return writableDatabase.update(
+        "media_refs", c,
+        "kind = 'video_cues' AND active = 1 AND ref_int IN " +
+            "(SELECT id FROM stremio_cue_documents WHERE video_id = ? AND id <> ?)",
+        arrayOf(videoId, keepDocId.toString()),
+    )
+}
 
 fun MiningRepository.saveStremioWatchSnapshot(
     baseId: String,

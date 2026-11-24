@@ -101,3 +101,12 @@ exec-out db pull), never from guesses.
     user's real library count (stage-2 plan I10).
   * time_offset unit (ms vs s) still heuristic (stage-2 plan I11).
   * user must set gear subtitle language before next extraction retry.
+
+## v15 media_refs (sentence-media-refs-design M1) — SM evidence 2026-11-23
+Negative photo_id namespace RETIRED on this file's own feature: engine now
+writes kind='video_cues' refs; readers (inbox/counts/detail/sentence pool)
+convert to media_refs joins with per-kind KEEP policy; I1 dedupe via
+active-ref retirement on re-mine. SM-1..SM-3(emulator) PASS: JVM 129/129;
+instrumented OK (147) incl. dedicated v14->v15 migration spec (parity,
+zero-negatives, photo mirror). SM-3 device + SM-4 restore round-trip:
+pending user session (install -> first open migrates the real db).

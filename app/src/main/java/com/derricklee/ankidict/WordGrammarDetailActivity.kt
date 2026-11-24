@@ -103,8 +103,13 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             onStartDrag = { holder -> sentenceTouchHelper.startDrag(holder) },
             onOpenSentence = { matched ->
                 val detail = currentDetail ?: return@MatchedSentenceAdapter
-                val anchorPhotoId = if (matched.photoId >= 0L) matched.photoId
-                else detail.photos.firstOrNull()?.mediaStoreId ?: -1L
+                val anchorPhotoId = when {
+                    // v15 U4: non-photo sentences are text-only viewers; anchoring
+                    // them to some unrelated photo of the same word would lie.
+                    matched.mediaKind != "photo" -> -1L
+                    matched.photoId >= 0L -> matched.photoId
+                    else -> detail.photos.firstOrNull()?.mediaStoreId ?: -1L
+                }
                 startActivity(
                     SentenceDetailActivity.newIntent(
                         context = this,

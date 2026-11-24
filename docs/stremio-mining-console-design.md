@@ -379,6 +379,12 @@ stremio-web / stremio-shell / stremio-video), cloned and read 2026-11-23.
     shape. Every stage-1 row survives stage 2 unchanged (negative ids simply
     gain an explicit source marker).
 
+    RETIRED 2026-11-23 (user go): stage 2 landed as v15 media_refs under the
+    more general sentence-media design -- see docs/sentence-media-refs-design.md
+    (§10 for deltas, spikes/006 for evidence). The negative photo_id namespace
+    no longer exists in new writes and is backfilled away on upgrade; the
+    §11.1 mass-delete pin and media extraction remain open items unchanged.
+
 7. SPIKE PLAN — QUESTIONS, PASS, KILL
 --------------------------------------
   Every step runs from a debug-only test screen behind a flag; no shipping

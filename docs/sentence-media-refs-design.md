@@ -1,5 +1,7 @@
 # Spike design — Sentence→Media references (extensible, optional)
-Status: DESIGN PROPOSAL awaiting user rulings (D1-D5). No implementation go.
+Status: M1 IMPLEMENTED 2026-11-23 (v15). Emulator-verified: JVM 129/129,
+instrumented 147/147 incl. the v14→v15 migration + dedupe specs; device
+smoke pending. Implementation deltas vs this doc: §10.
 Date: 2026-11-23. Trigger: user ruling on the stremio stage-2 discussion --
 "occurrences map to sentences. sentences have an optional field: media.
 It should be as simple as a new foreign key. Also allow easily for other
@@ -227,3 +229,32 @@ M3 (EAV attrs / wide typed columns per kind on occurrences, REJECTED):
     closeout items) remain valid and are absorbed as §5/§7 concerns here.
   - Independent of the auto-scrub parked doc; a future screen-recording or
     any-kind media plugs in as a §3 kind value with zero schema churn.
+
+## 10. IMPLEMENTATION NOTES (v15 landed 2026-11-23)
+  * media_refs gained a fifth shape decision beyond the sketch: ref_int
+    INTEGER (numeric mirror of ref_key, indexed) so the seven reader joins
+    hit scraped_photos by its PK instead of CAST(ref_key AS INTEGER), which
+    would forfeit the index. String kinds still expressible via ref_key.
+  * migrateToV15 hardening found by instrumented stubs: table-exists guard
+    (pre-v9 stub corpora legitimately lack item_occurrences entirely),
+    addColumnIfMissing normalization of modified_by_user_flag/is_manual
+    BEFORE the column-intersect copy (thin stub tables would otherwise
+    rebuild into permanently thin tables that runtime writers crash on).
+    The parity assertion then caught that the generic column copy must
+    special-case photo_id (CASE positives ELSE NULL) — negatives become
+    NULL, their truth moves to the video_cues ref.
+  * insertOccurrence keeps photoId: Long? = null + mediaId: Long? = null
+    with a require-one invariant; every pre-v15 call site (incl. ~40 test
+    lines) compiles unchanged via the photo-mirror default path — the
+    mechanical-refactor story holds for the photo half.
+  * WordGrammarDetailActivity: non-photo matched sentences open the text
+    viewer with anchor -1 (the pre-existing photoId<0 guard chain in
+    SentenceDetailActivity + CardWizard then enforces U4 immutability by
+    construction, not new code).
+  * Version-pin ceremony: NameplateClaims re-pinned 14->15;
+    backup_bundle SUPPORTED_USER_VERSIONS +15; RecoveryManager picks the
+    bump via expectedUserVersion().
+  * Evidence: JVM 129/129; instrumented OK (147) — incl.
+    migration_v14Shape_rebuildsToMediaRefs_retiringNegativeNamespace,
+    settingsChange I1 retirement (refs active [0,1], active==one-gen),
+    photoRowsAreUntouchable re-asserted through the new kind-scoped lock.

@@ -64,7 +64,7 @@ TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # Pre-v14 bundles restore unchanged and the tables materialize on first open; stremio rows
 # ride along in item_occurrences wholesale, which is exactly what the bundle contract wants
 # (corpus state IN; secrets never entered the db in the first place — they live in prefs).
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

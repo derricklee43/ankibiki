@@ -6,10 +6,9 @@ package com.derricklee.ankidict
  * performs, extract VERBATIM and rewire the original). Bodies copied verbatim from
  * MiningPipelineRunner (analyzeCandidates / insertCandidates / ensureCanonicalItemExists);
  * the runner now delegates here, so photo mining and Stremio cue mining share ONE
- * insertion path. [sourceId] is whatever lands in item_occurrences.photo_id:
- * MediaStore id for photos, NEGATIVE stremio_cue_documents.id for video cues
- * (design §6.1 stage-1 landing shape — the negative namespace cannot collide, and
- * every photo-scoped guard excludes it naturally).
+ * insertion path. v15 (docs/sentence-media-refs-design.md): every row lands with a
+ * media_refs id; photos additionally mirror photo_id (dual-write), non-photo media
+ * carry photo_id NULL. The stage-1 negative-photo_id namespace is retired.
  */
 internal object CorpusInsertion {
 
@@ -28,7 +27,8 @@ internal object CorpusInsertion {
     fun insertCandidates(
         repo: MiningRepository,
         config: PipelineConfig,
-        sourceId: Long,
+        mediaId: Long,
+        photoId: Long? = null,
         sentence: String,
         candidates: List<Pair<ItemType, NormalizedCandidate>>,
         timestamp: Long,
@@ -41,10 +41,11 @@ internal object CorpusInsertion {
                 languageTag = config.tag,
                 itemType = itemType,
                 expression = candidate.expression,
-                photoId = sourceId,
+                photoId = photoId,
                 sentence = sentence,
                 createdAt = timestamp,
                 modifiedByUserFlag = modifiedByUserFlag,
+                mediaId = mediaId,
             )
             count++
         }
