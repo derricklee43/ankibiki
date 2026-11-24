@@ -45,6 +45,9 @@ instrumented tests so far — **no human walkthrough yet** (repo rule: not
 "done"; first live session should follow references/device-session.md hygiene).
 
 ## On-device findings (user test 2026-11-23, first real Sync attempts)
+Approval route pinned live: the create response'"'"'s link field (https://link.stremio.com/XXXX) is the
+approval URL -- 302 to stremio.com/login?code=XXXX; "stremio.com/pair" does not
+exist and there is no "Link devices" settings row. The dialog now shows the link. 
 Two bugs only a real device run could surface, both fixed same day:
 1. "Can't create handler inside thread" — the link dialog was constructed on
    the AppIo worker thread. Sync flow split: network off-main, AlertDialog

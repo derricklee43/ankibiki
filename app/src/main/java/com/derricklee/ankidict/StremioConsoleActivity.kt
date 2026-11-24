@@ -88,18 +88,18 @@ class StremioConsoleActivity : AppCompatActivity() {
                     doneOnUiThread("link create failed: ${e.message?.take(140)}")
                     return@execute
                 }
-            runOnUiThread { showLinkDialog(created.first) }
+            runOnUiThread { showLinkDialog(created.first, created.second) }
         }
     }
 
-    private fun showLinkDialog(code: String) {
+    private fun showLinkDialog(code: String, link: String) {
         linkDialogCancelled = false
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Link Stremio account")
-            .setMessage("In any signed-in Stremio app: Settings → Addons/Account → " +
-                "\"Link devices\" → enter code $code (also usable at stremio.com/pair).\n\n" +
-                "This screen keeps polling; you can also approve later and hit " +
-                "同期 again.")
+            .setTitle("Link Stremio account ($code)")
+            .setMessage("Open this in a browser signed into your Stremio account " +
+                "(it redirects to stremio.com/login?code=$code):\n\n$link\n\n" +
+                "Or scan the QR at the qrcode URL shown in logcat. This screen " +
+                "keeps polling; you can also approve later and hit 同期 again.")
             .setOnCancelListener { linkDialogCancelled = true }
             .create()
         linkDialog = dialog
