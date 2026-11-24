@@ -58,7 +58,13 @@ TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # any required set — pre-v12 bundles restore and the table materializes on first open.
 # Same again for v13 (picked_headword/picked_reading entry picks, 2026-11-23): two optional
 # columns, NOT in MINING_COLUMNS — pre-v13 bundles keep validating; the file migrates on open.
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
+# Same again for v14 (Stremio Mining Console, docs/stremio-mining-console-design.md,
+# 2026-11-23): SEVEN new stremio_* tables only — no existing table/column touched (stage-1
+# landing shape: stremio occurrence rows live in item_occurrences under NEGATIVE photo_ids).
+# Pre-v14 bundles restore unchanged and the tables materialize on first open; stremio rows
+# ride along in item_occurrences wholesale, which is exactly what the bundle contract wants
+# (corpus state IN; secrets never entered the db in the first place — they live in prefs).
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

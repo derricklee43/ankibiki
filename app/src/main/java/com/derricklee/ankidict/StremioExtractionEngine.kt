@@ -1,0 +1,171 @@
+package com.derricklee.ankidict
+
+import java.security.MessageDigest
+
+/**
+ * Stremio cue extraction engine (design §5 M7). One job = one whole episode, scope
+ * human-declared (D3/D5: pointer is reference-only; mining always takes the entire
+ * resource). Pipeline position: subtitle addon list -> pick by settings (pin > pattern >
+ * first, D1) -> download -> hash -> SubtitleParser -> per-cue CorpusInsertion into the
+ * EXISTING vocabulary + occurrence machinery (D4: no new engines), with the cue document
+ * as the provenance key (negative photo_id, §6.1 stage-1).
+ *
+ * Threading: callers run this on AppIo.pipeline (the single serial corpus lane); this
+ * class itself is synchronous and transport-injected, so JVM specs can drive it with a
+ * fake. All remote failures land in the ledger as failed+error and are retryable (F0-F:
+ * resumable queue), never half-committed: cue rows + occurrences are replaced per doc
+ * inside one transaction.
+ */
+class StremioExtractionEngine(
+    private val transport: StremioTransport,
+    private val repo: MiningRepository,
+    private val configFor: (LanguageTag) -> PipelineConfig?,
+    private val addonsProvider: () -> List<StremioAddon>,
+    private val now: () -> Long = { System.currentTimeMillis() },
+) {
+
+    data class Outcome(
+        val status: String,
+        val videoId: String,
+        val docId: Long?,
+        val cuesStored: Int,
+        val occurrencesCreated: Int,
+        val error: String? = null,
+    )
+
+    fun runJob(videoId: String, metaType: String, baseId: String): Outcome {
+        val settings = repo.stremioSettingsFor(videoId, baseId)
+        val generation = Generation.of(settings)
+        return try {
+            repo.upsertStremioLedger(videoId, generation, StremioLedgerStatus.FETCHING,
+                now = now())
+            val addons = addonsProvider()
+            val subtitleAddon = addons.firstSubtitleAddon()
+                ?: return fail(videoId, generation, "no subtitle addon installed in Stremio")
+            val choices = AddonResources(transport)
+                .subtitles(subtitleAddon, metaType, videoId, settings.subtitleLang)
+            if (choices.isEmpty()) {
+                return fail(videoId, generation,
+                    "no ${settings.subtitleLang} subtitles from ${subtitleAddon.name}")
+            }
+            val choice = selectChoice(settings, choices)
+
+            val text = AddonResources(transport).fetchSubtitleText(choice.fileUrl)
+            if (text.isBlank()) return fail(videoId, generation, "empty subtitle file")
+            val fileHash = sha256(text)
+
+            repo.upsertStremioLedger(videoId, generation, StremioLedgerStatus.PARSING,
+                now = now())
+            val rawCues = SubtitleParser.parse(choice.releaseName, text)
+            val cues = SubtitleParser.shifted(rawCues, settings.offsetMs)
+                .filter { it.text.isNotBlank() }
+            if (cues.isEmpty()) return fail(videoId, generation, "no parseable cues")
+
+            val existingDoc = repo.findStremioDocId(videoId, generation, fileHash)
+            val docId = existingDoc ?: repo.createStremioDoc(
+                videoId, generation, choice, fileHash,
+                infoHash = null, fileIdx = null, now = now(),
+            )
+            repo.replaceStremioCues(docId, cues)
+
+            // replace-in-place for THIS doc only (negative-namespace guard inside helper)
+            repo.deleteStremioOccurrencesForDoc(docId)
+
+            val tag = tagForLang(settings.subtitleLang)
+            val config = configFor(tag) ?: return fail(
+                videoId, generation, "no pipeline config for $tag",
+            )
+            var occurrences = 0
+            val createdAt = now() / 1000L
+            repo.inTransaction {
+                for (cue in cues) {
+                    val candidates = CorpusInsertion.analyzeCandidates(config, cue.text)
+                    if (candidates.isEmpty()) continue
+                    occurrences += CorpusInsertion.insertCandidates(
+                        repo, config, -docId, cue.text, candidates, createdAt,
+                    )
+                }
+            }
+
+            observeFileIdentity(videoId, generation, docId, metaType, addons)
+
+            repo.upsertStremioLedger(
+                videoId, generation, StremioLedgerStatus.MINED,
+                docId = docId, cueCount = cues.size, now = now(),
+            )
+            Outcome(StremioLedgerStatus.MINED, videoId, docId, cues.size, occurrences)
+        } catch (e: Exception) {
+            fail(videoId, generation, "${e.javaClass.simpleName}: ${e.message?.take(160)}")
+        }
+    }
+
+    private fun fail(videoId: String, generation: String, error: String): Outcome {
+        runCatching {
+            repo.upsertStremioLedger(
+                videoId, generation, StremioLedgerStatus.FAILED, error = error, now = now(),
+            )
+        }
+        return Outcome(StremioLedgerStatus.FAILED, videoId, null, 0, 0, error)
+    }
+
+    /** D1/D8 selection ladder: exact pin > name-pattern substring > first candidate. */
+    fun selectChoice(settings: StremioSettingsRow, choices: List<SubtitleChoice>): SubtitleChoice =
+        StremioSelection.select(settings, choices)
+
+    /**
+     * M6-lite (S0-D tier2 fallback, D2 ruling): best-effort infoHash/fileIdx observation
+     * from the user's stream addon; NEVER fails the job, never blocks mining.
+     */
+    private fun observeFileIdentity(
+        videoId: String,
+        generation: String,
+        docId: Long,
+        metaType: String,
+        addons: List<StremioAddon>,
+    ) {
+        runCatching {
+            val streamAddon = addons.firstStreamAddon() ?: return
+            val candidates = AddonResources(transport).streams(streamAddon, metaType, videoId)
+            val withHash = candidates.firstOrNull { it.infoHash != null } ?: return
+            repo.writableDatabase.execSQL(
+                "UPDATE stremio_cue_documents SET info_hash = ?, file_idx = ? WHERE id = ?",
+                arrayOf(withHash.infoHash, withHash.fileIdx, docId),
+            )
+        }
+    }
+
+    companion object {
+        fun sha256(text: String): String =
+            MessageDigest.getInstance("SHA-256")
+                .digest(text.toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it) }
+
+        fun tagForLang(lang: String): LanguageTag = when (lang.lowercase()) {
+            "zho", "chn", "chi", "zh" -> LanguageTag.CHINESE
+            else -> LanguageTag.JAPANESE
+        }
+    }
+
+    /** Settings generation: content hash of the effective settings tuple (6.1). */
+    object Generation {
+        fun of(settings: StremioSettingsRow): String =
+            StremioExtractionEngine.sha256(settings.generationSeed()).take(16)
+    }
+}
+
+/** Pure subtitle-version selection ladder (D1/D8), extracted for JVM specs: exact pin >
+ *  release-name pattern substring > first candidate (never fails on a pin miss). */
+object StremioSelection {
+    fun select(settings: StremioSettingsRow, choices: List<SubtitleChoice>): SubtitleChoice {
+        settings.subtitlePin?.let { pin ->
+            choices.firstOrNull { it.releaseName.equals(pin, ignoreCase = true) }?.let { return it }
+        }
+        settings.subtitlePattern?.let { pattern ->
+            if (pattern.isNotBlank()) {
+                choices.firstOrNull { it.releaseName.contains(pattern, ignoreCase = true) }
+                    ?.let { return it }
+            }
+        }
+        return choices.first()
+    }
+}

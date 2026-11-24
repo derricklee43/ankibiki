@@ -97,8 +97,15 @@ migration.
 8. [ ] **Stremio Mining Console (manual episode extraction, Android-only)**: design
        ruled and documented 2026-11-23 (user) in
        [stremio-mining-console-design.md](stremio-mining-console-design.md) — D1-D10
-       all ruled, spike plan S0-A..S0-G; next step is S0-A (phone-side auth /
-       library / addon discovery + fixtures), execution needs a go. The
+       all ruled, spike plan S0-A..S0-G. STATUS (2026-11-23 one-shot build): stage-1
+       IMPLEMENTED — v14 schema + ceremony, engine on the shared CorpusInsertion
+       path (photo path rewired verbatim, suite green with zero test-body edits),
+       console + episodes UI wired into the settings popup; evidence table in
+       spikes/006-stremio-console/README.md (JVM 121/121, instrumented 146/146 on
+       emulator; physical device deliberately untouched). Still open: S0-A LIVE
+       pin (needs the user's link-flow approval), first UI walkthrough, S0-D2
+       (RD token on device), stage-2 reader LEFT-JOIN generalization (needs its
+       own go). The
        automatic-scrub / watch-time-capture alternative is PARKED (same ruling)
        with its verified facts and resume ladder in
        [stremio-auto-scrub-parked.md](stremio-auto-scrub-parked.md). Design pins

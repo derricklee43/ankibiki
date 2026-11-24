@@ -12,6 +12,9 @@ class MiningPipelineRunner(
     private val defaultPreprocessConfig: ImagePreprocessConfig = ImagePreprocessConfig(),
 ) {
 
+    /** v14 console hook: the language pipeline configs, read-only (StremioExtractionEngine). */
+    internal fun configFor(tag: LanguageTag): PipelineConfig? = pipelineConfigs[tag]
+
     fun runScanBatch(): ScanSummary {
         val discovered = photoSource.findUnprocessedPhotos(discoveryConfig)
         if (discovered.isEmpty()) {
@@ -425,73 +428,14 @@ class MiningPipelineRunner(
         }
     }
 
+    // v14 (Stremio console one-shot, 2026-11-23): the three insertion primitives moved
+    // VERBATIM to CorpusInsertion so cue mining shares ONE path with photo mining;
+    // these delegates keep every existing call site (and its tests) editing-free.
     private fun ensureCanonicalItemExists(
         config: PipelineConfig,
         itemType: ItemType,
         candidate: NormalizedCandidate,
-    ) {
-        val tag = config.tag
-        if (miningRepository.hasExtractedItem(tag, itemType, candidate.expression)) {
-            if (!miningRepository.hasLinkedAnkiCard(tag, itemType, candidate.expression)) {
-                val lateMatch = config.ankiMatchLookup?.findMatch(
-                    languageTag = tag,
-                    itemType = itemType,
-                    expression = candidate.expression,
-                    reading = candidate.readingKana.orEmpty(),
-                )
-                if (lateMatch != null) {
-                    miningRepository.updateExtractedItemAnkiMatch(
-                        languageTag = tag,
-                        itemType = itemType,
-                        expression = candidate.expression,
-                        match = lateMatch,
-                    )
-                }
-            }
-            return
-        }
-
-        var metadata: DictionaryMetadata? = null
-        for (provider in config.dictionaryProviders) {
-            metadata = provider.lookup(
-                expression = candidate.expression,
-                itemType = itemType,
-                readingHint = candidate.readingKana,
-            )
-            if (metadata != null) break
-        }
-
-        val hasKanji = candidate.expression.any { MlKitImageTagger.isCjkIdeograph(it) }
-        val resolvedKanji = if (hasKanji) {
-            metadata?.kanji?.takeIf { it.isNotBlank() } ?: candidate.expression
-        } else {
-            ""
-        }
-        val resolvedKana = metadata?.kana ?: candidate.readingKana ?: candidate.expression
-        val resolvedMeaning = metadata?.meaning ?: "—"
-        val ankiMatch = config.ankiMatchLookup?.findMatch(
-            languageTag = tag,
-            itemType = itemType,
-            expression = candidate.expression,
-            reading = resolvedKana,
-        )
-
-        miningRepository.upsertExtractedItem(
-            languageTag = tag,
-            itemType = itemType,
-            expression = candidate.expression,
-            kanji = resolvedKanji,
-            kana = resolvedKana,
-            meaning = resolvedMeaning,
-            levelBadge = metadata?.levelBadge,
-            corpusRank = metadata?.corpusRank,
-            ankiAccountId = ankiMatch?.accountId,
-            deckId = ankiMatch?.deckId,
-            deckName = ankiMatch?.deckName,
-            ankiNoteId = ankiMatch?.noteId,
-            isHidden = false,
-        )
-    }
+    ) = CorpusInsertion.ensureCanonicalItemExists(miningRepository, config, itemType, candidate)
 
     /**
      * Saves amended text for [mediaStoreId]. When [reprocessWords] is true, reconciles word and
@@ -764,12 +708,7 @@ class MiningPipelineRunner(
         config: PipelineConfig,
         sentence: String,
     ): List<Pair<ItemType, NormalizedCandidate>> =
-        config.wordAnalyzer.extractWords(sentence)
-            .distinctBy { it.expression }
-            .map { ItemType.WORD to it } +
-            config.grammarAnalyzer.extractGrammar(sentence)
-                .distinctBy { it.expression }
-                .map { ItemType.GRAMMAR to it }
+        CorpusInsertion.analyzeCandidates(config, sentence)
 
     /** Registers canonical items and inserts occurrence rows for [candidates]. */
     private fun insertCandidates(
@@ -779,23 +718,9 @@ class MiningPipelineRunner(
         candidates: List<Pair<ItemType, NormalizedCandidate>>,
         timestamp: Long,
         modifiedByUserFlag: Boolean,
-    ): Int {
-        var count = 0
-        for ((itemType, candidate) in candidates) {
-            ensureCanonicalItemExists(config, itemType, candidate)
-            miningRepository.insertOccurrence(
-                languageTag = config.tag,
-                itemType = itemType,
-                expression = candidate.expression,
-                photoId = photoId,
-                sentence = sentence,
-                createdAt = timestamp,
-                modifiedByUserFlag = modifiedByUserFlag,
-            )
-            count++
-        }
-        return count
-    }
+    ): Int = CorpusInsertion.insertCandidates(
+        miningRepository, config, photoId, sentence, candidates, timestamp, modifiedByUserFlag,
+    )
 
     private fun parsePhotoText(config: PipelineConfig?, text: String): List<String> {
         val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }

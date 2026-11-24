@@ -402,6 +402,13 @@ class MainActivity : AppCompatActivity() {
             recoveryPopup?.dismiss()
             startActivity(Intent(this, UndoHistoryActivity::class.java))
         }
+        // stremio mining console (docs/stremio-mining-console-design.md, user go 2026-11-23)
+        val stremioRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
+        stremioRow.actionLabel.setText(R.string.stremio_console_entry)
+        stremioRow.root.setOnClickListener {
+            recoveryPopup?.dismiss()
+            startActivity(Intent(this, StremioConsoleActivity::class.java))
+        }
         // a11y capture health (roadmap D1): read-only status row — a silent WebView
         // selection-capture regression must surface here, not as an "app is broken" debug day
         val captureRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)

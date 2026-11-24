@@ -1,6 +1,7 @@
 SPIKE DESIGN: STREMIO MINING CONSOLE (MANUAL EPISODE EXTRACTION, ANDROID-ONLY)
 ===============================================================================
-Status: DRAFT -- nothing here is approved. Self-contained by design: you should
+Status: STAGE-1 IMPLEMENTED under the user's one-shot go 2026-11-23 (see §12 for the
+build-pass evidence and what remains). Self-contained by design: you should
 not need to read the other docs to understand this one. Cross-references to
 docs/stremio-auto-scrub-parked.md appear only in §10 (how the two connect).
 Date: 2026-11-23. Fact citations are to Stremio's own repos (stremio-core /
@@ -346,6 +347,38 @@ stremio-web / stremio-shell / stremio-video), cloned and read 2026-11-23.
     (is_manual, modified_by_user_flag) mean anything for video-sourced
     rows -- answers from reading the writer/gate code, not from this doc.
 
+    RESOLVED 2026-11-23 (one-shot build, user "implement it as a one shot"):
+    STAGE-1 shipped = option (c)'s no-rebuild safety crossed with option (b)'s
+    single-engine requirement (D4): occurrence rows land in item_occurrences
+    itself via the SHARED CorpusInsertion path, keyed by NEGATIVE photo_id =
+    -stremio_cue_documents.id (MediaStore ids are always positive -> the
+    namespaces cannot collide; every photo-scoped guard/writer naturally
+    excludes them; VOCABULARY identity (extracted_items rows, known-word/Anki
+    linkage, visibility states) sees stremio mining immediately. Known stage-1
+    gaps, accepted and visible (all from the same cause -- seven INNER JOIN
+    scraped_photos readers):
+    1) the occurrences inbox (ExtractedList) and photo-keyed sentence views
+       do not LIST stremio sentences (MiningQueries.kt:518/:583/:651/:762);
+    2) the per-word occurrence COUNT subquery (:501/:570/:638) excludes them,
+       so frequency ranking under-counts stremio hits until stage 2;
+    3) stremio-native content (cues, ledger, settings, snapshots, addon and
+       library caches, watch snapshots) lives in seven new v14 tables and is
+       fully functional either way.
+    Writer audit: MiningRepository.kt:82 is NOT NULL with NO foreign key, and
+    insertOccurrence (:1307) takes any Long; every photo-scoped mutator
+    (deleteOccurrencesForPhoto/Sentence, markSentencesModifiedByUser, undo,
+    nameplate) keys on positive ids or photo rows -- no existing writer can
+    reach the negative namespace. The console's own delete helper
+    (deleteStremioOccurrencesForDoc) double-locks with photo_id < 0; a
+    photo-survives-cue-deletion spec pins that guarantee
+    (StremioConsoleInstrumentedTest).
+    STAGE-2 (needs its own go + device session): make photo_id nullable + add
+    a source column via guarded rebuild, convert the inbox/sentence readers to
+    LEFT JOIN with a synthetic-source label, decide is_manual/GOLD semantics
+    for video rows, then close the §11.1 mass-delete pin against the final
+    shape. Every stage-1 row survives stage 2 unchanged (negative ids simply
+    gain an explicit source marker).
+
 7. SPIKE PLAN — QUESTIONS, PASS, KILL
 --------------------------------------
   Every step runs from a debug-only test screen behind a flag; no shipping
@@ -537,3 +570,28 @@ stremio-web / stremio-shell / stremio-video), cloned and read 2026-11-23.
        technology decision resumes from the parked doc §0.3 bake-off
        (native platform vs community fork vs self-built minimal FFmpeg)
        and its S3 measurement plan. Text-only mining ships without this.
+
+12. BUILD PASS 2026-11-23 (user one-shot go; this section records WHAT EXISTS)
+--------------------------------------------------------------------------------
+  Shipped main sources: StremioModels / StremioTransport / StremioClient
+  (link flow, datastoreGet, addonCollectionGet) / AddonResources (meta,
+  subtitles, streams incl. infoHash+fileIdx, S0-D2 filename parser) /
+  SubtitleParser / WatchedBitfield (v14-adjacent: pure Kotlin port) / RdClient
+  (read-only M9) / StremioWrites (storage extensions) / StremioPrefs (secrets
+  in private prefs, OUT of bundles by construction) / StremioExtractionEngine
+  (whole-episode jobs, generation = settings content hash, replace-in-place
+  idempotency, best-effort identity probe) / MiningPipelineHolder.
+  CorpusInsertion.kt extracted VERBATIM from MiningPipelineRunner (photo path
+  now delegates; full suite green with ZERO test-body edits = mechanical
+  proof, per repo rule).
+  Schema v14 (seven stremio_* tables) + bump ceremony complete: DB_VERSION,
+  backup_bundle SUPPORTED_USER_VERSIONS, docs/recovery.md prose (v13 catch-up
+  included), NameplateClaims literal re-pin, nothing added to REQUIRED/
+  MINING_COLUMNS.
+  UI: StremioConsoleActivity (library list, link flow, RD token) +
+  StremioEpisodesActivity (bitfield pre-checks, mined chips, resume badge
+  reference-only, D1 settings dialog incl. per-episode long-press override,
+  serial-lane extraction) + manifest + Settings-popup entry.
+  Evidence + the accepted reader gaps + what still needs the user (S0-A live
+  pin via link approval, first UI walkthrough, device session): see
+  spikes/006-stremio-console/README.md verdict table.

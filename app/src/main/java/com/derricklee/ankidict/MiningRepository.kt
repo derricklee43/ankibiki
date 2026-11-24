@@ -105,6 +105,7 @@ class MiningRepository(
         createNameplateClaimsSchema(db)
         createWordFoldersSchema(db)
         createUndoLogSchema(db)
+        createStremioSchema(db)
     }
 
 
@@ -215,6 +216,121 @@ class MiningRepository(
             addColumnIfMissing(db, "extracted_items", "picked_headword", "TEXT")
             addColumnIfMissing(db, "extracted_items", "picked_reading", "TEXT")
         }
+        if (oldVersion < 14) {
+            // v14 (user go 2026-11-23, docs/stremio-mining-console-design.md §6): Stremio
+            // Mining Console tables. ALL are new CREATE-IF-NOT-EXISTS tables — nothing in
+            // item_occurrences/scraped_photos is rebuilt (stage-1 landing shape, §6.1
+            // resolution: stremio occurrence rows carry NEGATIVE photo_id =
+            // -stremio_cue_documents.id; MediaStore ids are always positive, so the
+            // namespaces cannot collide and every photo-scoped guard naturally excludes
+            // them). Not added to REQUIRED_COLUMNS/MINING_COLUMNS/SUPPORTED sets of old
+            // versions; pre-v14 bundles restore and the tables materialize on first open.
+            createStremioSchema(db)
+        }
+    }
+
+    /** Stremio Mining Console tables (v14). CREATE IF NOT EXISTS = self-guarding. */
+    private fun createStremioSchema(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS stremio_library (
+                base_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                type TEXT NOT NULL,
+                poster TEXT,
+                video_id TEXT,
+                time_offset INTEGER NOT NULL DEFAULT 0,
+                duration INTEGER NOT NULL DEFAULT 0,
+                watched_blob TEXT,
+                times_watched INTEGER NOT NULL DEFAULT 0,
+                last_seen INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS stremio_addons (
+                addon_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                transport_url TEXT NOT NULL,
+                types_csv TEXT NOT NULL DEFAULT '',
+                updated_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS stremio_settings (
+                scope_key TEXT PRIMARY KEY,
+                subtitle_lang TEXT NOT NULL DEFAULT 'jpn',
+                subtitle_pattern TEXT,
+                subtitle_pin TEXT,
+                audio_track INTEGER,
+                offset_ms INTEGER NOT NULL DEFAULT 0,
+                updated_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS stremio_cue_documents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                video_id TEXT NOT NULL,
+                generation TEXT NOT NULL,
+                subtitle_addon_id TEXT NOT NULL,
+                subtitle_id TEXT NOT NULL,
+                subtitle_name TEXT NOT NULL,
+                subtitle_file_hash TEXT NOT NULL,
+                cue_count INTEGER NOT NULL DEFAULT 0,
+                info_hash TEXT,
+                file_idx INTEGER,
+                created_at INTEGER NOT NULL,
+                UNIQUE(video_id, generation, subtitle_file_hash)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS stremio_cues (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                doc_id INTEGER NOT NULL,
+                start_ms INTEGER NOT NULL,
+                end_ms INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                UNIQUE(doc_id, start_ms, text)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE INDEX IF NOT EXISTS idx_stremio_cues_doc ON stremio_cues(doc_id, start_ms)
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS stremio_ledger (
+                video_id TEXT NOT NULL,
+                generation TEXT NOT NULL,
+                status TEXT NOT NULL,
+                doc_id INTEGER,
+                cue_count INTEGER NOT NULL DEFAULT 0,
+                error TEXT,
+                updated_at INTEGER NOT NULL,
+                UNIQUE(video_id, generation)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS stremio_watch_snapshots (
+                base_id TEXT PRIMARY KEY,
+                video_id TEXT,
+                time_offset INTEGER NOT NULL DEFAULT 0,
+                watched_blob TEXT,
+                observed_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
     }
 
 
@@ -1365,7 +1481,7 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 13
+        private const val DB_VERSION = 14
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

@@ -58,6 +58,14 @@
             android:exported="false" />
 
         <activity
+            android:name=".StremioConsoleActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".StremioEpisodesActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".PhotoDetailActivity"
             android:exported="false" />
 
