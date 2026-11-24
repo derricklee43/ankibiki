@@ -141,15 +141,33 @@ class StremioExtractionEngine(
             )
             var occurrences = 0
             val createdAt = now() / 1000L
-            repo.inTransaction {
-                for (cue in cues) {
-                    val candidates = CorpusInsertion.analyzeCandidates(config, cue.text)
-                    if (candidates.isEmpty()) continue
-                    occurrences += CorpusInsertion.insertCandidates(
-                        repo, config, mediaId = mediaRefId, photoId = null,
-                        sentence = cue.text, candidates = candidates, timestamp = createdAt,
-                    )
+            // CHUNKED COMMITS (device ANR 2026-11-23): the full-episode single
+            // transaction (~500-800 cues x vocabulary lookups) held the rollback-
+            // journal write lock 25+ seconds, blocking the main thread's DB reads
+            // past the 5s ANR limit (system killed the app mid-mine; photo-path
+            // transactions were always short enough to hide this). Batches bound
+            // lock hold so readers get windows between commits. Correctness
+            // unchanged: this doc's old occurrences were already deleted above,
+            // a crash mid-batch leaves rows re-queueable (re-run deletes this
+            // doc's rows again — replace-in-place is doc-scoped), and the ledger
+            // marks MINED only after the LAST batch. WAL was rejected on purpose:
+            // uncheckpointed -wal pages would silently break the file-copy backup
+            // tools (backup_bundle.py + adb pulls).
+            var idx = 0
+            while (idx < cues.size) {
+                val slice = cues.subList(idx, minOf(idx + CUE_BATCH, cues.size))
+                repo.inTransaction {
+                    for (cue in slice) {
+                        val candidates = CorpusInsertion.analyzeCandidates(config, cue.text)
+                        if (candidates.isNotEmpty()) {
+                            occurrences += CorpusInsertion.insertCandidates(
+                                repo, config, mediaId = mediaRefId, photoId = null,
+                                sentence = cue.text, candidates = candidates, timestamp = createdAt,
+                            )
+                        }
+                    }
                 }
+                idx += CUE_BATCH
             }
 
             observeFileIdentity(videoId, generation, docId, metaType, addons)
@@ -209,6 +227,10 @@ class StremioExtractionEngine(
             "zho", "chn", "chi", "zh" -> LanguageTag.CHINESE
             else -> LanguageTag.JAPANESE
         }
+
+        /** cues per committed batch during cue->occurrence insertion (ANR bound;
+         *  sized so one batch stays well under ~1s of lock hold on device). */
+        const val CUE_BATCH = 50
     }
 
     /** Settings generation: content hash of the effective settings tuple (6.1). */

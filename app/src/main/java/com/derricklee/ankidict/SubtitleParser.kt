@@ -162,15 +162,46 @@ object SubtitleParser {
 
     /**
      * ASS text normalization: override blocks, then \h/\N/simple tags.
-     * PATTERN SPELLING IS LOAD-BEARING: a DEVICE-FOUND BUG 2026-11-23 (ledger:
-     * PatternSyntaxException near index 8 on "\\{[^}]*}") — desktop JDK accepts
-     * the quoted brace, Android's java.util.regex does NOT. Use the [{]
-     * character-class form (portable). Same hazard as the Collator JVM/device
-     * divergence rule: JVM specs green does NOT prove the device regex engine.
+     * OVERRIDE STRIPPING IS A HAND SCANNER, NOT A REGEX — deliberate, from two
+     * DEVICE-FOUND BUGS 2026-11-23: desktop JDK and Android's java.util.regex
+     * disagree on brace spellings ("\{...}" AND "[{][^}]*}" both threw PSE on
+     * device; Android rejects a lone '}' that OpenJDK silently accepts, and
+     * every portable-spelling guess still burned a device round-trip. A
+     * {..} scanner has no engine to disagree with. The remaining tag regex
+     * contains no braces and is safe on both engines. Quantifier braces after
+     * an atom (\d{1,3}) remain fine everywhere. Lesson pinned in
+     * spikes/007 §16 + workflow skill: JVM-green does NOT prove the device
+     * engine — prefer brace-free spellings or hand scanners in runtime paths.
      */
-    private fun assText(value: String): String = value
-        .replace(Regex("""[{][^}]*}"""), " ")
-        .replace(Regex("""\\[a-zA-Z][a-zA-Z0-9]*(?:\([^)]*\))?"""), " ")
+    private fun assText(value: String): String =
+        stripAssOverrides(value)
+            .replace(Regex("""\\[a-zA-Z][a-zA-Z0-9]*(?:\([^)]*\))?"""), " ")
+
+    /** Replaces each {...} override block with a single space; an unterminated
+     *  '{' (not real ASS, but defensive) is kept literal rather than swallowing
+     *  the rest of the cue text. */
+    private fun stripAssOverrides(value: String): String {
+        if (!value.contains('{')) return value
+        val sb = StringBuilder(value.length)
+        var i = 0
+        while (i < value.length) {
+            val c = value[i]
+            if (c == '{') {
+                val close = value.indexOf('}', i + 1)
+                if (close >= 0) {
+                    sb.append(' ')
+                    i = close + 1
+                } else {
+                    sb.append(c)
+                    i++
+                }
+            } else {
+                sb.append(c)
+                i++
+            }
+        }
+        return sb.toString()
+    }
 
     /**
      * Apply a user offset (settings offset_ms; player-side nudge semantics): shifts cue

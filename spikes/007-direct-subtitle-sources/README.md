@@ -362,12 +362,27 @@ Honest ledger (numbered, per execution discipline):
 6. DEVICE WALKTHROUGH 2026-11-23 (first real use of the builtin, post-9676605):
    extraction reached Jimaku, resolved the entry, downloaded the .ass — then
    died `PatternSyntaxException near index 8: \{[^}]*}`. Desktop JDK compiles
-   quoted punctuation `\{`; ANDROID'S java.util.regex does NOT — the JVM specs
-   were green precisely because the JVM engine is laxer. Fixed to the portable
-   `[{]` class form (SubtitleParser.assText) with a load-bearing comment; full
-   main-source scan: no other `\{` patterns ship. RULE LEARNED: a regex spec
-   passing on JVM does not prove the device engine; brace-quantifiers after
-   atoms are fine, escaped braces are a divergence trap.
+   quoted punctuation `\{`; Android's java.util.regex does NOT. First fix
+   attempt `[{][^}]*}` THREW ON DEVICE TOO (ledger 22:05:54, "near index 9" —
+   the STRAY UNQUOTED closing brace: Android rejects a lone `}`, OpenJDK
+   accepts it) — one more lesson: guessing engine-quirky regex spellings burns
+   a device round-trip per guess. Final fix is engine-independent: override
+   stripping rewritten as a HAND SCANNER (`stripAssOverrides`, no regex at
+   all for brace shapes) + a main-source-wide scan for brace-bearing patterns
+   (all remaining `{n,m}` are quantifiers after atoms — portable everywhere).
+7. DEVICE ANR, same walkthrough (22:06:41, MainActivity "input dispatching
+   timed out, 5000ms for FocusEvent", system killed the process mid-mine of
+   tt8515016:1:1): the FIRST full-episode extraction ever attempted — a single
+   transaction of hundreds of cues x vocabulary lookups held the rollback-
+   journal write lock (repo has no WAL) 25+ seconds; main-thread DB reads
+   cannot run behind a writer in default journal mode. Photo-path transactions
+   were always sub-second, hiding the class. FIXED: cue->occurrence insertion
+   chunked at CUE_BATCH=50 per committed transaction (bound lock hold; ledger
+   marks MINED only after the last batch; a mid-batch kill stays correctly
+   re-queueable because old-occurrence deletion is doc-scoped before inserts).
+   WAL deliberately NOT enabled: uncheckpointed -wal pages silently break the
+   file-copy backup tooling (backup_bundle.py, adb pulls) — the whole corpus
+   backup story assumes a complete single-file db.
 
 16.5 P1 SHIPPED this pass: `SubtitleParser.parseAss` ([Events] section; Format
 column-order respected incl. SSA default; Dialogue-only; Text re-merge for
