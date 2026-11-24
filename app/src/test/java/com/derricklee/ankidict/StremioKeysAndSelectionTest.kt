@@ -148,3 +148,25 @@ class AddonResourceUrlTest {
             seen)
     }
 }
+
+// Lives outside the other classes: subtitle addon ranking spec (kitsu 404 bug).
+class SubtitleRankingTest {
+    @Test
+    fun pureSubtitleAddonsRankBeforeGeneralAddons() {
+        val kitsu = StremioAddon("community.anime.kitsu", "Anime Kitsu", "1",
+            "https://anime-kitsu.strem.fun/manifest.json",
+            setOf("subtitles", "catalog", "meta"))
+        val osu = StremioAddon("org.stremio.opensubtitlesv3", "OpenSubtitles v3", "1",
+            "https://opensubtitles-v3.strem.io/manifest.json", setOf("subtitles"))
+        val order = listOf(kitsu, osu).subtitleAddonCandidates()
+        assertEquals(2, order.size)
+        assertEquals("org.stremio.opensubtitlesv3", order.first().addonId)
+    }
+
+    @Test
+    fun nonSubtitleAddonsAreExcluded() {
+        val meta = StremioAddon("cinemeta", "C", "1",
+            "https://v3-cinemeta.strem.io/manifest.json", setOf("meta", "catalog"))
+        assertEquals(emptyList<StremioAddon>(), listOf(meta).subtitleAddonCandidates())
+    }
+}

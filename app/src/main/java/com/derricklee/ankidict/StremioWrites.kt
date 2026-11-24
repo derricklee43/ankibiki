@@ -145,6 +145,20 @@ fun List<StremioAddon>.firstSubtitleAddon(): StremioAddon? = firstOrNull { addon
     addon.resourceTypes.any { it.lowercase().startsWith("subtitle") }
 }
 
+/**
+ * Subtitle-capable addons, RANKED. Pure-subtitle addons (every resource is the
+ * subtitle family, e.g. OpenSubtitles) come before general addons that merely
+ * declare subtitles among catalog/meta (Anime Kitsu stubs the resource and 404s
+ * -- live repro 2026-11-23: ORDER BY addon_id put community.anime.kitsu ahead
+ * of org.stremio.opensubtitles and the first match won). Stable within a rank.
+ */
+fun List<StremioAddon>.subtitleAddonCandidates(): List<StremioAddon> =
+    mapNotNull { addon ->
+        val subs = addon.resourceTypes.count { it.lowercase().startsWith("subtitle") }
+        if (subs == 0) null else addon to if (subs == addon.resourceTypes.size) 0 else 1
+    }.sortedBy { it.second }
+     .map { it.first }
+
 fun List<StremioAddon>.firstMetaAddon(): StremioAddon? = firstOrNull { addon ->
     addon.resourceTypes.any { it.lowercase() == "meta" }
 }

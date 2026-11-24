@@ -40,13 +40,43 @@ class StremioExtractionEngine(
             repo.upsertStremioLedger(videoId, generation, StremioLedgerStatus.FETCHING,
                 now = now())
             val addons = addonsProvider()
-            val subtitleAddon = addons.firstSubtitleAddon()
-                ?: return fail(videoId, generation, "no subtitle addon installed in Stremio")
-            val choices = AddonResources(transport)
-                .subtitles(subtitleAddon, metaType, videoId, settings.subtitleLang)
-            if (choices.isEmpty()) {
+            if (settings.subtitleLang.isBlank()) {
                 return fail(videoId, generation,
-                    "no ${settings.subtitleLang} subtitles from ${subtitleAddon.name}")
+                    "no subtitle language set - open the gear and enter e.g. jpn")
+            }
+            val candidates = addons.subtitleAddonCandidates()
+            if (candidates.isEmpty()) {
+                return fail(videoId, generation, "no subtitle addon installed in Stremio")
+            }
+            // Try each subtitle addon (pure ones ranked first) until one yields
+            // results; metadata addons with stub subtitle resources are skipped
+            // by falling through on 404/empty.
+            var choices: List<SubtitleChoice> = emptyList()
+            val tried = ArrayList<String>()
+            for (cand in candidates) {
+                val result = runCatching {
+                    AddonResources(transport).subtitles(cand, metaType, videoId,
+                        settings.subtitleLang)
+                }
+                if (result.isFailure) {
+                    // StremioHttpException ends with "-> HTTP <code>" -- keep the
+                    // TAIL of the message (the status is the diagnostic; an earlier
+                    // take(60) amputated it and broke the failure-path spec).
+                    val m = result.exceptionOrNull()?.message
+                    tried += "${cand.name}: " +
+                        (if (m != null && m.length > 50) "…" + m.takeLast(50) else m ?: "?")
+                    continue
+                }
+                val got = result.getOrDefault(emptyList())
+                if (got.isNotEmpty()) {
+                    choices = got
+                    break
+                }
+                tried += "${cand.name}: 0 results"
+            }
+            if (choices.isEmpty()) {
+                return fail(videoId, generation, "no ${settings.subtitleLang} subtitles - " +
+                    "tried: ${tried.joinToString("; ").take(180)}")
             }
             val choice = selectChoice(settings, choices)
 
