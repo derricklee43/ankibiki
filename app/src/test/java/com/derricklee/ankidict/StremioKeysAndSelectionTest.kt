@@ -109,3 +109,42 @@ class StremioKeysAndSelectionTest {
         assertTrue(!RdClient.isPremiumActive(RdUser("u", "premium", "garbage"), 0L))
     }
 }
+
+// NOTE: lives outside the class above; separate spec class for resource URLs.
+class AddonResourceUrlTest {
+    @Test
+    fun resourcePathStripsManifestJsonFromTransportUrl() {
+        var seen: String? = null
+        val transport = object : StremioTransport {
+            override fun get(url: String, headers: Map<String, String>): String {
+                seen = url
+                return """{"metas":[],"meta":{"videos":[{"id":"tt1:2:3","name":"Ep"}]}}"""
+            }
+            override fun post(url: String, body: String, contentType: String,
+                              headers: Map<String, String>) = "{}"
+        }
+        val addon = StremioAddon("cinemeta", "C", "1.0",
+            "https://v3-cinemeta.strem.io/manifest.json", setOf("meta"))
+        val eps = AddonResources(transport).metaEpisodes(addon, "series", "tt1")
+        assertEquals(1, eps.size)
+        assertEquals("https://v3-cinemeta.strem.io/meta/series/tt1.json", seen)
+    }
+
+    @Test
+    fun configStyleTransportUrlKeepsItsConfigPath() {
+        var seen: String? = null
+        val transport = object : StremioTransport {
+            override fun get(url: String, headers: Map<String, String>): String {
+                seen = url
+                return """{"meta":{"videos":[]}}"""
+            }
+            override fun post(url: String, body: String, contentType: String,
+                              headers: Map<String, String>) = "{}"
+        }
+        val addon = StremioAddon("torrentio", "T", "1.0",
+            "https://torrentio.strem.fun/configure/abc/manifest.json", setOf("stream"))
+        AddonResources(transport).streams(addon, "series", "tt1:1:1")
+        assertEquals("https://torrentio.strem.fun/configure/abc/stream/series/tt1:1:1.json",
+            seen)
+    }
+}

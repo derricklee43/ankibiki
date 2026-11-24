@@ -12,7 +12,10 @@ import org.json.JSONObject
 class AddonResources(private val transport: StremioTransport) {
 
     private fun resourcePath(addon: StremioAddon, resource: String, type: String, id: String): String {
-        val base = addon.transportUrl.trimEnd('/', '.')
+        // transportUrl is "<base>/manifest.json"; resource calls hang off the BASE.
+        // (Bug found 2026-11-23 with a blank episodes page: appending to the full
+        // manifest URL 404s, and the silent emptyList catch hid it.)
+        val base = addon.transportUrl.substringBeforeLast("/manifest.json").trimEnd('/')
         return "$base/$resource/$type/$id.json"
     }
 

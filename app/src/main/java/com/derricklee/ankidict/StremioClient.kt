@@ -64,13 +64,17 @@ class StremioClient(
      * Full library (shows/movies/live). Rows missing _id/name are skipped, never fatal:
      * the console lists what it can parse and S0-A records the diff.
      */
-    fun fetchLibrary(authKey: String): List<StremioLibraryItem> {
+    fun fetchLibrary(
+        authKey: String,
+        diagnostics: (String) -> Unit = {},
+    ): List<StremioLibraryItem> {
         val body = JSONObject()
             .put("authKey", authKey)
             .put("collection", "libraryItem")
             .put("all", true)
         val response = JSONObject(transport.post("$apiUrl/api/datastoreGet", body.toString()))
         checkError(response, "datastoreGet")
+        diagnostics("datastoreGet top keys: ${response.keys().asSequence().toList()}")
         val rows = response.optJSONArray("result")
             ?: response.optJSONArray("events")
             ?: JSONArray()
@@ -101,6 +105,7 @@ class StremioClient(
                 },
             )
         }
+        diagnostics("datastoreGet rows=${rows.length()} parsed=${out.size}")
         return out
     }
 
@@ -109,8 +114,15 @@ class StremioClient(
      * core serde request {authKey, update}; response {result:{addons:[manifest...]}}
      * with legacy top-level addons still tolerated. Manifests carry
      * id/name/version/transportUrl/resources (string names OR {name,types} objects).
+     *
+     * [diagnostics] receives COUNTS AND KEY NAMES ONLY (never values/config URLs) --
+     * surfaced to logcat so live response-shape drift is diagnosable without ever
+     * handling the user's authKey outside the app.
      */
-    fun fetchAddonCollection(authKey: String): List<StremioAddon> {
+    fun fetchAddonCollection(
+        authKey: String,
+        diagnostics: (String) -> Unit = {},
+    ): List<StremioAddon> {
         val body = JSONObject()
             .put("authKey", authKey)
             .put("update", true)
@@ -118,16 +130,22 @@ class StremioClient(
             transport.post("$apiUrl/api/addonCollectionGet", body.toString()),
         )
         checkError(response, "addonCollectionGet")
-        val result = response.optJSONObject("result")
-        val addons = result?.optJSONArray("addons")
-            ?: response.optJSONArray("addons")
-            ?: JSONArray()
+        diagnostics("addonCollection top keys: ${response.keys().asSequence().toList()}")
+        val result = response.opt("result")
+        val addons = when (result) {
+            is JSONObject -> result.optJSONArray("addons") ?: JSONArray()
+            is JSONArray -> result // tolerated envelope variant
+            else -> response.optJSONArray("addons") ?: JSONArray()
+        }
         val out = ArrayList<StremioAddon>()
+        var skipped = 0
         for (i in 0 until addons.length()) {
             val manifest = addons.optJSONObject(i) ?: continue
             val id = manifest.optString("id").takeIf { it.isNotEmpty() } ?: continue
             val transportUrl = manifest.optString("transportUrl")
-                .takeIf { it.isNotEmpty() } ?: continue
+                .takeIf { it.isNotEmpty() }
+                ?: manifest.optString("manifestUrl").takeIf { it.isNotEmpty() }
+            if (transportUrl == null) { skipped++; continue }
             val resources = HashSet<String>()
             manifest.optJSONArray("resources").let { arr ->
                 if (arr != null) for (r in 0 until arr.length()) {
@@ -151,6 +169,8 @@ class StremioClient(
                 resourceTypes = resources,
             )
         }
+        diagnostics("addons rows=${addons.length()} parsed=${out.size} " +
+            "no-transportUrl=$skipped ids=${out.map { it.addonId }}")
         return out
     }
 }

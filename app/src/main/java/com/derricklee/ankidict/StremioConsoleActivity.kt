@@ -128,8 +128,9 @@ class StremioConsoleActivity : AppCompatActivity() {
     private fun fetchAndStore(authKey: String) {
         AppIo.io.execute {
             try {
-                val library = client.fetchLibrary(authKey)
-                val addons = client.fetchAddonCollection(authKey)
+                val log: (String) -> Unit = { m -> android.util.Log.i("StremioSync", m) }
+                val library = client.fetchLibrary(authKey, log)
+                val addons = client.fetchAddonCollection(authKey, log)
                 val now = System.currentTimeMillis()
                 miningRepository.replaceStremioLibrary(library, now)
                 miningRepository.replaceStremioAddons(addons, now)

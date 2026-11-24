@@ -70,6 +70,10 @@ class StremioEpisodesActivity : AppCompatActivity() {
                 metaAddon?.let {
                     AddonResources(UrlStremioTransport()).metaEpisodes(it, mediaType, baseId)
                 } ?: emptyList()
+            }.onFailure { e ->
+                runOnUiThread {
+                    binding.statusLine.text = "meta fetch failed: ${e.message?.take(120)}"
+                }
             }.getOrDefault(emptyList())
             val bitfield = WatchedBitfield.decode(
                 library?.state?.watchedBlob, episodes.map { it.episodeId },
