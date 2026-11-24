@@ -128,8 +128,10 @@ migration.
        ask) designed AND EXECUTED 2026-11-23: 007a Jimaku probe PASSED with
        constraints (6/6 anime eps via query-tier + native per-episode files;
        tmdb_id tier dead — spikes/007 README §16); SubDL pinned as future work
-       (user ruling); ASS parser P1 SHIPPED same pass (+ prod filename bugfix);
-       production builtin source slice + device walkthrough await explicit go.
+       (user ruling); ASS parser P1 SHIPPED (+ prod filename bugfix); production
+       builtin `JimakuClient` SHIPPED same day user go (D4a rung, C1/C3/D3a
+       constraints, prefs key+cache, JVM 144/144) — instrumented run + device
+       walkthrough for "first SUCCESSFUL extraction" still open.
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix

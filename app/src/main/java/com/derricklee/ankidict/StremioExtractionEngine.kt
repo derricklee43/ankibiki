@@ -23,6 +23,9 @@ class StremioExtractionEngine(
     private val configFor: (LanguageTag) -> PipelineConfig?,
     private val addonsProvider: () -> List<StremioAddon>,
     private val now: () -> Long = { System.currentTimeMillis() },
+    /** Builtin fallback source (spikes/007 D4a): consulted only after EVERY synced
+     *  addon candidate came up empty. Null = feature inert (legacy test call sites). */
+    private val jimaku: JimakuClient? = null,
 ) {
 
     data class Outcome(
@@ -34,7 +37,7 @@ class StremioExtractionEngine(
         val error: String? = null,
     )
 
-    fun runJob(videoId: String, metaType: String, baseId: String): Outcome {
+    fun runJob(videoId: String, metaType: String, baseId: String, showName: String? = null): Outcome {
         val settings = repo.stremioSettingsFor(videoId, baseId)
         val generation = Generation.of(settings)
         return try {
@@ -74,6 +77,25 @@ class StremioExtractionEngine(
                     break
                 }
                 tried += "${cand.name}: 0 results"
+            }
+            if (choices.isEmpty()) {
+                // Builtin rung (spikes/007 D4a ruling): after ALL synced addons missed,
+                // try Jimaku-direct. Failures append to the SAME tried-list so the
+                // ledger keeps one honest line per source.
+                val jm = jimaku
+                if (jm != null) {
+                    val builtinResult = runCatching {
+                        jm.subtitlesFor(showName, metaType, videoId, settings.subtitleLang)
+                    }
+                    val got = builtinResult.getOrDefault(emptyList())
+                    if (got.isNotEmpty()) {
+                        choices = got
+                    } else {
+                        val m = builtinResult.exceptionOrNull()?.message
+                        tried += "Jimaku (builtin): " +
+                            (if (m != null && m.length > 50) "…" + m.takeLast(50) else m ?: "0 choices")
+                    }
+                }
             }
             if (choices.isEmpty()) {
                 return fail(videoId, generation, "no ${settings.subtitleLang} subtitles - " +

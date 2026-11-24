@@ -264,6 +264,7 @@
     <string name="undo_history_note">取り消しは最新の操作から順に適用されます（履歴は最大 %1$d 件）</string>
     <string name="stremio_refresh">Stremio を同期</string>
     <string name="stremio_rd_token">RD トークン</string>
+    <string name="stremio_jimaku_key">Jimaku キー</string>
     <string name="stremio_extract">選択を抽出</string>
     <string name="stremio_gear">⚙</string>
     <string name="stremio_console_entry">Stremio コンソール</string>

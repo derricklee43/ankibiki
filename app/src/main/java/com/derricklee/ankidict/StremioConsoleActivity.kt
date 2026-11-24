@@ -2,6 +2,7 @@ package com.derricklee.ankidict
 
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -46,6 +47,7 @@ class StremioConsoleActivity : AppCompatActivity() {
 
         binding.refreshButton.setOnClickListener { startSync() }
         binding.rdTokenButton.setOnClickListener { promptRdToken() }
+        binding.jimakuKeyButton.setOnClickListener { promptJimakuKey() }
         renderHeader()
         AppIo.io.execute {
             val cached = miningRepository.loadStremioLibrary()
@@ -58,10 +60,13 @@ class StremioConsoleActivity : AppCompatActivity() {
     private fun renderHeader() {
         val auth = prefs.authKey != null
         val rd = prefs.rdToken
+        val jm = prefs.jimakuKey
         binding.headerText.text = buildString {
             append(if (auth) "Stremio: linked" else "Stremio: not linked")
             append("  |  RD: ")
             append(if (rd == null) "not configured" else StremioPrefs.mask(rd))
+            append("  |  Jimaku: ")
+            append(if (jm == null) "not configured" else StremioPrefs.mask(jm))
             if (prefs.lastSyncAt > 0) {
                 append("\nlast sync ")
                 append(android.text.format.DateFormat.getTimeFormat(this@StremioConsoleActivity)
@@ -191,6 +196,31 @@ class StremioConsoleActivity : AppCompatActivity() {
             }
             .setNegativeButton("Clear") { _, _ ->
                 prefs.rdToken = null
+                renderHeader()
+            }
+            .show()
+    }
+
+    /** Jimaku builtin-source key (spikes/007). Same prefs custody as rdToken:
+     *  prefs live outside the sqlite file, hence outside every bundle contract;
+     *  only masked presence is ever displayed or logged. */
+    private fun promptJimakuKey() {
+        val input = EditText(this).apply {
+            hint = "Jimaku API key (jimaku.cc → account page → API key)"
+            setText(prefs.jimakuKey.orEmpty())
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Jimaku key")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                prefs.jimakuKey = input.text.toString().trim().takeIf { it.isNotEmpty() }
+                renderHeader()
+            }
+            .setNegativeButton("Clear") { _, _ ->
+                prefs.jimakuKey = null
+                // clearing the secret must also drop cached entry ids? No: cache
+                // holds NO secrets (entry ids are public), it survives key changes.
                 renderHeader()
             }
             .show()

@@ -366,6 +366,18 @@ are `{...}` NOT `\{...}`, the second first-run lesson; `\N`/`\h`/tags -> spaces,
 centisecond stamps -> ms). 5 new JVM specs; suite 134/134 (`--rerun`, XML-parsed,
 fresh timestamps). Instrumented re-run deferred to next device session.
 
-Next slice (NOT started, needs explicit go): the production builtin Jimaku source
-(D4a loop attach + query-tier validation + C3 filter + entry cache per D3a) and
-the device walkthrough that closes "first SUCCESSFUL extraction" for real.
+Next slice — IMPLEMENTED 2026-11-23 (same session, user go "let's get this
+implemented"): the production builtin Jimaku source shipped as `JimakuClient`
+(D4a rung wired into `StremioExtractionEngine.runJob` after the synced-addon
+loop, gated on jpn lang; query-hit VALIDATION per C1 — leading-title-token gate
++ episode-number check via the bugfixed `parseEpisodeFromFilename` with a
+name-fallback for Japanese-only filenames; `.zip/.rar` rows filtered per C3;
+prefs-backed per-show entry cache with self-heal per D3a; key field + masked
+presence row on the console like the RD token). NO schema change: cache and key
+live in prefs (outside the bundle contract by the StremioPrefs header rule).
+Evidence: JVM 144/144 fresh (`--rerun`, XML-parsed; 10 new Jimaku specs pinning
+live-captured response shapes incl. the Sakamoto zip row); two new instrumented
+specs compiled (builtin rescue + tried-list append) — RUN PENDING emulator
+session; device walkthrough still open. Test-run first-passes caught three real
+bugs (cache keying via substringBeforeLast stranding the season segment;
+URLEncoder '+' vs %20 route expectations; one inverted pure-helper assertion).

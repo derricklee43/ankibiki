@@ -162,11 +162,14 @@ class StremioEpisodesActivity : AppCompatActivity() {
                 repo = miningRepository,
                 configFor = ::miningConfigFor,
                 addonsProvider = { miningRepository.loadStremioAddons() },
+                // builtin rung after synced addons (spikes/007 D4a; prefs = no schema change)
+                jimaku = JimakuClient(transport, { prefs.jimakuKey },
+                    PrefsJimakuEntryCache(prefs)),
             )
             var mined = 0
             var failed = 0
             for (episode in targets) {
-                val outcome = engine.runJob(episode.episodeId, mediaType, baseId)
+                val outcome = engine.runJob(episode.episodeId, mediaType, baseId, showName)
                 if (outcome.status == StremioLedgerStatus.MINED) mined++ else failed++
                 val idx = rows.indexOfFirst { it.episode.episodeId == episode.episodeId }
                 if (idx >= 0) runOnUiThread { adapter.notifyItemChanged(idx) }

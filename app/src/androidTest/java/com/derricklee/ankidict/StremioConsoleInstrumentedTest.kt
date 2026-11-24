@@ -209,6 +209,60 @@ class StremioConsoleInstrumentedTest {
         assertEquals(StremioLedgerStatus.MINED, recovered.status)
     }
 
+    /** spikes/007 D4a: builtin Jimaku rung fires only after synced addons miss. */
+    @Test
+    fun builtinRung_rescuesWhenSyncedAddonsComeUpEmpty() {
+        val jmTransport = object : StremioTransport {
+            override fun get(url: String, headers: Map<String, String>) = when {
+                url.contains("/subtitles/") -> """{"subtitles":[]}""" // synced addon: no jpn
+                url.contains("/entries/search?query=Fake+Show") ->
+                    """[{"id":9898,"name":"Fake Show"}]"""
+                url.contains("/entries/9898/files?episode=1") ->
+                    """[{"url":"https://jm.example/s1.ass","name":"images.zip","size":2,"last_modified":"2025-01-01T00:00:00Z"},
+{"url":"https://jm.example/one.srt","name":"[GRP] Fake Show - 01 (1080p).srt","size":1,"last_modified":"2025-01-01T00:00:00Z"}]"""
+                url.endsWith("one.srt") -> srt
+                url.contains("/stream/") -> """{"streams":[]}"""
+                else -> "{}"
+            }
+            override fun post(url: String, body: String, contentType: String,
+                              headers: Map<String, String>) = "{}"
+        }
+        val e = StremioExtractionEngine(
+            transport = jmTransport,
+            repo = repo,
+            configFor = { japaneseConfig() },
+            addonsProvider = { repo.loadStremioAddons() },
+            jimaku = JimakuClient(jmTransport, { "K" }),
+        )
+        val outcome = e.runJob("tt777:1:1", "series", "tt777", "Fake Show")
+        assertEquals(StremioLedgerStatus.MINED, outcome.status)
+        assertEquals(2, outcome.cuesStored)
+    }
+
+    @Test
+    fun builtinRung_missAppendsToLedgerTriedList() {
+        val jmTransport = object : StremioTransport {
+            override fun get(url: String, headers: Map<String, String>) = when {
+                url.contains("/subtitles/") -> """{"subtitles":[]}"""
+                url.contains("/entries/search") -> "[]"
+                else -> "{}"
+            }
+            override fun post(url: String, body: String, contentType: String,
+                              headers: Map<String, String>) = "{}"
+        }
+        val e = StremioExtractionEngine(
+            transport = jmTransport,
+            repo = repo,
+            configFor = { japaneseConfig() },
+            addonsProvider = { repo.loadStremioAddons() },
+            jimaku = JimakuClient(jmTransport, { "K" }),
+        )
+        val outcome = e.runJob("tt666:1:1", "series", "tt666", "Nowhere Show")
+        assertEquals(StremioLedgerStatus.FAILED, outcome.status)
+        assertTrue("ledger names both rungs", outcome.error!!.contains("Jimaku (builtin)") &&
+            outcome.error!!.contains("Fake Subs"))
+    }
+
     @Test
     fun migration_preV14Database_upgradesTo14_materializingStremioTables() {
         repo.writableDatabase.execSQL("DROP TABLE IF EXISTS stremio_cues")
