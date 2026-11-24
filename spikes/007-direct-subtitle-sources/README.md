@@ -383,6 +383,34 @@ Honest ledger (numbered, per execution discipline):
    WAL deliberately NOT enabled: uncheckpointed -wal pages silently break the
    file-copy backup tooling (backup_bundle.py, adb pulls) — the whole corpus
    backup story assumes a complete single-file db.
+8. SESSION END 2026-11-23 ~22:20 (user paused; RESUME STATE, read this first):
+   - Regex PSE is GONE on the device: the 13671fc build parsed real .ass fine
+     (no new PSE rows after 22:12; ledger stopped distinguishing — PARSING
+     spans parse+all-batches until MINED, so a stuck PARSING row cannot say
+     WHERE it died; process kills explain the stalls).
+   - BUT A SECOND ANR at 22:16:18 with the chunked build: identical signature
+     (MainActivity FocusEvent 5002ms, killed; tt33028568:1:1 row stuck PARSING).
+     So CUE_BATCH=50 did NOT fix the freeze — batches still starve the UI.
+   - WORKING THEORY for tomorrow (hypothesis, NOT verified): without WAL,
+     SQLiteOpenHelper = ONE pooled connection shared by all threads; the
+     pipeline thread OWNS it for the duration of each batch, and my batches
+     still include the CPU work (CorpusInsertion.analyzeCandidates runs
+     INSIDE inTransaction) — each batch therefore holds the only connection
+     ~seconds; the main thread's window-focus DB work serializes behind the
+     batch queue -> 5s input timeout. FIX DIRECTION: analyze OUTSIDE the
+     transaction (pure (config,text) -> candidates, no DB), batch = inserts
+     only (~100-300ms holds), optionally smaller CUE_BATCH; retest on a long
+     episode while backgrounding/returning mid-mine. WAL reconsideration only
+     if insert-only batches still miss the input deadline — and any WAL move
+     MUST first teach the backup tooling to checkpoint-before-copy.
+   - First actions next session: (1) re-pull ledger (everything after
+     22:15:47) + `logcat -b events | grep am_anr` to confirm; (2) implement
+     the analyze-outside-transaction fix; (3) instrumented emulator run
+     (whole suite vs changed engine + the 2 builtin specs, still never run);
+     (4) user walkthrough for Gachiakuta E04 first SUCCESSFUL extraction +
+     the C2 sentence-spot-check; (5) D6a Buta install remains user-side.
+   - Phone state: newest APK installed, Jimaku key injected+verified in prefs,
+     authKey/RD untouched, mining.db data intact (all failed rows re-queueable).
 
 16.5 P1 SHIPPED this pass: `SubtitleParser.parseAss` ([Events] section; Format
 column-order respected incl. SSA default; Dialogue-only; Text re-merge for
