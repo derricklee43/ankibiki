@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="com.ichi2.anki.permission.READ_WRITE_DATABASE" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
@@ -24,8 +25,15 @@
         </intent>
     </queries>
 
+    <!-- allowBackup=false (2026-11-23): shared_prefs hold the Stremio authKey and the
+         RD token (StremioPrefs), and Google cloud backup or device transfer replicate
+         app data off-device. The AnkiDroid api library ships allowBackup=true in its own
+         manifest, which the merger previously honored over ours; tools:replace overrides
+         it. Corpus restore is the explicit bundle path (docs/recovery.md), which never
+         touches prefs; console secrets regenerate via one re-sync. -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
+        tools:replace="android:allowBackup"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
