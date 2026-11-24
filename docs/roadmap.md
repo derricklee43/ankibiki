@@ -107,8 +107,9 @@ migration.
        emulator). LIVE on device 2026-11-23: link flow + authKey OK, library +
        addons sync OK (descriptor envelope pinned), episodes render; four
        live bugs found and fixed via ledger/logcat evidence (spikes/006 debug
-       log). Still open: first SUCCESSFUL extraction (gear subtitle language
-       unset + kitsu-subtitle-addon ranking fix pending user retry), S0-A
+       log). Still open: first SUCCESSFUL extraction — ROOT-CAUSED 2026-11-23 as a
+       CONTENT gap, not code (all three synced subtitle addons verified empty/crashed
+       for jpn anime; ledger reported accurately), S0-A
        closeout items (44->13 parse gap, time_offset unit), stage-2 reader
        generalization LANDED 2026-11-23 as schema v15 media_refs under
        [sentence-media-refs-design.md](sentence-media-refs-design.md) (user
@@ -122,7 +123,10 @@ migration.
        the console doc carries: §11.1 mass-delete mining runs (low priority),
        §11.2 intro/credits-range exclusion (user future thread 2026-11-23,
        deliberately not hashed), §11.3 cards-with-media phase (deferred,
-       contract preserved in the parked doc §C).
+       contract preserved in the parked doc §C). Direct-upstream subtitle sourcing
+       (Jimaku/SubDL official APIs, bypassing the Buta proxy per its author's
+       ask) DESIGNED 2026-11-23 as spikes/007-direct-subtitle-sources/README.md
+       — docs-only, execution pending STEP-1 keys + user go on numbered decisions.
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix
