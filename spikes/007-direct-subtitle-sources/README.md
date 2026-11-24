@@ -272,11 +272,12 @@ In every branch: P1 (ASS parser) ships — it gates Buta files as much as Jimaku
 1. Run order: (a) 007a only first, decide 007b by its outcome [lean]; (b) both
    back-to-back in one session; (c) both in parallel with two agents.
    Recommended: **(a)** — cheapest kill first, one session each way.
-2. Key custody during the spike: (a) user pastes keys into the chat/session env
-   [lean]; (b) keys written into a gitignored local file the spike script reads.
-   Recommended: **(a)** with immediate rotation option (both sites show the key
-   again; both are free/revocable) — or (b) if preferred; both keep keys OUT of the
-   repo and OUT of the bundle (prefs/file, not DB).
+2. Key custody during the spike: (a) keys written into a gitignored local file the
+   spike script reads (`/home/derri/.config/ankibiki/spike007.env`, chmod 600)
+   [RECOMMENDED — chat paste is UNRECOMMENDED: the message round-trips the provider
+   API and persists in session history]; (b) chat paste anyway, with post-run
+   rotation, if the file route is ever inconvenient. Residual risk on (a) is low by
+   design: both keys are free and one-click regenerable.
 3. If 007a passes but 007c finds real rate friction: (a) throttle+cache and ship
    [lean]; (b) batch-of-one discipline only, no cache. Recommended **(a)** —
    per-show entry caching is trivially safe (episode additions are the only
