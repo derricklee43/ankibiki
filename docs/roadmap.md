@@ -110,7 +110,10 @@ migration.
        log). Still open: first SUCCESSFUL extraction — ROOT-CAUSED 2026-11-23 as a
        CONTENT gap, not code (all three synced subtitle addons verified empty/crashed
        for jpn anime; ledger reported accurately), S0-A
-       closeout items (44->13 parse gap, time_offset unit), stage-2 reader
+       closeout items (parse gap RESOLVED 2026-11-26: server-side datastoreGet
+       diff showed rows=45/parsed=13 are 32 `removed:true` tombstones correctly
+       skipped, incl. the user's temp-added Demon Slayer rows — not a parser
+       bug; time_offset unit), stage-2 reader
        generalization LANDED 2026-11-23 as schema v15 media_refs under
        [sentence-media-refs-design.md](sentence-media-refs-design.md) (user
        go; negative photo_id namespace retired, video sentences now visible
