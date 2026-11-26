@@ -1,9 +1,10 @@
 # User dictionary — adding your own words (names) so parsing gets them right
 
-**STATUS: DRAFT — nothing here is approved or implemented.** Design doc for the
-feature request of 2026-11-26 (user): "I want to be able to add words to my
-dictionary. I will primarily use this feature to add names, so that they get
-parsed correctly." Implementation waits on the §8 decision points being ruled.
+**STATUS: RULED 2026-11-26 (D1a/D2a/D3a/D5a/D6a/D7a/D8a; D4 superseded by
+[definition-model-design.md](definition-model-design.md)) — implementation gated on
+that design's rulings + a go.** Design doc for the feature request of 2026-11-26
+(user): "I want to be able to add words to my dictionary. I will primarily use this
+feature to add names, so that they get parsed correctly."
 
 ## 1. Problem statement (every claim grounded in live code)
 
@@ -276,38 +277,25 @@ count/definition on the sentence view, delete + undo the entry.
   prose.
 - `docs/roadmap.md` — item 9 pointer (already added with this doc).
 
-## 8. Decision points (answer in bare numbers)
+## 8. Decision points — RULED 2026-11-26
 
-- **D1 — tokenization mechanism.** (a) span-forcing decorator per §3.2 with the
-  three conflict rules — RECOMMENDED; (b) decorator but NO fragment suppression
-  (user word coexists with its own fragments — visibly wrong output like
-  竈門炭治郎 + 竈門 + 治郎 in one sentence); (c) real Kuromoji user-lexicon
-  build-out (§5 rejected; cost: binary dictionary toolchain on device).
-- **D2 — retroactive application to already-mined sentences.** (a) v1 = future
-  mining only, phase-2 "apply to occurrences" button with undo — RECOMMENDED
-  (ships the core safely); (b) include the corpus-wide apply pass in v1 (more
-  blast radius + device time before the first walkthrough); (c) never (entries
-  only affect new extractions — re-mining is the manual path).
-- **D3 — entries without occurrences.** (a) list only in ユーザー事典, corpus
-  untouched until extraction — RECOMMENDED (keeps 単語 tab occurrence-grounded);
-  (b) also register `extracted_items` immediately (word visible everywhere, but
-  ghost rows appear in frequencies/lists with 0 occurrences).
-- **D4 — meaning precedence vs later picks.** (a) user meaning seeds
-  `meaning` at registration; picked_headword/user_definition keep their existing
-  override powers on top — RECOMMENDED; (b) user meaning also WINS against an
-  existing picked entry on re-extract (breaks the v13 pick rule; needs explicit
-  re-resolve semantics).
-- **D5 — delete safety.** (a) confirm dialog + USER_WORD_DELETE undo —
-  RECOMMENDED; (b) confirm dialog only (no new undo action, less code); (c) soft
-  disable flag instead of delete (entry stops applying but stays listed — extra
-  state the table doesn't need).
-- **D6 — reading required?** (a) optional; blank = parser keeps whatever the
-  token reading was, and pure-unknown names get no kana (current behavior) —
-  RECOMMENDED (frictionless quick adds); (b) required for kanji entries (every
-  name gets a reading for search/detail, costs a field per add).
-- **D7 — Chinese user words.** (a) defer wiring; schema is tag-ready —
-  RECOMMENDED; (b) ship both languages' wiring in v1 (adds zh spec burden now).
-- **D8 — home search source.** (a) no search integration in v1 (the list screen
-  is the dictionary) — RECOMMENDED; (b) add `USER_WORDS` SearchSource so entries
-  surface in the 引き search before first extraction (cheap, but interleaves
-  user entries with Anki/dict results — ranking/capping needs care).
+- **D1 RULED (a):** span-forcing decorator with the three conflict rules (§3.2).
+- **D2 RULED (a):** v1 = future extractions only; the "apply to occurrences"
+  retroactive button is phase-2 (§3.5).
+- **D3 RULED (a):** entries without occurrences live only in ユーザー事典; the
+  corpus stays occurrence-grounded (§3.6).
+- **D4 RULED — SUPERSEDED by a rework (user: "I am not sure, I am thinking that I
+  might want to rework this section altogether. Write me a design on merging user
+  entered def and default dictionary, plus keep the notes section.").** The
+  precedence question dissolves into the merged single-definition model:
+  [definition-model-design.md](definition-model-design.md) — `meaning` becomes the
+  one definition with provenance sources (AUTO / PICK / USER_DICT / USER); notes
+  keep their existing separate row untouched. This doc's §3.3 provider-first
+  registration stands unchanged; its "D4 pins this choice" caveat resolves
+  through that design. Implementation of the user dictionary is gated on that
+  design's rulings + a go.
+- **D5 RULED (a):** confirm dialog + USER_WORD_DELETE undo (§3.7).
+- **D6 RULED (a):** reading optional; blank keeps parser behavior (§3.7).
+- **D7 RULED (a):** Chinese deferred; schema/decorator stay tag-ready (§3.2).
+- **D8 RULED (a):** no home-search source in v1; the list screen is the lookup
+  surface (§3.6).

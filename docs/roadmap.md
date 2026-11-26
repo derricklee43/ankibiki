@@ -160,8 +160,9 @@ migration.
        pending emulator run with the rest.
 9. [ ] **User dictionary (add own words — names — so parsing extracts them
        right)**: design doc DELIVERED 2026-11-26 (user request) at
-       [user-dictionary-design.md](user-dictionary-design.md) — DRAFT, nothing
-       approved: §8 decision points D1-D8 each carry a recommendation.
+       [user-dictionary-design.md](user-dictionary-design.md) — **RULED
+       2026-11-26: D1a/D2a/D3a/D5a/D6a/D7a/D8a; D4 SUPERSEDED** by the merged
+       definition model (item 10, its rulings gate this implementation too).
        Change: `user_words` table (schema v16 ceremony) + span-forcing
        WordAnalyzer decorator at the single config seam + provider-first
        definition registration + ユーザー事典 screen (hamburger entry) +
@@ -172,7 +173,25 @@ migration.
        strict-substring-ignore rule; v16 migration instrumented round-trip +
        bundle restore of a v15 backup; device walkthrough = add a real name →
        mine one episode → chip shows the single token with the user's meaning;
-       delete + undo round-trips. Implementation waits for the D1-D8 rulings.
+       delete + undo round-trips.
+10. [ ] **Merged definition model (one definition per item; user text +
+       dictionary unified; notes untouched)**: design doc DELIVERED 2026-11-26
+       (user D4 rework request: "merging user entered def and default dictionary,
+       plus keep the notes section") at
+       [definition-model-design.md](definition-model-design.md) — DRAFT, §7
+       decision points E1-E7 each with a recommendation. Change: `meaning` stays
+       the single read truth (v13 write-through precedent) +
+       `definition_source`(AUTO/PICK/USER_DICT/USER) + `system_meaning` revert
+       target; user_definition becomes a mirror (old card_templates keep
+       exporting); the 意味/定義 two-row UI collapses into one definition row
+       with source chip + pencil + 変更 picker + 辞書に戻す; ノート row
+       untouched; USER survives re-mine via the upsert carry path. Why: today
+       three parallel definition voices with no winner — the v13 proposal itself
+       named the flaw. Exit (acceptance): `DefinitionSourceLadderTest` JVM pins
+       (USER never auto-overwritten; v13 pick behavior byte-identical),
+       upsert-carry instrumented hazard spec (rule 7), re-mine-over-USER-device
+       walkthrough, `DraftAdapterContractTest` deliberate re-pin. Same v16 bump
+       as item 9 (E3) — these two ship together or not at all.
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix
