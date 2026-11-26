@@ -411,6 +411,39 @@ Honest ledger (numbered, per execution discipline):
      the C2 sentence-spot-check; (5) D6a Buta install remains user-side.
    - Phone state: newest APK installed, Jimaku key injected+verified in prefs,
      authKey/RD untouched, mining.db data intact (all failed rows re-queueable).
+9. DEVICE SESSION 2026-11-26 — RESOLVED: FIRST SUCCESSFUL EXTRACTION.
+   Walkthrough tt8515016:1:2 (Banana Fish S01E02) reached ledger `mined`,
+   doc 4: 396 cues -> 867 item_occurrences; app stayed responsive mid-mine
+   (watcher saw zero am_anr / "database is locked" events for the whole run).
+   Two NEW root causes beyond §16.7-.8 theory, both device-verified before fix:
+   - a) MainActivity.onDestroy called shutdown() on AppIo.pipeline — the
+     process-lifetime shared lane. One activity destroy poisoned it for the
+     whole process; next 抽出 tap threw RejectedExecutionException FATAL on
+     the MAIN thread (logcat 07:43:33, pool state [Terminated]). Fix: shutdown
+     removed (lanes die with the process); pinned by AppIoLaneLifecycleTest
+     source-scan guard (no executor .shutdown( in app/src/main + lane aliases).
+   - b) The kit's "CPU-inside-transaction" hypothesis was the WRONG CPU:
+     morphological analysis was hoisted (07:53 build) and batches STILL took
+     60-68s (dumpsys dbinfo on the frozen run: TRANSACTION-EXCLUSIVE took
+     60560ms while ALL SQL summed 366ms; pool [1 active, 0 available], io
+     thread starved 90s -> user's "sync failed: database is locked"). The
+     real hold: CorpusInsertion.ensureCanonicalItemExists fires per-candidate
+     AnkiDroid CONTENT-PROVIDER round-trips (findMatch: model list + field
+     names + note search per word) + dictionary scans INSIDE the transaction,
+     and the connection stays held across them. Fix: PLAN/APPLY split —
+     planInsertions resolves the whole batch's write set OUTSIDE any
+     transaction (existence probes as lambdas; per-episode InsertionMemo
+     makes repeated subtitle vocab cost zero IPC after first sight; negative
+     results cached), applyInsertions commits sub-ms pure writes in one short
+     tx. Semantics mirror ensureCanonicalItemExists verbatim; same-expression/
+     different-reading batches adopt late matches (pinned by
+     CorpusInsertionPlanTest 5 specs; one spec caught a real parity detail:
+     ideograph expressions without dict entries carry kanji=expression).
+   Suite fresh 153/153 (--rerun, XML-parsed, 08:02). Snapshots:
+   backups/20261126-074910 (pre), 20261126-080324, 20261126-082421 (post,
+   integrity ok). C2 season-0 sentence verification still open (needs a
+   tt13293588:0:x or Gachiakuta E04 full mine read on-device); instrumented
+   emulator run still pending; Buta-in-Stremio install (D6a) user-side.
 
 16.5 P1 SHIPPED this pass: `SubtitleParser.parseAss` ([Events] section; Format
 column-order respected incl. SSA default; Dialogue-only; Text re-merge for

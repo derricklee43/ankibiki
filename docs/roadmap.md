@@ -130,8 +130,15 @@ migration.
        tmdb_id tier dead — spikes/007 README §16); SubDL pinned as future work
        (user ruling); ASS parser P1 SHIPPED (+ prod filename bugfix); production
        builtin `JimakuClient` SHIPPED same day user go (D4a rung, C1/C3/D3a
-       constraints, prefs key+cache, JVM 144/144) — instrumented run + device
-       walkthrough for "first SUCCESSFUL extraction" still open.
+       constraints, prefs key+cache, JVM 144/144) — DEVICE WALKTHROUGH COMPLETED
+       2026-11-26: FIRST SUCCESSFUL EXTRACTION on device (Banana Fish S01E02
+       tt8515016:1:2, 396 cues -> 867 item_occurrences, app responsive mid-mine;
+       the two device stalls root-caused and fixed same session — shared-pool
+       shutdown crash + AnkiDroid-IPC-inside-transaction, see spikes/007 README
+       §16 item 9; JVM 153/153 fresh incl. 5 new plan specs + lane-lifecycle
+       guard). Still open: instrumented emulator run, SM-3/SM-4, C2 sentence
+       verification (needs a season-0 row mined end-to-end, e.g. Gachiakuta E04
+       walkthrough), 44->13 parse-gap closeout.
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix

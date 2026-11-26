@@ -616,7 +616,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         pendingSearch?.let { searchHandler.removeCallbacks(it) }
-        syncExecutor.shutdown()
+        // NEVER shutdown AppIo lanes here: syncExecutor/scanExecutor alias the SHARED
+        // process-lifetime AppIo.pipeline singleton. MainActivity onDestroy (back nav,
+        // config change) used to call shutdown() on it and poisoned the lane for the
+        // whole process: every later AppIo.pipeline.execute threw
+        // RejectedExecutionException on the caller thread (device crash
+        // 2026-11-26 07:43:33, tapped
+        // 抽出 -> pool [Terminated] -> FATAL on main). Lanes die with the process.
         adapter.stopAudio()
         super.onDestroy()
     }

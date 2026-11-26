@@ -141,31 +141,40 @@ class StremioExtractionEngine(
             )
             var occurrences = 0
             val createdAt = now() / 1000L
-            // CHUNKED COMMITS (device ANR 2026-11-23): the full-episode single
-            // transaction (~500-800 cues x vocabulary lookups) held the rollback-
-            // journal write lock 25+ seconds, blocking the main thread's DB reads
-            // past the 5s ANR limit (system killed the app mid-mine; photo-path
-            // transactions were always short enough to hide this). Batches bound
-            // lock hold so readers get windows between commits. Correctness
-            // unchanged: this doc's old occurrences were already deleted above,
-            // a crash mid-batch leaves rows re-queueable (re-run deletes this
-            // doc's rows again — replace-in-place is doc-scoped), and the ledger
-            // marks MINED only after the LAST batch. WAL was rejected on purpose:
-            // uncheckpointed -wal pages would silently break the file-copy backup
-            // tools (backup_bundle.py + adb pulls).
+            // PLAN / APPLY (device freeze 2026-11-26 07:54, third root-cause pass):
+            // chunking (13671fc) and moving pure analysis out of the transaction
+            // were both necessary but insufficient - dumpsys dbinfo showed the
+            // batches themselves took 60+s while ALL SQL summed 366ms. The hold was
+            // the cross-app AnkiDroid ContentProvider round-trips + dictionary scans
+            // that ensureCanonicalItemExists fires per candidate INSIDE the
+            // transaction, on the ONE pooled connection. Fix: resolve each batch's
+            // whole write set outside any transaction (planInsertions, with a
+            // per-episode memo so repeated subtitle vocabulary costs zero IPC after
+            // first sight), then apply pure sub-millisecond writes in a short
+            // transaction. Correctness unchanged vs the sequential path (see
+            // CorpusInsertion.planInsertions doc); doc-scoped delete-before-insert
+            // above still makes a mid-batch kill re-queueable, and the ledger marks
+            // MINED only after the LAST batch. WAL stays OFF on purpose:
+            // uncheckpointed -wal pages break the file-copy backup tools
+            // (backup_bundle.py + adb pulls).
+            val memo = CorpusInsertion.InsertionMemo()
             var idx = 0
             while (idx < cues.size) {
                 val slice = cues.subList(idx, minOf(idx + CUE_BATCH, cues.size))
+                val batch = slice.map { cue ->
+                    cue.text to CorpusInsertion.analyzeCandidates(config, cue.text)
+                }
+                val plan = CorpusInsertion.planInsertions(
+                    config, batch,
+                    hasItem = { t, e -> repo.hasExtractedItem(config.tag, t, e) },
+                    hasLink = { t, e -> repo.hasLinkedAnkiCard(config.tag, t, e) },
+                    memo = memo,
+                )
                 repo.inTransaction {
-                    for (cue in slice) {
-                        val candidates = CorpusInsertion.analyzeCandidates(config, cue.text)
-                        if (candidates.isNotEmpty()) {
-                            occurrences += CorpusInsertion.insertCandidates(
-                                repo, config, mediaId = mediaRefId, photoId = null,
-                                sentence = cue.text, candidates = candidates, timestamp = createdAt,
-                            )
-                        }
-                    }
+                    occurrences += CorpusInsertion.applyInsertions(
+                        repo, config, plan, mediaId = mediaRefId, photoId = null,
+                        timestamp = createdAt,
+                    )
                 }
                 idx += CUE_BATCH
             }
