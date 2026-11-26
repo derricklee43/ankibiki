@@ -1,11 +1,13 @@
 # Definition model: merging the user definition with the dictionary entry
 
-**STATUS: DRAFT — nothing here is approved.** Written 2026-11-26 in response to the
-D4 deferral on [user-dictionary-design.md](user-dictionary-design.md) (user: "I might
-want to rework this section altogether. Write me a design on merging user entered def
-and default dictionary, plus keep the notes section."). This doc REPLACES the §3.3
-precedence question of that design; the rest of it (D1a/D2a/D3a/D5a/D6a/D7a/D8a ruled
-2026-11-26) stands. Implementation waits on the §7 decision points + a go.
+**STATUS: RULED 2026-11-26 — E1a/E2a/E3a/E4a/E5a/E6a/E7a ("this is a good
+idea"). Awaiting the implementation go.** Written 2026-11-26 in response to the
+D4 deferral on [user-dictionary-design.md](user-dictionary-design.md) (user: "I
+might want to rework this section altogether. Write me a design on merging user
+entered def and default dictionary, plus keep the notes section."). This doc
+REPLACES the §3.3 precedence question of that design; the rest of it (D1a/D2a/
+D3a/D5a/D6a/D7a/D8a ruled 2026-11-26) stands. Both designs share the ONE v16
+migration ceremony (E3a).
 
 ## 1. The problem, in live code
 
@@ -131,18 +133,16 @@ ExportVocabulary.kt:131) needs NO change — it already reads `meaning`.
 `DictionaryMetadata` for user surfaces at registration time, so a first-time
 extract of a sentence containing 竈門炭治郎 registers the item with
 `meaning = user_words.meaning`, `definition_source='USER_DICT'`.
-Propagation on EDIT of a user_words entry (E5):
-(a) re-resolve existing USER_DICT rows immediately (one UPDATE ... WHERE
-definition_source='USER_DICT' AND expression IN changed set; USER and PICK rows
-never touched); or (b) never propagate — USER_DICT rows keep the text from
-registration time until an explicit re-mine. This design's recommendation is (a)
-for the global-entry semantic: the point of a global user dictionary is one
-place to fix a name's gloss (mirrors v13's "picks follow dictionary upgrades"
-philosophy, re-resolve semantics). Either way USER (per-item) beats USER_DICT
-(global) — a hand-tuned per-word text is more specific intent.
+Propagation on EDIT of a user_words entry (E5a): re-resolve existing USER_DICT
+rows immediately (one UPDATE ... WHERE definition_source='USER_DICT' AND
+expression IN changed set; USER and PICK rows never touched).
+DELETION of a user_words entry (pin 2026-11-26): never rewrites occurrence-
+grounded rows — USER_DICT items keep their text (source unchanged) until the
+NEXT extraction of a sentence containing them, which then resolves as if the
+word were never registered (AUTO/pick rules); an undone delete (USER_WORD_DELETE
+undo) leaves every row already carrying the gloss, so undo is total either way.
 Re-mine of a USER_DICT row re-pulls user_words.meaning (live re-resolve, like
-pick-key re-resolve): an edited global entry converges on next extraction even
-if E5 chooses (b).
+pick-key re-resolve). USER (per-item) always beats USER_DICT (global).
 
 ### 3.5 Storage / migration / undo / bundle ceremony
 
@@ -169,6 +169,18 @@ if E5 chooses (b).
 - Bundle: new columns stay OUT of MINING_COLUMNS/REQUIRED_COLUMNS (rule 3);
   SUPPORTED_USER_VERSIONS gains the new version; docs/recovery.md prose; every
   instrumented `user_version` pin re-pins in the same commit (rule 4 tripwire).
+- LEGACY NORMALIZATION (pin 2026-11-26, found in the "vs what I have now" review):
+  collapsing the 意味/定義 rows would otherwise SILENTLY HIDE existing
+  user_definition text (the merged row reads `meaning`). The v16 migration
+  therefore performs the editor's operation once per non-empty row —
+  `meaning := user_definition`, `definition_source := 'USER'`,
+  `system_meaning := <old meaning>` (the user_definition column keeps its value
+  as the export mirror) — so every pre-merge user definition survives visibly.
+  Rows where the two columns already agree, and rows with NULL user_definition,
+  are untouched; a same-transaction count (rows normalized) lands in the
+  migration log line for the demo evidence. Undo does not wrap migrations
+  (restore-from-bundle is the escape hatch), which the pin asserts cannot lose
+  data: every written column value is preserved in place.
 
 ### 3.6 Explicit non-goals
 
@@ -214,11 +226,16 @@ JVM:
 - UndoCodec round-trip for `ITEM_DEFINITION_EDIT` (extend UndoCodecTest).
 Instrumented (emulator backlog batch):
 - v16 migration: pre-bump DB → columns present, defaults 'AUTO', user_definition
-  rows untouched; bundle round-trip of a v15 backup restores and migrates.
+  rows untouched; LEGACY NORMALIZATION spec — a seeded row with
+  user_definition != meaning emerges with meaning := user_definition,
+  definition_source='USER', system_meaning := old gloss, and the mirror kept;
+  NULL/agreeing rows byte-identical; bundle restore of a v15 backup lands the
+  same normalization on first open.
 - upsert carry: re-mine over a USER-definition row leaves meaning/user_definition/
   system_meaning intact (the CONFLICT_REPLACE hazard spec, rule 7).
-- USER_DICT propagate-on-edit (if E5a): edit user_words.meaning → USER_DICT row
-  updates, USER row does not.
+- USER_DICT propagate-on-edit (E5a): edit user_words.meaning → USER_DICT row
+  updates, USER row does not. Plus the §3.4 DELETION pin: deleting a user_words
+  entry leaves USER_DICT row text intact; next extraction reverts it to AUTO.
 - word-view render: USER row shows text without 表示 gate; chip labels; 辞書に戻す.
 
 Device walkthrough: mine an episode, edit one definition, re-mine, verify the
@@ -246,34 +263,21 @@ mapping exports the merged text.
 - `docs/roadmap.md` — item 10 pointer.
 - strings: 辞書 / 選択 / ユーザー / 名簿 chips, 辞書に戻す, confirm copy (Japanese).
 
-## 7. Decision points (answer in bare numbers)
+## 7. Decision points — RULED 2026-11-26 (user answered 1a/2a/3a/4a/5a/6a/7a,
+"this is a good idea"; E4 read as (a))
 
-- **E1 — merge shape.** (a RECOMMENDED) write-through: `meaning` stays the single
-  truth, new `definition_source` + `system_meaning` record provenance/revert —
-  zero consumer changes, v13 precedent; (b) read-time coalesce — rejected
-  upstream already; cost of re-listing: every consumer fork.
-- **E2 — user_definition's corpse.** (a RECOMMENDED) keep the column as a mirror
-  written on USER edits (old card_templates mapping `user_definition` keep
-  working; row removal is UI-only); (b) stop writing it, accept blank exports for
-  templates that mapped it (a silent data loss the wizard can't detect).
-- **E3 — migration shape.** (a RECOMMENDED) ONE bump (v16) shipping user_words +
-  definition columns together — the two designs are one user story, one ceremony;
-  (b) two bumps — cleaner history, double the re-pin ceremony, and D4-dependent
-  user-dictionary registration would ship with a precedence hole in between.
-- **E4 — 変更 picker over a USER row.** (a RECOMMENDED) allowed, with an explicit
-  confirm ("置き換えますか？") — the dictionary candidate list is still the fastest
-  way to abandon custom text; (b) picker disabled while source=USER (must clear
-  the definition first — extra step for a common reversal).
-- **E5 — user_words edit propagation to existing USER_DICT rows.** (a
-  RECOMMENDED) propagate immediately (one scoped UPDATE; a global dictionary that
-  lies about a name you just fixed is not a dictionary); (b) converge on next
-  extract only — safer diff, visible staleness in between.
-- **E6 — reveal ceremony for user-authored sources.** (a RECOMMENDED) USER /
-  USER_DICT text renders directly (reveal exists to gate DICTIONARY spoilers,
-  not your own typing); (b) keep 表示 for everything — consistent gesture, but
-  the user must tap through to see text they wrote.
-- **E7 — grammar items in the merged editor.** (a RECOMMENDED) yes — grammar
-  rows already carry meaning/user_definition/user_notes (same table, same rows),
-  the merged row works unchanged; the candidate picker degrades to today's
-  single-entry catalog; (b) definition-edit for WORD only — grammar keeps the old
-  two-row UI, meaning the UI forks by item_type for no benefit.
+- **E1 RULED (a):** write-through merge — `meaning` stays the single truth,
+  `definition_source` + `system_meaning` record provenance/revert (§3.1).
+- **E2 RULED (a):** `user_definition` kept as a write-target MIRROR; old
+  card_templates mappings keep exporting (§3.2).
+- **E3 RULED (a):** ONE v16 bump shipping user_words + definition columns with
+  the user-dictionary design (§3.5).
+- **E4 RULED (a):** 変更 allowed over a USER row, behind the confirm dialog
+  (§3.3).
+- **E5 RULED (a):** user_words EDIT propagates immediately to USER_DICT rows;
+  DELETION never rewrites rows (next extraction reverts naturally) — both
+  pinned in §3.4.
+- **E6 RULED (a):** USER/USER_DICT text renders without the 表示 gate;
+  AUTO/PICK keep it (§3.3).
+- **E7 RULED (a):** grammar items get the merged editor; the picker degrades to
+  the single-entry JLPT catalog (§3.6 non-goals unchanged re: sense pinning).

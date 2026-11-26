@@ -178,8 +178,9 @@ migration.
        dictionary unified; notes untouched)**: design doc DELIVERED 2026-11-26
        (user D4 rework request: "merging user entered def and default dictionary,
        plus keep the notes section") at
-       [definition-model-design.md](definition-model-design.md) — DRAFT, §7
-       decision points E1-E7 each with a recommendation. Change: `meaning` stays
+       [definition-model-design.md](definition-model-design.md) — **RULED
+       2026-11-26: E1a/E2a/E3a/E4a/E5a/E6a/E7a** ("this is a good idea"); §7 in
+       doc records each. Change: `meaning` stays
        the single read truth (v13 write-through precedent) +
        `definition_source`(AUTO/PICK/USER_DICT/USER) + `system_meaning` revert
        target; user_definition becomes a mirror (old card_templates keep
