@@ -158,6 +158,21 @@ migration.
        SENTENCE_DELETE undo (re-mine also restores). JVM 157/157 fresh
        (4 MediaProvenanceTest pins); VideoSentenceOpsInstrumentedTest (3 specs)
        pending emulator run with the rest.
+9. [ ] **User dictionary (add own words — names — so parsing extracts them
+       right)**: design doc DELIVERED 2026-11-26 (user request) at
+       [user-dictionary-design.md](user-dictionary-design.md) — DRAFT, nothing
+       approved: §8 decision points D1-D8 each carry a recommendation.
+       Change: `user_words` table (schema v16 ceremony) + span-forcing
+       WordAnalyzer decorator at the single config seam + provider-first
+       definition registration + ユーザー事典 screen (hamburger entry) +
+       USER_WORD_DELETE undo. Why: IPADIC misses invented names → fragments with
+       no/wrong definitions; today's only remedy is the per-sentence 編集
+       free-add. Exit (acceptance): `UserDictionaryAnalyzerTest` JVM specs incl.
+       the empty-index byte-identity regression lock and the
+       strict-substring-ignore rule; v16 migration instrumented round-trip +
+       bundle restore of a v15 backup; device walkthrough = add a real name →
+       mine one episode → chip shows the single token with the user's meaning;
+       delete + undo round-trips. Implementation waits for the D1-D8 rulings.
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix
