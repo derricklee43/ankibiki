@@ -104,6 +104,22 @@ private fun MiningRepository.readOccRows(query: String, args: Array<String>): Li
 internal fun MiningRepository.undoOccRowsForPhoto(photoId: Long): List<UndoOccRow> =
     readOccRows("SELECT $OCC_COLS FROM item_occurrences WHERE photo_id = ? ORDER BY id", arrayOf(photoId.toString()))
 
+/** Media-scope capture (media_refs.id + sentence) for MEDIA_WORDS_EDIT / SENTENCE_DELETE. */
+internal fun MiningRepository.undoOccRowsForMedia(
+    mediaRefId: Long,
+    sentence: String,
+): List<UndoOccRow> = readOccRows(
+    "SELECT $OCC_COLS FROM item_occurrences WHERE media_id = ? AND sentence = ? ORDER BY id",
+    arrayOf(mediaRefId.toString(), sentence),
+)
+
+/** True while the media ref is the ACTIVE one for its source (v15 I1: re-mine retires
+ *  the old ref, which must block restoring occurrence rows onto it). */
+internal fun MiningRepository.mediaRefActive(mediaRefId: Long): Boolean =
+    readableDatabase.rawQuery(
+        "SELECT 1 FROM media_refs WHERE id = ? AND active = 1", arrayOf(mediaRefId.toString()),
+    ).use { it.moveToFirst() }
+
 /** Rows of one canonical item currently in [state] — the SET_ITEM_VISIBILITY flip capture. */
 internal fun MiningRepository.undoItemOccurrenceIdsInState(
     languageTag: String, itemType: String, expression: String, state: String,
@@ -202,20 +218,46 @@ internal fun MiningRepository.restoreOccurrenceScope(photoId: Long, sentences: C
 internal fun MiningRepository.restoreOccurrenceScopeAll(photoId: Long, snapshot: List<UndoOccRow>) {
     writableDatabase.delete("item_occurrences", "photo_id = ?", arrayOf(photoId.toString()))
     for (r in snapshot) {
-        val values = ContentValues().apply {
-            put("id", r.id)
-            put("language_tag", r.languageTag)
-            put("item_type", r.itemType)
-            put("expression", r.expression)
-            put("photo_id", r.photoId)
-            put("sentence", r.sentence)
-            put("created_at", r.createdAt)
-            put("state", r.state)
-            put("modified_by_user_flag", r.modifiedByUserFlag)
-            put("is_manual", r.isManual)
-        }
-        writableDatabase.insertWithOnConflict("item_occurrences", null, values, android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE)
+        writableDatabase.insertWithOnConflict(
+            "item_occurrences", null, undoOccValues(r),
+            android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE,
+        )
     }
+}
+
+/** Media-scope restore for MEDIA_WORDS_EDIT: the (media_id, sentence) pair is replaced
+ *  byte-identically by the snapshot (rows added after the capture drop out; ids return).
+ *  photo_id is written NULL for non-photo rows (v15 shape: -1 sentinel never appears in
+ *  UndoOccRow because the capture reads 0 for NULL). */
+internal fun MiningRepository.restoreOccurrenceScopeByMedia(
+    mediaRefId: Long,
+    sentence: String,
+    snapshot: List<UndoOccRow>,
+) {
+    writableDatabase.delete(
+        "item_occurrences", "media_id = ? AND sentence = ?",
+        arrayOf(mediaRefId.toString(), sentence),
+    )
+    for (r in snapshot) {
+        val values = undoOccValues(r).apply { put("media_id", mediaRefId) }
+        writableDatabase.insertWithOnConflict(
+            "item_occurrences", null, values,
+            android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+}
+
+private fun undoOccValues(r: UndoOccRow) = ContentValues().apply {
+    put("id", r.id)
+    put("language_tag", r.languageTag)
+    put("item_type", r.itemType)
+    put("expression", r.expression)
+    if (r.photoId > 0L) put("photo_id", r.photoId) else putNull("photo_id")
+    put("sentence", r.sentence)
+    put("created_at", r.createdAt)
+    put("state", r.state)
+    put("modified_by_user_flag", r.modifiedByUserFlag)
+    put("is_manual", r.isManual)
 }
 
 internal fun MiningRepository.restoreItemVisibility(languageTag: String, itemType: String, expression: String, visibilityState: String, isHidden: Boolean) {

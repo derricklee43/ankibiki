@@ -56,6 +56,18 @@
                 android:scaleType="fitCenter"
                 android:visibility="gone" />
 
+            <!-- 1b. Media provenance (user request 2026-11-26): series + episode for
+                 sentences mined from subtitle cues; hidden for photo/unknown rows. -->
+            <TextView
+                android:id="@+id/provenanceLine"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textIsSelectable="true"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
             <!-- 2. Parsed words, de-emphasized outline chips, ABOVE the sentence. -->
             <com.google.android.material.chip.ChipGroup
                 android:id="@+id/wordChipGroup"
@@ -89,6 +101,18 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/amend_sentence_dialog_title"
+                    android:visibility="gone" />
+
+                <!-- 3c. Sentence delete (user request 2026-11-26): media-scoped soft
+                     delete of all this sentence's occurrence rows, undoable. -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/deleteSentenceButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/sentence_delete_button"
+                    android:textColor="?attr/colorError"
                     android:visibility="gone" />
             </LinearLayout>
 

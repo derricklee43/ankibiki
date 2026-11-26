@@ -5,6 +5,7 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.provider.MediaStore
+import org.json.JSONObject
 
 /**
  * READ side of the mining corpus (roadmap D2, 2026-11-14: mechanical read/write split).
@@ -422,6 +423,119 @@ fun MiningRepository.occurrenceStatesForExpression(photoId: Long, sentence: Stri
         arrayOf(photoId.toString(), sentence, expression),
     ).use { c -> generateSequence { if (c.moveToNext()) c.getString(0) else null }.toSet() }
 
+// ---- media-anchored twins (user request 2026-11-26: sentence view for mined cues) ----
+// Same semantics as the photo-keyed originals, scoped by item_occurrences.media_id
+// instead of photo_id. v15 guarantees EVERY row carries media_id, so these work for
+// photo and video occurrences alike; the photo path keeps its own functions untouched.
+
+/** Media-scoped twin of [getSentenceCandidates]. */
+fun MiningRepository.getSentenceCandidatesForMedia(
+    mediaId: Long,
+    sentence: String,
+): List<MiningRepository.SentenceCandidate> =
+    readableDatabase.rawQuery(
+        """SELECT MAX(o.id), o.item_type, o.expression,
+                  COALESCE(i.visibility_state, CASE WHEN COALESCE(i.is_hidden, 0) != 0 THEN 'HIDDEN' ELSE 'ACTIVE' END)
+           FROM item_occurrences o
+           LEFT JOIN extracted_items i
+             ON i.language_tag = o.language_tag
+            AND i.item_type = o.item_type
+            AND i.expression = o.expression
+           WHERE o.media_id = ? AND o.sentence = ? AND o.state != 'DELETED'
+           GROUP BY o.item_type, o.expression""",
+        arrayOf(mediaId.toString(), sentence),
+    ).use { c ->
+        buildList {
+            while (c.moveToNext()) {
+                val type = runCatching { ItemType.valueOf(c.getString(1)) }.getOrNull() ?: continue
+                val visibility = runCatching { ItemVisibility.valueOf(c.getString(3)) }.getOrDefault(ItemVisibility.ACTIVE)
+                add(MiningRepository.SentenceCandidate(c.getLong(0), type, c.getString(2), visibility))
+            }
+        }
+    }.sortedWith(
+        compareBy<MiningRepository.SentenceCandidate> { if (it.itemType == ItemType.WORD) 0 else 1 }
+            .thenBy { it.expression },
+    )
+
+/** Media-scoped twin of [occurrenceStatesForExpression]. */
+fun MiningRepository.occurrenceStatesForExpressionForMedia(
+    mediaId: Long,
+    sentence: String,
+    expression: String,
+): Set<String> =
+    readableDatabase.rawQuery(
+        "SELECT DISTINCT state FROM item_occurrences WHERE media_id = ? AND sentence = ? AND expression = ?",
+        arrayOf(mediaId.toString(), sentence, expression),
+    ).use { c -> generateSequence { if (c.moveToNext()) c.getString(0) else null }.toSet() }
+
+/**
+ * Where a sentence came from, for the single-sentence view header (user request
+ * 2026-11-26). Only video_cues refs resolve a series/episode; photo rows return
+ * kind='photo' with null fields (the photo image already IS the provenance).
+ */
+data class SentenceProvenance(
+    val kind: String,
+    val seriesName: String?,
+    val episodeLabel: String?,
+    val episodeTitle: String?,
+)
+
+/** Pure video-id -> display pieces; JVM-pinned (MediaProvenanceTest). */
+object VideoSourceLabel {
+    /** "tt8515016:1:2" -> "S1E2"; null when the id carries no numeric S:E tail. */
+    fun episodeLabel(videoId: String): String? {
+        val parts = videoId.split(":")
+        if (parts.size < 3) return null
+        val s = parts[parts.size - 2].toIntOrNull() ?: return null
+        val e = parts[parts.size - 1].toIntOrNull() ?: return null
+        return "S$s-E$e"
+    }
+
+    /** Stremio episode ids are "<base>:<season>:<episode>". */
+    fun baseId(videoId: String): String? =
+        videoId.substringBefore(':').takeIf { it.isNotBlank() && videoId.count { c -> c == ':' } >= 2 }
+
+    /** Header line: "Demon Slayer: Kimetsu no Yaiba - S1-E1  Cruelty". */
+    fun display(
+        seriesName: String?,
+        episodeLabel: String?,
+        episodeTitle: String?,
+    ): String? {
+        val head = listOfNotNull(seriesName, episodeLabel).joinToString(" - ").takeIf { it.isNotBlank() }
+            ?: return null
+        return if (episodeTitle.isNullOrBlank()) head else "$head  $episodeTitle"
+    }
+}
+
+fun MiningRepository.getSentenceProvenance(mediaId: Long): SentenceProvenance? {
+    if (mediaId < 0L) return null
+    return readableDatabase.rawQuery(
+        "SELECT kind, ref_int, attrs_json FROM media_refs WHERE id = ?",
+        arrayOf(mediaId.toString()),
+    ).use { c ->
+        if (!c.moveToFirst()) return null
+        val kind = c.getString(0)
+        if (kind != "video_cues") return@use SentenceProvenance(kind, null, null, null)
+        val docId = c.getLong(1)
+        val attrs = c.getString(2)
+        val videoId = readableDatabase.rawQuery(
+            "SELECT video_id FROM stremio_cue_documents WHERE id = ?",
+            arrayOf(docId.toString()),
+        ).use { d -> if (d.moveToFirst()) d.getString(0) else null }
+            ?: JSONObject(attrs.orEmpty()).optString("video_id").takeIf { it.isNotEmpty() }
+        if (videoId == null) return@use SentenceProvenance(kind, null, null, null)
+        val base = VideoSourceLabel.baseId(videoId)
+        val series = attrs?.let { JSONObject(it).optString("series").takeIf { s -> s.isNotEmpty() } }
+            ?: base?.let { b ->
+                readableDatabase.rawQuery(
+                    "SELECT name FROM stremio_library WHERE base_id = ?", arrayOf(b),
+                ).use { l -> if (l.moveToFirst()) l.getString(0) else null }
+            }
+        val title = attrs?.let { JSONObject(it).optString("title").takeIf { t -> t.isNotEmpty() } }
+        SentenceProvenance(kind, series, VideoSourceLabel.episodeLabel(videoId), title)
+    }
+}
+
 /**
  * Returns occurrences matching [query]. Each sentence occurrence is its own
  * row, while `occurrenceCount` reflects the total non-deleted occurrences of that canonical item.
@@ -793,7 +907,7 @@ fun MiningRepository.getItemDetail(
     db.rawQuery(
         """
         SELECT o.id, CASE WHEN m.kind = 'photo' THEN o.photo_id ELSE -1 END,
-               o.sentence, o.modified_by_user_flag, o.created_at, m.kind, m.label
+               o.sentence, o.modified_by_user_flag, o.created_at, m.kind, m.label, o.media_id
         FROM item_occurrences o
         JOIN media_refs m ON o.media_id = m.id AND m.active = 1
         LEFT JOIN scraped_photos p ON m.kind = 'photo' AND p.media_store_id = m.ref_int
@@ -821,6 +935,7 @@ fun MiningRepository.getItemDetail(
                         createdAt = c.getLong(4),
                         mediaKind = c.getString(5) ?: "photo",
                         mediaLabel = c.getStringOrNull(6),
+                        mediaId = c.getLong(7),
                     ),
                 )
             }

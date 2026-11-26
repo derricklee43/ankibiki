@@ -33,9 +33,11 @@ class SentenceDetailActivity : AppCompatActivity() {
     private val ioExecutor = AppIo.io
 
     private var photoId = -1L
+    private var mediaId = -1L
     private var sentence = ""
     private var languageTag = LanguageTag.JAPANESE
     private var editorBusy = false
+    private var deleteBusy = false
     private val editorRows = mutableListOf<EditorRow>()
 
     /** One table row; original null = user-added. [input] holds the live expression text. */
@@ -53,6 +55,7 @@ class SentenceDetailActivity : AppCompatActivity() {
         miningRepository = MiningRepository(this)
 
         photoId = intent.getLongExtra(EXTRA_PHOTO_ID, -1L)
+        mediaId = intent.getLongExtra(EXTRA_MEDIA_ID, -1L)
         sentence = intent.getStringExtra(EXTRA_SENTENCE).orEmpty()
         languageTag = runCatching {
             LanguageTag.valueOf(intent.getStringExtra(EXTRA_LANGUAGE_TAG) ?: LanguageTag.JAPANESE.name)
@@ -61,6 +64,14 @@ class SentenceDetailActivity : AppCompatActivity() {
         binding.backButton.setOnClickListener { finish() }
         binding.sentenceText.text = sentence
         TextLocales.apply(binding.sentenceText, languageTag)
+        loadProvenance()
+
+        // Delete (user request 2026-11-26): any media-anchored sentence - video cues
+        // and photo rows both carry media_refs ids; the flip is soft + undoable.
+        if (mediaId >= 0L) {
+            binding.deleteSentenceButton.visibility = View.VISIBLE
+            binding.deleteSentenceButton.setOnClickListener { confirmDeleteSentence() }
+        }
 
         if (photoId >= 0L) {
             binding.amendSentenceButton.visibility = View.VISIBLE
@@ -73,6 +84,10 @@ class SentenceDetailActivity : AppCompatActivity() {
                     ),
                 )
             }
+        }
+        // word editor wiring (2026-11-26): media-anchored video rows get the same
+        // edit/add/remove chip editor the photo path has
+        if (photoId >= 0L || mediaId >= 0L) {
             binding.wordEditorAddButton.setOnClickListener { addEditorRow(null, null, "") }
             binding.wordEditorCancelButton.setOnClickListener { closeEditor() }
             binding.wordEditorSaveButton.setOnClickListener { saveEditor() }
@@ -131,9 +146,15 @@ class SentenceDetailActivity : AppCompatActivity() {
     }
 
     private fun loadParsedWords() {
-        if (photoId < 0L) return // no photo anchor -> no occurrence rows to derive chips from
+        // media anchor covers video-cue sentences (user request 2026-11-26: the chip
+        // component + editor exist for mined sentences too, not only photo ones)
+        if (photoId < 0L && mediaId < 0L) return // no anchor at all -> text-only viewer
         ioExecutor.execute {
-            val candidates = miningRepository.getSentenceCandidates(photoId, sentence)
+            val candidates = if (photoId >= 0L) {
+                miningRepository.getSentenceCandidates(photoId, sentence)
+            } else {
+                miningRepository.getSentenceCandidatesForMedia(mediaId, sentence)
+            }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 binding.wordChipGroup.removeAllViews()
@@ -203,7 +224,11 @@ class SentenceDetailActivity : AppCompatActivity() {
         if (editorBusy) return
         editorBusy = true
         ioExecutor.execute {
-            val candidates = miningRepository.getSentenceCandidates(photoId, sentence)
+            val candidates = if (photoId >= 0L) {
+                miningRepository.getSentenceCandidates(photoId, sentence)
+            } else {
+                miningRepository.getSentenceCandidatesForMedia(mediaId, sentence)
+            }
             runOnUiThread {
                 editorBusy = false
                 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -261,7 +286,13 @@ class SentenceDetailActivity : AppCompatActivity() {
             MiningPipelineRunner.WordEditorRow(it.originalType, it.originalExpression, it.input.text.toString())
         }
         ioExecutor.execute {
-            val result = runCatching { pipelineRunner().saveSentenceWords(photoId, sentence, rows) }
+            val result = runCatching {
+                if (photoId >= 0L) {
+                    pipelineRunner().saveSentenceWords(photoId, sentence, rows)
+                } else {
+                    pipelineRunner().saveSentenceWordsForMedia(mediaId, languageTag, sentence, rows)
+                }
+            }
             runOnUiThread {
                 editorBusy = false
                 if (isFinishing || isDestroyed) return@runOnUiThread
@@ -272,6 +303,63 @@ class SentenceDetailActivity : AppCompatActivity() {
                         loadParsedWords()
                         // undo delivery: the word-editor save recorded a whole-photo memento.
                         UndoUi.maybeShow(binding.root, miningRepository) { loadParsedWords() }
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(
+                            this,
+                            getString(R.string.wizard_create_failed, error.message ?: "?"),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    },
+                )
+            }
+        }
+    }
+
+    /** Provenance header (user request 2026-11-26): "Series - S1-E1  Episode title".
+     *  Photo rows resolve kind='photo' -> no line; video rows whose library entry is
+     *  gone still show the S/E label from the stored video id. */
+    private fun loadProvenance() {
+        if (mediaId < 0L) return
+        ioExecutor.execute {
+            val pro = runCatching { miningRepository.getSentenceProvenance(mediaId) }.getOrNull()
+            val line = pro?.let {
+                VideoSourceLabel.display(it.seriesName, it.episodeLabel, it.episodeTitle)
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (line != null) {
+                    binding.provenanceLine.text = line
+                    binding.provenanceLine.visibility = View.VISIBLE
+                }
+            }
+        }
+    }
+
+    private fun confirmDeleteSentence() {
+        if (deleteBusy || mediaId < 0L) return
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.sentence_delete_confirm_title)
+            .setMessage(getString(R.string.sentence_delete_confirm_message, sentence.take(80)))
+            .setNegativeButton(R.string.word_editor_cancel, null)
+            .setPositiveButton(R.string.word_editor_delete) { _, _ -> deleteSentence() }
+            .show()
+    }
+
+    private fun deleteSentence() {
+        if (deleteBusy || mediaId < 0L) return
+        deleteBusy = true
+        ioExecutor.execute {
+            val result = runCatching { pipelineRunner().deleteSentence(mediaId, sentence) }
+            runOnUiThread {
+                deleteBusy = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = {
+                        Toast.makeText(this, R.string.sentence_deleted, Toast.LENGTH_SHORT).show()
+                        // leave the screen the sentence was on; the parent list reloads
+                        // its own content, and the undo snackbar is delivered there
+                        finish()
                     },
                     onFailure = { error ->
                         Toast.makeText(
@@ -349,16 +437,19 @@ class SentenceDetailActivity : AppCompatActivity() {
         private const val EXTRA_PHOTO_ID = "extra_photo_id"
         private const val EXTRA_SENTENCE = "extra_sentence"
         private const val EXTRA_LANGUAGE_TAG = "extra_language_tag"
+        private const val EXTRA_MEDIA_ID = "extra_media_id"
 
         fun newIntent(
             context: Context,
             photoId: Long,
             sentence: String,
             languageTag: LanguageTag,
+            mediaId: Long = -1L,
         ): Intent = Intent(context, SentenceDetailActivity::class.java).apply {
             putExtra(EXTRA_PHOTO_ID, photoId)
             putExtra(EXTRA_SENTENCE, sentence)
             putExtra(EXTRA_LANGUAGE_TAG, languageTag.name)
+            putExtra(EXTRA_MEDIA_ID, mediaId)
         }
     }
 }

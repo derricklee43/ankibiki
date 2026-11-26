@@ -102,6 +102,32 @@ internal object UndoManager {
                 m.photo?.let { repo.restorePhotoRow(it) }
                 repo.restoreOccurrenceScopeAll(mediaId, m.occurrences)
             }
+            UndoAction.MEDIA_WORDS_EDIT -> {
+                // header: media_refs.id, sentence. Capture is the whole (media, sentence)
+                // scope; restore replaces it byte-identically. Guard: the ref must still be
+                // the ACTIVE one — a re-mine retires it (v15 I1), and restoring pre-retirement
+                // rows onto a retired ref would resurrect a dead source's state.
+                val refId = h.getOrNull(0)?.toLongOrNull() ?: return true
+                val sentence = h.getOrNull(1) ?: return true
+                if (!repo.mediaRefActive(refId)) return false
+                repo.restoreOccurrenceScopeByMedia(refId, sentence, m.occurrences)
+            }
+            UndoAction.SENTENCE_DELETE -> {
+                // header: media_refs.id, sentence. The delete flipped non-DELETED rows to
+                // DELETED (ids stable, soft); restore flips exactly the captured rows back.
+                // Rows deleted before the capture (already DELETED) stay deleted. Guard =
+                // same active-ref rule as MEDIA_WORDS_EDIT.
+                val refId = h.getOrNull(0)?.toLongOrNull() ?: return true
+                val sentence = h.getOrNull(1) ?: return true
+                if (!repo.mediaRefActive(refId)) return false
+                for (r in m.occurrences) {
+                    if (r.state != OccurrenceState.DELETED.name &&
+                        repo.undoOccState(r.id) == OccurrenceState.DELETED.name
+                    ) {
+                        repo.restoreOccurrenceState(r.id, r.state)
+                    }
+                }
+            }
             UndoAction.NAMEPLATE_RULING -> {
                 // header: claimId, mediaStoreId, expectedAfterText
                 val claimId = h.getOrNull(0)?.toLongOrNull() ?: return true

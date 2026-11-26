@@ -1028,6 +1028,20 @@ class MiningRepository(
         )
     }
 
+    /** Media-scoped twin of [updateOccurrenceExpression] (video cue sentences; 2026-11-26). */
+    fun updateOccurrenceExpressionForMedia(mediaId: Long, sentence: String, oldExpr: String, newExpr: String): Int {
+        val values = ContentValues().apply {
+            put("expression", newExpr)
+            put("modified_by_user_flag", true)
+            put("is_manual", true)
+        }
+        return writableDatabase.update(
+            "item_occurrences", values,
+            "media_id = ? AND sentence = ? AND expression = ?",
+            arrayOf(mediaId.toString(), sentence, oldExpr),
+        )
+    }
+
     /** Soft state flip for one expression within one sentence (editor delete/restore).
      *  Audit FU2 (2026-11-23, user-approved): review is NOT authorship — the flag is no
      *  longer set by default, and it is written STICKILY (only ever raised, never cleared,
@@ -1049,6 +1063,41 @@ class MiningRepository(
             "item_occurrences", values,
             "photo_id = ? AND sentence = ? AND expression = ?",
             arrayOf(photoId.toString(), sentence, expression),
+        )
+    }
+
+    /** Media-scoped twin of [setOccurrenceStateForExpression] (2026-11-26). */
+    fun setOccurrenceStateForExpressionForMedia(
+        mediaId: Long,
+        sentence: String,
+        expression: String,
+        state: OccurrenceState,
+        modifiedByUserFlag: Boolean = false,
+    ): Int {
+        val values = ContentValues().apply {
+            put("state", state.name)
+            if (modifiedByUserFlag) put("modified_by_user_flag", true)
+            put("is_manual", true)
+        }
+        return writableDatabase.update(
+            "item_occurrences", values,
+            "media_id = ? AND sentence = ? AND expression = ?",
+            arrayOf(mediaId.toString(), sentence, expression),
+        )
+    }
+
+    /** Soft-deletes every non-DELETED occurrence of one (media, sentence) pair —
+     *  the sentence-delete the single-sentence view offers (user 2026-11-26). Rows
+     *  stay (re-mine / undo restore them); inbox counts exclude them. */
+    fun markSentenceDeletedForMedia(mediaId: Long, sentence: String): Int {
+        val values = ContentValues().apply {
+            put("state", OccurrenceState.DELETED.name)
+            put("is_manual", true)
+        }
+        return writableDatabase.update(
+            "item_occurrences", values,
+            "media_id = ? AND sentence = ? AND state != ?",
+            arrayOf(mediaId.toString(), sentence, OccurrenceState.DELETED.name),
         )
     }
 

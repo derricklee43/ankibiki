@@ -104,8 +104,9 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             onOpenSentence = { matched ->
                 val detail = currentDetail ?: return@MatchedSentenceAdapter
                 val anchorPhotoId = when {
-                    // v15 U4: non-photo sentences are text-only viewers; anchoring
-                    // them to some unrelated photo of the same word would lie.
+                    // v15 U4 (superseded 2026-11-26): non-photo sentences are no longer
+                    // text-only viewers - the mediaId extra below drives their
+                    // chips/editor/delete; never anchor a video row to a photo.
                     matched.mediaKind != "photo" -> -1L
                     matched.photoId >= 0L -> matched.photoId
                     else -> detail.photos.firstOrNull()?.mediaStoreId ?: -1L
@@ -116,6 +117,9 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                         photoId = anchorPhotoId,
                         sentence = matched.sentence,
                         languageTag = detail.languageTag,
+                        // media anchor (2026-11-26): powers chips/editor/delete for
+                        // video-cue sentences and provenance for every media kind
+                        mediaId = matched.mediaId,
                     ),
                 )
             },

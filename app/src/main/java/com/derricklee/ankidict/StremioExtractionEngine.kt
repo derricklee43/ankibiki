@@ -37,7 +37,15 @@ class StremioExtractionEngine(
         val error: String? = null,
     )
 
-    fun runJob(videoId: String, metaType: String, baseId: String, showName: String? = null): Outcome {
+    fun runJob(
+        videoId: String,
+        metaType: String,
+        baseId: String,
+        showName: String? = null,
+        /** Cinemeta episode name (StremioEpisodesActivity has it on the row); persisted
+         *  into the media ref attrs so the single-sentence view can show series + episode. */
+        episodeTitle: String? = null,
+    ): Outcome {
         val settings = repo.stremioSettingsFor(videoId, baseId)
         val generation = Generation.of(settings)
         return try {
@@ -127,8 +135,14 @@ class StremioExtractionEngine(
                 kind = "video_cues",
                 refInt = docId,
                 label = videoId,
-                attrsJson = """{"doc_id":$docId,"video_id":"$videoId",
-"generation":"$generation"}""",
+                attrsJson = org.json.JSONObject().apply {
+                    put("doc_id", docId)
+                    put("video_id", videoId)
+                    put("generation", generation)
+                    // Provenance for the single-sentence view header (user 2026-11-26).
+                    if (!showName.isNullOrBlank()) put("series", showName)
+                    if (!episodeTitle.isNullOrBlank()) put("title", episodeTitle)
+                }.toString(),
             )
             // I1 dedupe: this generation becomes the active one for the video.
             repo.retireStaleVideoMediaRefs(videoId, keepDocId = docId)

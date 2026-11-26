@@ -236,6 +236,11 @@
     <string name="word_editor_delete">削除</string>
     <string name="word_editor_add_hint">単語を入力</string>
     <string name="word_editor_saved">%1$d 件の変更を保存しました</string>
+    <!-- Single-sentence view, video-media support (user request 2026-11-26): delete + provenance. -->
+    <string name="sentence_delete_button">文を削除</string>
+    <string name="sentence_delete_confirm_title">この文を削除しますか？</string>
+    <string name="sentence_delete_confirm_message">この文からの単語の抽出結果も削除されます（元に戻すできます）。%1$s</string>
+    <string name="sentence_deleted">文を削除しました</string>
     <string name="wizard_preview_unavailable">(rendered preview unavailable — fields above show exactly what will be written)</string>
     <string name="wizard_created_linked">Card created and linked to the mined item</string>
     <string name="wizard_create_failed">Create failed: %1$s</string>
@@ -254,6 +259,7 @@
     <string name="undo_label_gold_off">金を外しました</string>
     <string name="undo_label_text_edit">文を編集しました</string>
     <string name="undo_label_words_edit">文の単語を編集しました</string>
+    <string name="undo_label_sentence_deleted">文を削除しました</string>
     <string name="undo_label_ruling">名前の板を裁定しました</string>
     <string name="undo_label_order">文の並びを変えました</string>
     <string name="undo_action_label">元に戻す</string>

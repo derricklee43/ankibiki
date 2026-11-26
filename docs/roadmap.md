@@ -147,7 +147,17 @@ migration.
        for watched rows), nothing is pre-selected (supersedes the watched&&unmined
        pre-check design default), and the whole list row — not just the checkbox —
        is the selection touch target (ripple added; long-press still opens
-       per-episode settings).
+       per-episode settings). Sentence view media support SHIPPED 2026-11-26
+       (user request, device-verified on a real Demon Slayer cue sentence):
+       provenance header "Series - S{season}-E{episode}  [title]" (series from
+       attrs_json going forward / stremio_library fallback; engine now persists
+       series+episode title into the media ref attrs), the parsed-word chips +
+       編集 editor (rename/add/remove) generalized to a (media_refs.id,
+       sentence) scope — MEDIA_WORDS_EDIT undo with active-ref guard, photo
+       path untouched — and 文を削除 soft-delete of the whole sentence with
+       SENTENCE_DELETE undo (re-mine also restores). JVM 157/157 fresh
+       (4 MediaProvenanceTest pins); VideoSentenceOpsInstrumentedTest (3 specs)
+       pending emulator run with the rest.
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix

@@ -428,6 +428,107 @@ class MiningPipelineRunner(
         }
     }
 
+    /**
+     * Media-anchored twin of [saveSentenceWords] for non-photo sources (video cue
+     * sentences; user request 2026-11-26). Same edit semantics — rename re-keys (review
+     * state rides), removal soft-deletes, free-form rows add with canonical
+     * definitions — scoped by (media_refs.id, sentence) instead of (photo_id, sentence),
+     * and undone via the MEDIA_WORDS_EDIT scope-replace memento. [languageTag] comes
+     * from the caller (the occurrence row's tag) because there is no photo to read.
+     */
+    fun saveSentenceWordsForMedia(
+        mediaRefId: Long,
+        languageTag: LanguageTag,
+        sentence: String,
+        rows: List<WordEditorRow>,
+    ): Int {
+        val effectiveTag = if (languageTag == LanguageTag.NA) LanguageTag.JAPANESE else languageTag
+        val config = pipelineConfigs[effectiveTag] ?: pipelineConfigs[LanguageTag.JAPANESE]
+            ?: error("No pipeline config for $effectiveTag")
+        val finalRows = rows.map { it.copy(expression = it.expression.trim()) }
+            .filter { it.expression.isNotEmpty() }
+        // Snapshot before writes (reads during a transaction can lag the connection).
+        val activeBefore = miningRepository.getSentenceCandidatesForMedia(mediaRefId, sentence)
+        val originals = finalRows.filter { it.originalExpression != null }
+        val additions = finalRows.filter { it.originalExpression == null }
+        val consumed = originals.mapNotNull { it.originalExpression }.toSet()
+        val currents = originals.map { it.expression }.toSet()
+        // Undo: whole (media, sentence) scope prior state; text never moves in this path.
+        val priorRows = miningRepository.undoOccRowsForMedia(mediaRefId, sentence)
+        return miningRepository.inTransaction {
+            var changes = 0
+            for (row in originals) {
+                val type = row.originalType ?: continue
+                val old = row.originalExpression ?: continue
+                if (old == row.expression) continue
+                ensureCanonicalItemExists(
+                    config, type,
+                    NormalizedCandidate(expression = row.expression, surfaceForm = row.expression),
+                )
+                miningRepository.updateOccurrenceExpressionForMedia(mediaRefId, sentence, old, row.expression)
+                changes++
+            }
+            for (candidate in activeBefore) {
+                val expr = candidate.expression
+                if (expr in consumed || expr in currents) continue
+                miningRepository.setOccurrenceStateForExpressionForMedia(
+                    mediaRefId, sentence, expr, OccurrenceState.DELETED,
+                )
+                changes++
+            }
+            for (row in additions) {
+                val states = miningRepository.occurrenceStatesForExpressionForMedia(
+                    mediaRefId, sentence, row.expression,
+                )
+                if (states.any { it != OccurrenceState.DELETED.name }) continue
+                ensureCanonicalItemExists(
+                    config, ItemType.WORD,
+                    NormalizedCandidate(expression = row.expression, surfaceForm = row.expression),
+                )
+                if (OccurrenceState.DELETED.name in states) {
+                    miningRepository.setOccurrenceStateForExpressionForMedia(
+                        mediaRefId, sentence, row.expression, OccurrenceState.UNSEEN,
+                    )
+                } else {
+                    miningRepository.insertOccurrence(
+                        languageTag = effectiveTag,
+                        itemType = ItemType.WORD,
+                        expression = row.expression,
+                        photoId = null,
+                        sentence = sentence,
+                        isManual = true,
+                        mediaId = mediaRefId,
+                    )
+                }
+                changes++
+            }
+            if (changes > 0 && priorRows.isNotEmpty()) {
+                miningRepository.recordUndo(UndoMemento(
+                    UndoAction.MEDIA_WORDS_EDIT,
+                    miningRepository.appContext.getString(R.string.undo_label_words_edit),
+                    listOf(mediaRefId.toString(), sentence),
+                    occurrences = priorRows,
+                ))
+            }
+            changes
+        }
+    }
+
+    /** Soft-deletes one whole sentence's occurrences (media scope) with an undo memento. */
+    fun deleteSentence(mediaRefId: Long, sentence: String): Int = miningRepository.inTransaction {
+        val priorRows = miningRepository.undoOccRowsForMedia(mediaRefId, sentence)
+        val changes = miningRepository.markSentenceDeletedForMedia(mediaRefId, sentence)
+        if (changes > 0 && priorRows.isNotEmpty()) {
+            miningRepository.recordUndo(UndoMemento(
+                UndoAction.SENTENCE_DELETE,
+                miningRepository.appContext.getString(R.string.undo_label_sentence_deleted),
+                listOf(mediaRefId.toString(), sentence),
+                occurrences = priorRows,
+            ))
+        }
+        changes
+    }
+
     // v14 (Stremio console one-shot, 2026-11-23): the three insertion primitives moved
     // VERBATIM to CorpusInsertion so cue mining shares ONE path with photo mining;
     // these delegates keep every existing call site (and its tests) editing-free.

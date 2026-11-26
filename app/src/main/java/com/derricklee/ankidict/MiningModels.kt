@@ -139,6 +139,9 @@ data class MatchedSentence(
      *  text-only viewers (U4: read-only until the media stages land). */
     val mediaKind: String = "photo",
     val mediaLabel: String? = null,
+    /** v15 media_refs.id of this occurrence's source (user request 2026-11-26: lets the
+     *  single-sentence view media-anchor chips/editor/delete for non-photo media). */
+    val mediaId: Long = -1L,
 )
 
 data class ExtractedItemDetail(

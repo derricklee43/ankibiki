@@ -171,7 +171,8 @@ class StremioEpisodesActivity : AppCompatActivity() {
             var mined = 0
             var failed = 0
             for (episode in targets) {
-                val outcome = engine.runJob(episode.episodeId, mediaType, baseId, showName)
+                val outcome = engine.runJob(episode.episodeId, mediaType, baseId, showName,
+                    episodeTitle = episode.title)
                 if (outcome.status == StremioLedgerStatus.MINED) mined++ else failed++
                 val idx = rows.indexOfFirst { it.episode.episodeId == episode.episodeId }
                 if (idx >= 0) runOnUiThread { adapter.notifyItemChanged(idx) }

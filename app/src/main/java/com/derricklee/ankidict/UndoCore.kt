@@ -22,6 +22,11 @@ enum class UndoAction {
     NAMEPLATE_RULING,
     REORDER_SENTENCES,
     ITEM_MEANING_PICK,
+    // Media-anchored sentence editing (user request 2026-11-26): the single-sentence
+    // view for non-photo media (video cues). Same capture/restore shape as the photo
+    // actions, but scoped by media_refs.id (+ sentence) instead of media_store_id.
+    MEDIA_WORDS_EDIT,
+    SENTENCE_DELETE,
 }
 
 /** One `item_occurrences` row captured exactly as stored (restore re-inserts with the SAME id). */
