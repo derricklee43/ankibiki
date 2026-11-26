@@ -94,7 +94,9 @@ class VideoSentenceOpsInstrumentedTest {
     @Test
     fun mediaEditorRenameAndAdd_roundTripsThroughUndo() {
         val ref = seedVideoSentence()
-        assertEquals(listOf("猫", "犬"), exprs(ref))
+        // sort contract mirrors the shipped photo twin getSentenceCandidates:
+        // words before grammar, then expression ASC (犬 U+72AC precedes 猫 U+732B)
+        assertEquals(listOf("犬", "猫"), exprs(ref))
         val changes = runner.saveSentenceWordsForMedia(
             ref, LanguageTag.JAPANESE, sentence,
             listOf(
@@ -104,12 +106,14 @@ class VideoSentenceOpsInstrumentedTest {
             ),
         )
         assertEquals(2, changes) // one rename + one add
-        assertEquals(listOf("イヌ", "猫", "ねこ"), exprs(ref).sorted())
+        // membership after one rename + one add (natural order would be
+        // [ねこ, イヌ, 猫] — hiragana U+304x sorts before katakana U+30Ax)
+        assertEquals(setOf("イヌ", "猫", "ねこ"), exprs(ref).toSet())
 
         assertEquals(UndoOutcome.UNDONE, UndoManager.undoLatest(repo))
         // byte-scope restore: 犬 returns with its row, ねこ (added after capture) drops,
         // photo_id stays NULL and media_id survives on the restored video rows
-        assertEquals(listOf("猫", "犬"), exprs(ref))
+        assertEquals(listOf("犬", "猫"), exprs(ref))
     }
 
     @Test
@@ -124,7 +128,7 @@ class VideoSentenceOpsInstrumentedTest {
         )
 
         assertEquals(UndoOutcome.UNDONE, UndoManager.undoLatest(repo))
-        assertEquals(listOf("猫", "犬"), exprs(ref))
+        assertEquals(listOf("犬", "猫"), exprs(ref))
     }
 
     @Test

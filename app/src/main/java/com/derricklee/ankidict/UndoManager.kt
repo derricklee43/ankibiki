@@ -83,6 +83,37 @@ internal object UndoManager {
                     h[0], h[1], h[2], h[4], h[5], h[6],
                     h[7].ifEmpty { null }, h[8].toIntOrNull(),
                     h[9].ifEmpty { null }, h[10].ifEmpty { null },
+                    // v16: extended logs also restore the provenance columns
+                    definitionSource = h.getOrNull(11)?.ifEmpty { null } ?: "AUTO",
+                    systemMeaning = h.getOrNull(12),
+                    userDefinitionMirror = h.getOrNull(13),
+                )
+            }
+            UndoAction.ITEM_DEFINITION_EDIT -> {
+                // header: lang, type, expr, expectedAfterMeaning, then TEN prior values
+                // ("" sentinel = NULL; v16 columns last three). Guard mirrors the pick:
+                // the meaning must still be the one this edit wrote.
+                if (h.size < 14) return true
+                val current = repo.undoItemMeaningCurrent(h[0], h[1], h[2]) ?: return false
+                if (current != h[3]) return false
+                repo.restoreItemMeaningFields(
+                    h[0], h[1], h[2], h[4], h[5], h[6],
+                    h[7].ifEmpty { null }, h[8].toIntOrNull(),
+                    h[9].ifEmpty { null }, h[10].ifEmpty { null },
+                    definitionSource = h[11].ifEmpty { "AUTO" },
+                    systemMeaning = h[12],
+                    userDefinitionMirror = h[13],
+                )
+            }
+            UndoAction.USER_WORD_DELETE -> {
+                // header: lang, expression, reading(""), meaning, notes(""), created_at.
+                // Guard: the entry must still be absent (a re-add means the user has
+                // moved on; restoring over it would clobber — LIFO order still holds).
+                if (h.size < 6) return true
+                if (repo.userWordExists(h[0], h[1])) return false
+                repo.restoreUserWordRow(
+                    h[0], h[1], h[2].ifEmpty { null }, h[3],
+                    h[4].ifEmpty { null }, h[5].toLongOrNull() ?: return true,
                 )
             }
             UndoAction.SENTENCE_TEXT_EDIT -> {

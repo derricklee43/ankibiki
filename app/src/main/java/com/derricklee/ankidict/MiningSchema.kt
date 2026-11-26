@@ -155,6 +155,26 @@ internal fun MiningRepository.createUndoLogSchema(db: SQLiteDatabase) {
     )
 }
 
+/** v16 (RULED 2026-11-26, docs/user-dictionary-design.md §3.1): the user's own
+ *  word/name lexicon. CREATE IF NOT EXISTS is self-guarding for partial harness
+ *  DBs (rule 8); deliberately NOT part of the bundle REQUIRED_COLUMNS contract —
+ *  the whole sqlite file rides in every bundle, pre-v16 bundles keep validating. */
+internal fun MiningRepository.createUserWordsSchema(db: SQLiteDatabase) {
+    db.execSQL(
+        """
+        CREATE TABLE IF NOT EXISTS user_words (
+            language_tag TEXT NOT NULL,
+            expression TEXT NOT NULL,
+            reading_kana TEXT,
+            meaning TEXT NOT NULL DEFAULT '',
+            notes TEXT,
+            created_at INTEGER NOT NULL,
+            PRIMARY KEY (language_tag, expression)
+        )
+        """.trimIndent(),
+    )
+}
+
 /** v11 column guards (user 2026-11-15 batch): table AND column must both be checked before
  * ALTER — harnesses hand-build partial or current-schema-then-downgraded DBs (v10 lesson). */
 internal fun MiningRepository.addColumnIfMissing(

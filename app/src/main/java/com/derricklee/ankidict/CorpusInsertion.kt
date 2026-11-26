@@ -33,6 +33,9 @@ internal object CorpusInsertion {
         val levelBadge: String?,
         val corpusRank: Int?,
         val ankiMatch: AnkiCardMatch?,
+        /** v16: which provider produced the definition fields (USER_DICT wins at
+         *  registration; the stored-row ladder in upsertExtractedItem outranks it). */
+        val source: DefinitionSource = DefinitionSource.AUTO,
     )
 
     data class AnkiLinkUpdate(
@@ -124,6 +127,7 @@ internal object CorpusInsertion {
                             itemType, expr, resolvedKanji, resolvedKana,
                             metadata?.meaning ?: "—",
                             metadata?.levelBadge, metadata?.corpusRank, ankiMatch,
+                            metadata?.source ?: DefinitionSource.AUTO,
                         )
                     } else if (planned.ankiMatch == null &&
                         candidate.readingKana != null &&
@@ -166,6 +170,7 @@ internal object CorpusInsertion {
                 deckName = u.ankiMatch?.deckName,
                 ankiNoteId = u.ankiMatch?.noteId,
                 isHidden = false,
+                definitionSource = u.source,
             )
         }
         for (l in plan.links) {
@@ -292,6 +297,7 @@ internal object CorpusInsertion {
             deckName = ankiMatch?.deckName,
             ankiNoteId = ankiMatch?.noteId,
             isHidden = false,
+            definitionSource = metadata?.source ?: DefinitionSource.AUTO,
         )
     }
 }

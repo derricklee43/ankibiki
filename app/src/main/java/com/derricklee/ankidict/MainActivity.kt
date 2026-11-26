@@ -409,6 +409,13 @@ class MainActivity : AppCompatActivity() {
             recoveryPopup?.dismiss()
             startActivity(Intent(this, StremioConsoleActivity::class.java))
         }
+        // user dictionary (docs/user-dictionary-design.md, RULED 2026-11-26)
+        val userDictRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)
+        userDictRow.actionLabel.setText(R.string.user_dictionary_title)
+        userDictRow.root.setOnClickListener {
+            recoveryPopup?.dismiss()
+            startActivity(UserDictionaryActivity.newIntent(this))
+        }
         // a11y capture health (roadmap D1): read-only status row — a silent WebView
         // selection-capture regression must surface here, not as an "app is broken" debug day
         val captureRow = ItemSettingsActionBinding.inflate(layoutInflater, popupBinding.togglesContainer, true)

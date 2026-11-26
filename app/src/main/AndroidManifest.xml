@@ -69,6 +69,11 @@
             android:name=".StremioConsoleActivity"
             android:exported="false" />
 
+        <!-- v16 user dictionary (docs/user-dictionary-design.md, RULED 2026-11-26) -->
+        <activity
+            android:name=".UserDictionaryActivity"
+            android:exported="false" />
+
         <activity
             android:name=".StremioEpisodesActivity"
             android:exported="false" />

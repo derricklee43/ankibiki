@@ -175,6 +175,10 @@ data class ExtractedItemDetail(
      *  the automatic first-match heuristic. NULL/NULL = auto. */
     val pickedHeadword: String? = null,
     val pickedReading: String? = null,
+    /** v16 merged definition model (docs/definition-model-design.md §3.1): where the
+     *  shown meaning came from, and the revert target when the user overwrote it. */
+    val definitionSource: DefinitionSource = DefinitionSource.AUTO,
+    val systemMeaning: String? = null,
 ) {
     fun formatFrequencyLine(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }

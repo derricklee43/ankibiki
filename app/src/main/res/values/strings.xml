@@ -259,6 +259,29 @@
     <string name="undo_label_gold_off">金を外しました</string>
     <string name="undo_label_text_edit">文を編集しました</string>
     <string name="undo_label_words_edit">文の単語を編集しました</string>
+    <!-- v16 merged definition model + user dictionary (docs/definition-model-design.md,
+         docs/user-dictionary-design.md; ruled 2026-11-26). -->
+    <string name="undo_label_definition_edit">定義を編集しました</string>
+    <string name="undo_label_user_word_deleted">ユーザー事典から削除しました</string>
+    <string name="definition_edit_title">定義を編集</string>
+    <string name="definition_edit_hint">この単語の定義（空にすると辞書に戻す）</string>
+    <string name="revert_to_dictionary">辞書に戻す</string>
+    <string name="pick_over_user_confirm">ユーザー定義を辞書の選択に置き換えますか？</string>
+    <string name="pick_over_user_ok">置き換える</string>
+    <string name="chip_source_auto">辞書</string>
+    <string name="chip_source_pick">選択</string>
+    <string name="chip_source_user">ユーザー</string>
+    <string name="chip_source_userdict">名簿</string>
+    <string name="user_dictionary_title">ユーザー事典</string>
+    <string name="user_word_add">単語を追加</string>
+    <string name="user_word_expression_hint">単語・名前</string>
+    <string name="user_word_reading_hint">読み（かな、任意）</string>
+    <string name="user_word_meaning_hint">定義</string>
+    <string name="user_word_notes_hint">メモ（任意）</string>
+    <string name="user_word_saved">保存しました</string>
+    <string name="user_word_delete_title">この項目を削除しますか？</string>
+    <string name="user_word_delete_message">辞書のデータは変わりません。すでに抽出済みの単語の定義はそのまま残ります（元に戻すできます）。</string>
+    <string name="user_dictionary_empty">まだ単語がありません。名前の読み違えを防ぐため、まずここで登録します。</string>
     <string name="undo_label_sentence_deleted">文を削除しました</string>
     <string name="undo_label_ruling">名前の板を裁定しました</string>
     <string name="undo_label_order">文の並びを変えました</string>

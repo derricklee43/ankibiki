@@ -27,6 +27,10 @@ enum class UndoAction {
     // actions, but scoped by media_refs.id (+ sentence) instead of media_store_id.
     MEDIA_WORDS_EDIT,
     SENTENCE_DELETE,
+    // v16 merged definition model + user dictionary (docs/definition-model-design.md):
+    // per-item definition edit (write-through, mirror, provenance) and entry deletion.
+    ITEM_DEFINITION_EDIT,
+    USER_WORD_DELETE,
 }
 
 /** One `item_occurrences` row captured exactly as stored (restore re-inserts with the SAME id). */

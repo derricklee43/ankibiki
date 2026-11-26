@@ -1,8 +1,10 @@
 # User dictionary — adding your own words (names) so parsing gets them right
 
 **STATUS: RULED 2026-11-26 (D1a/D2a/D3a/D5a/D6a/D7a/D8a; D4 superseded by
-[definition-model-design.md](definition-model-design.md)) — implementation gated on
-that design's rulings + a go.** Design doc for the feature request of 2026-11-26
+[definition-model-design.md](definition-model-design.md)). IMPLEMENTED 2026-11-26
+(`UserDictionary.kt` decorator+provider on the single analyzer seam, ユーザー事典
+screen, USER_WORD_DELETE undo; JVM `UserDictionaryAnalyzerTest` incl. the
+empty-index byte-identity lock).** Design doc for the feature request of 2026-11-26
 (user): "I want to be able to add words to my dictionary. I will primarily use this
 feature to add names, so that they get parsed correctly."
 

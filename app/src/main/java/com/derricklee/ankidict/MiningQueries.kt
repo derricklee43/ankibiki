@@ -821,7 +821,8 @@ fun MiningRepository.getItemDetail(
         """
         SELECT kanji, kana, meaning, level_badge, corpus_rank,
                anki_account_id, deck_id, deck_name, anki_note_id, is_hidden, visibility_state,
-               user_definition, user_notes, folder_id, picked_headword, picked_reading
+               user_definition, user_notes, folder_id, picked_headword, picked_reading,
+               definition_source, system_meaning
         FROM extracted_items
         WHERE language_tag = ? AND item_type = ? AND expression = ?
         """.trimIndent(),
@@ -844,6 +845,9 @@ fun MiningRepository.getItemDetail(
     val folderId: Long?
     val pickedHeadword: String?
     val pickedReading: String?
+    // v16: guarded for hand-built partial DBs (schema-versioning rule 8)
+    val definitionSourceName: String?
+    val systemMeaning: String?
 
     itemCursor.use { c ->
         if (!c.moveToFirst()) return null
@@ -873,6 +877,8 @@ fun MiningRepository.getItemDetail(
         folderId = c.getLongOrNull(13)
         pickedHeadword = c.getStringOrNull(14)
         pickedReading = c.getStringOrNull(15)
+        definitionSourceName = if (c.columnCount > 16) c.getStringOrNull(16) else null
+        systemMeaning = if (c.columnCount > 17) c.getStringOrNull(17) else null
     }
     val folderName = folderId?.let { id ->
         db.rawQuery("SELECT name FROM word_folders WHERE id = ?", arrayOf(id.toString()))
@@ -981,6 +987,10 @@ fun MiningRepository.getItemDetail(
         folderName = folderName,
         pickedHeadword = pickedHeadword,
         pickedReading = pickedReading,
+        definitionSource = runCatching {
+            DefinitionSource.valueOf(definitionSourceName ?: "AUTO")
+        }.getOrDefault(DefinitionSource.AUTO),
+        systemMeaning = systemMeaning,
     )
 }
 

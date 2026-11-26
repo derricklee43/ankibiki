@@ -1,7 +1,9 @@
 # Definition model: merging the user definition with the dictionary entry
 
 **STATUS: RULED 2026-11-26 — E1a/E2a/E3a/E4a/E5a/E6a/E7a ("this is a good
-idea"). Awaiting the implementation go.** Written 2026-11-26 in response to the
+idea"). IMPLEMENTED 2026-11-26 (schema v16, ladder extracted pure to
+`resolveDefinitionBranch`, JVM `DefinitionSourceLadderTest` + device
+`UserWordsStoreInstrumentedTest`).** Written 2026-11-26 in response to the
 D4 deferral on [user-dictionary-design.md](user-dictionary-design.md) (user: "I
 might want to rework this section altogether. Write me a design on merging user
 entered def and default dictionary, plus keep the notes section."). This doc

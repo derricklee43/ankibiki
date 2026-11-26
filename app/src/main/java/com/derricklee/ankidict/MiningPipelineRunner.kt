@@ -895,9 +895,18 @@ class MiningPipelineRunner(
                 textExtractor = jpTextExtractor,
                 duplicateDetector = duplicateDetector,
                 sentenceParser = sentenceParser,
-                wordAnalyzer = KuromojiWordAnalyzer(),
+                // v16 user dictionary (docs/user-dictionary-design.md, RULED 2026-11-26):
+                // span-forcing decorator over the stock Kuromoji analyzer + user-word
+                // provider FIRST so registered names register with the user's gloss.
+                // Suppliers read the repo live -> entries added mid-session apply to
+                // the next sentence parsed (MiningPipelineHolder stays valid).
+                wordAnalyzer = UserDictionaryWordAnalyzer(
+                    KuromojiWordAnalyzer(),
+                    { miningRepository.userWordEntries(LanguageTag.JAPANESE) },
+                ),
                 grammarAnalyzer = JlptGrammarAnalyzer(),
                 dictionaryProviders = listOf(
+                    UserDictionaryProvider({ miningRepository.userWordEntries(LanguageTag.JAPANESE) }),
                     BundledDictionaryProvider(
                         languageTag = LanguageTag.JAPANESE,
                         dictionaryRepository = dictionaryRepository,

@@ -35,7 +35,12 @@ mementos; user go 2026-11-15), v13 `extracted_items.picked_headword`/`picked_rea
 (`stremio_library`, `stremio_addons`, `stremio_settings`, `stremio_cue_documents`,
 `stremio_cues`, `stremio_ledger`, `stremio_watch_snapshots`; user go 2026-11-23 — its
 occurrence rows ride in `item_occurrences` under NEGATIVE `photo_id` values, the stage-1
-landing shape in docs/stremio-mining-console-design.md §6.1); auxiliary
+landing shape in docs/stremio-mining-console-design.md §6.1), v15 `item_occurrences.media_id`
++ the media_refs scaffolding (docs/sentence-media-refs-design.md, 2026-11-23), v16 the
+`user_words` table plus `extracted_items.definition_source`/`system_meaning` — the merged
+definition model (docs/definition-model-design.md, RULED 2026-11-26; the 15→16 migration
+normalizes legacy `user_definition` rows into `meaning` with `definition_source='USER'`,
+stamping pre-v16 pick-key rows as 'PICK' first); auxiliary
 tables/columns ride in the bundled `mining.db` file itself, and pre-v14 bundles restore fine —
 the app migrates the restored file on first open):
 

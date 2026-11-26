@@ -140,15 +140,18 @@
 
             </LinearLayout>
 
-            <!-- v11 user definition + notes (user answers 2026-11-15: user_definition ABOVE the
-                 dictionary meaning; editable via the pencil dialogs; mappable in the wizard). -->
+            <!-- v11 user definition + notes. v16 (docs/definition-model-design.md §3.3):
+                 the 定義 row is REMOVED — the 意味 row became the merged definition
+                 (source chip + pencil + 変更). The row stays in XML, permanently gone,
+                 so no binding renames were needed for siblings. -->
             <LinearLayout
                 android:id="@+id/userDefinitionRow"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
-                android:paddingVertical="6dp">
+                android:paddingVertical="6dp"
+                android:visibility="gone">
 
                 <TextView
                     android:textIsSelectable="true"
@@ -257,6 +260,17 @@
                     android:text="@string/label_meaning"
                     android:textStyle="bold" />
 
+                <!-- v16 merged definition row (docs/definition-model-design.md §3.3):
+                     provenance chip — 辞書/選択/ユーザー/名簿 — hidden for blank meanings. -->
+                <TextView
+                    android:id="@+id/definitionSourceChip"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:textColor="?attr/colorPrimary"
+                    android:textSize="11sp"
+                    android:visibility="gone" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/meaningRevealButton"
                     style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -272,6 +286,16 @@
                     android:layout_weight="1"
                     android:textSize="15sp"
                     android:visibility="gone" />
+
+                <!-- v16: pencil on the merged row opens the definition editor
+                     (save -> USER, blank save -> revert to dictionary). -->
+                <ImageButton
+                    android:id="@+id/meaningEditButton"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/btn_edit_content_desc"
+                    android:src="@drawable/ic_edit_pencil" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/meaningPickButton"

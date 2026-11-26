@@ -155,7 +155,43 @@ data class DictionaryMetadata(
     val meaning: String,
     val levelBadge: String? = null,
     val corpusRank: Int? = null,
+    /** Provenance stamp (docs/definition-model-design.md §3.1): the bundled provider
+     *  is AUTO; UserDictionaryProvider returns USER_DICT. PICK/USER are per-item
+     *  writers, never provider-produced. */
+    val source: DefinitionSource = DefinitionSource.AUTO,
 )
+
+/** Where an item's `meaning` came from (docs/definition-model-design.md §3.1). */
+enum class DefinitionSource { AUTO, PICK, USER_DICT, USER }
+
+/**
+ * The v16 ladder's pure decision (docs/definition-model-design.md §3.1), extracted
+ * so JVM specs pin the table without SQLite. The stored row state outranks the
+ * caller's provider source; USER text is never auto-overwritten.
+ */
+enum class DefinitionBranch {
+    CARRY_USER,             // stored USER: keep all five definition fields as stored
+    USER_DICT_LIVE,         // stored USER_DICT + entry exists: re-resolve from entry
+    FALLBACK_PICK,          // stored USER_DICT/PICK with a pick key: v13 re-resolve
+    FALLBACK_CALLER,        // stored USER_DICT whose entry vanished, no pick: caller wins
+    ACCEPT_CALLER,          // stored AUTO/null: caller's fields + caller's source stamp
+}
+
+fun resolveDefinitionBranch(
+    storedSource: String?,
+    hasPickKey: Boolean,
+    userWordPresent: Boolean,
+): DefinitionBranch = when (storedSource) {
+    "USER" -> DefinitionBranch.CARRY_USER
+    "USER_DICT" -> when {
+        userWordPresent -> DefinitionBranch.USER_DICT_LIVE
+        hasPickKey -> DefinitionBranch.FALLBACK_PICK
+        else -> DefinitionBranch.FALLBACK_CALLER
+    }
+    // "PICK", "AUTO", null: a stored pick key always outranks the caller
+    // (pre-v16 rows carry keys but no stamp — v13 semantics preserved verbatim)
+    else -> if (hasPickKey) DefinitionBranch.FALLBACK_PICK else DefinitionBranch.ACCEPT_CALLER
+}
 
 data class AnkiCardMatch(
     val accountId: String,
@@ -194,7 +230,26 @@ interface SentenceParser {
 
 interface WordAnalyzer {
     fun extractWords(sentence: String): List<NormalizedCandidate>
+
+    /**
+     * Token view of the same analysis, for span-aware decorators (user dictionary,
+     * docs/user-dictionary-design.md §3.2). Default degrades to candidate-only with
+     * unknown spans; KuromojiWordAnalyzer overrides with real character ranges.
+     */
+    fun extractTokens(sentence: String): List<ExtractedToken> =
+        extractWords(sentence).map { ExtractedToken(it.surfaceForm, null, it) }
 }
+
+/**
+ * One parser token: its raw surface, its character range in the sentence (null =
+ * unknown), and the candidate it produced (null = filtered out by the parser, the
+ * token still exists for span-conflict decisions).
+ */
+data class ExtractedToken(
+    val surface: String,
+    val range: IntRange?,
+    val candidate: NormalizedCandidate?,
+)
 
 interface GrammarAnalyzer {
     fun extractGrammar(sentence: String): List<NormalizedCandidate>

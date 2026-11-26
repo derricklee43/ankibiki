@@ -171,20 +171,12 @@ class WordGrammarDetailActivity : AppCompatActivity() {
             updateRevealViews()
         }
 
-        // v11 user definition / notes / folder (user answers 2026-11-15). Saves are targeted
-        // UPDATEs and never touch the text-provenance flag: definition != authorship of the
-        // sentence text (is_manual/modified_by_user_flag semantics stay pinned).
-        binding.userDefinitionEditButton.setOnClickListener {
-            showUserTextEditor(
-                getString(R.string.user_definition_dialog_title),
-                currentDetail?.userDefinition,
-            ) { text ->
-                ioExecutor.execute {
-                    miningRepository.setUserDefinition(languageTag, itemType, expression, text)
-                    runOnUiThread { loadDetail() }
-                }
-            }
-        }
+        // v16 merged definition editor (docs/definition-model-design.md §3.2/§3.3):
+        // the 意味 row is THE definition; the pencil writes user text (source USER,
+        // mirror, revert target) or blank = revert to the stored dictionary value.
+        // The old 定義 row is gone (layout visibility gone; user_definition keeps
+        // exporting as the card_templates mirror).
+        binding.meaningEditButton.setOnClickListener { showDefinitionEditorDialog() }
         binding.userNotesEditButton.setOnClickListener {
             showUserTextEditor(
                 getString(R.string.user_notes_dialog_title),
@@ -478,11 +470,25 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         }
 
         val meaningText = detail?.meaning?.takeIf { it.isNotBlank() }
+        // v16 merged definition row: source chip + reveal-gate follows the SOURCE
+        // (E6a: user-authored text renders directly — the 表示 ceremony gates DICTIONARY
+        // spoilers, not the user's own typing; USER_DICT too).
+        val source = detail?.definitionSource ?: DefinitionSource.AUTO
+        val chip = when {
+            meaningText == null || meaningText == "—" -> null
+            source == DefinitionSource.USER -> getString(R.string.chip_source_user)
+            source == DefinitionSource.USER_DICT -> getString(R.string.chip_source_userdict)
+            source == DefinitionSource.PICK -> getString(R.string.chip_source_pick)
+            else -> getString(R.string.chip_source_auto)
+        }
+        binding.definitionSourceChip.text = chip.orEmpty()
+        binding.definitionSourceChip.visibility = if (chip != null) View.VISIBLE else View.GONE
+        val userVoice = source == DefinitionSource.USER || source == DefinitionSource.USER_DICT
         if (detail != null && (meaningText == null || meaningText == "—")) {
             binding.meaningRevealButton.visibility = View.GONE
             binding.meaningValueText.visibility = View.VISIBLE
             binding.meaningValueText.text = "—"
-        } else if (isMeaningRevealed) {
+        } else if (isMeaningRevealed || userVoice) {
             binding.meaningRevealButton.visibility = View.GONE
             binding.meaningValueText.visibility = View.VISIBLE
             binding.meaningValueText.text = meaningText ?: "—"
@@ -492,11 +498,53 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         }
     }
 
+    /** v16 merged definition editor (§3.2/§3.3): save user text -> USER voice;
+     *  blank save (or 辞書に戻す) -> revert to the stored system_meaning. One undo. */
+    private fun showDefinitionEditorDialog() {
+        val d = currentDetail ?: return
+        val input = android.widget.EditText(this).apply {
+            setText(d.meaning.takeIf { it != "—" }.orEmpty())
+            hint = getString(R.string.definition_edit_hint)
+            minLines = 2
+            maxLines = 6
+            setSelection(text.length)
+        }
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.definition_edit_title)
+            .setView(input)
+            .setNegativeButton(R.string.btn_cancel, null)
+            .setPositiveButton(R.string.btn_save_text) { _, _ ->
+                applyDefinitionEdit(input.text.toString())
+            }
+        if (!d.systemMeaning.isNullOrBlank()) {
+            builder.setNeutralButton(R.string.revert_to_dictionary) { _, _ ->
+                applyDefinitionEdit("")
+            }
+        }
+        builder.show()
+    }
+
+    private fun applyDefinitionEdit(text: String) {
+        val d = currentDetail ?: return
+        ioExecutor.execute {
+            val applied = miningRepository.setItemDefinition(d.languageTag, d.itemType, d.expression, text)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (applied) {
+                    isMeaningRevealed = true
+                    loadDetail()
+                    UndoUi.maybeShow(binding.root, miningRepository) { loadDetail() }
+                }
+            }
+        }
+    }
+
     // ---- v11 user rows (definition / notes / folder) ----
 
     private fun renderUserRows() {
         val d = currentDetail
-        binding.userDefinitionValueText.text = d?.userDefinition?.takeIf { it.isNotBlank() } ?: "—"
+        // v16: userDefinitionValueText row hidden (merged into the definition row);
+        // the column keeps being mirrored for card_templates compatibility.
         binding.userNotesValueText.text = d?.userNotes?.takeIf { it.isNotBlank() } ?: "—"
         binding.folderValueText.text = d?.folderName?.takeIf { it.isNotBlank() } ?: "—"
     }
@@ -553,6 +601,9 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         }
     }
 
+    /** Pick dialog row (hoisted file-private so applyDefinitionPick takes it). */
+    private data class PickRow(val label: String, val headword: String, val reading: String)
+
     /**
      * v13: candidate dialog for re-selecting the system definition. Candidates are the same
      * list the auto-heuristic saw, in the same order (is_common DESC / surname-demote), so
@@ -563,7 +614,6 @@ class WordGrammarDetailActivity : AppCompatActivity() {
         val d = currentDetail ?: return
         if (d.itemType == ItemType.GRAMMAR) return
         ioExecutor.execute {
-            data class PickRow(val label: String, val headword: String, val reading: String)
             val rows: List<PickRow> = when (d.languageTag) {
                 LanguageTag.JAPANESE -> dictionaryRepository.lookupJapaneseWords(d.expression)
                     .map {
@@ -599,24 +649,42 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                     .setTitle(R.string.title_definition_pick)
                     .setSingleChoiceItems(labels, checked) { dialog, which ->
                         dialog.dismiss()
-                        ioExecutor.execute {
-                            val applied = if (which == 0) {
-                                miningRepository.pickItemDefinition(d.languageTag, d.itemType, d.expression, null, null)
-                            } else {
-                                val r = rows[which - 1]
-                                miningRepository.pickItemDefinition(d.languageTag, d.itemType, d.expression, r.headword, r.reading)
+                        // E4a: picking a dictionary candidate over a USER voice replaces
+                        // hand-typed text — behind an explicit confirm (§3.3).
+                        if (d.definitionSource == DefinitionSource.USER) {
+                            runOnUiThread {
+                                if (isFinishing || isDestroyed) return@runOnUiThread
+                                androidx.appcompat.app.AlertDialog.Builder(this)
+                                    .setMessage(R.string.pick_over_user_confirm)
+                                    .setNegativeButton(R.string.btn_cancel, null)
+                                    .setPositiveButton(R.string.pick_over_user_ok) { _, _ -> applyDefinitionPick(d, rows, which) }
+                                    .show()
                             }
-                            if (applied) runOnUiThread {
-                                // Design §3.2: the dialog just showed the glosses — the row
-                                // reveals directly, no re-hide ceremony after a deliberate pick.
-                                isMeaningRevealed = true
-                                loadDetail()
-                                UndoUi.maybeShow(binding.root, miningRepository) { loadDetail() }
-                            }
+                        } else {
+                            applyDefinitionPick(d, rows, which)
                         }
                     }
                     .setNegativeButton(R.string.btn_cancel, null)
                     .show()
+            }
+        }
+    }
+
+    private fun applyDefinitionPick(d: ExtractedItemDetail, rows: List<PickRow>, which: Int) {
+        ioExecutor.execute {
+            val applied = if (which == 0) {
+                miningRepository.pickItemDefinition(d.languageTag, d.itemType, d.expression, null, null)
+            } else {
+                val r = rows[which - 1]
+                miningRepository.pickItemDefinition(d.languageTag, d.itemType, d.expression, r.headword, r.reading)
+            }
+            if (applied) runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                // Design §3.2: the dialog just showed the glosses — the row
+                // reveals directly, no re-hide ceremony after a deliberate pick.
+                isMeaningRevealed = true
+                loadDetail()
+                UndoUi.maybeShow(binding.root, miningRepository) { loadDetail() }
             }
         }
     }

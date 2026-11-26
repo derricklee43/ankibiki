@@ -4,40 +4,48 @@ import com.atilika.kuromoji.ipadic.Tokenizer
 
 class KuromojiWordAnalyzer : WordAnalyzer {
 
-    override fun extractWords(sentence: String): List<NormalizedCandidate> {
+    override fun extractWords(sentence: String): List<NormalizedCandidate> =
+        extractTokens(sentence).mapNotNull { it.candidate }
+
+    /**
+     * Token view with real character spans (kuromoji Token.getPosition() is the
+     * char offset of the surface in the input; surface is the exact substring).
+     * Same filter pipeline as before the refactor, in the same order — the JVM
+     * specs on extractWords are the byte-identity regression lock.
+     */
+    override fun extractTokens(sentence: String): List<ExtractedToken> {
         if (sentence.isBlank()) return emptyList()
         val tokens = sharedTokenizer.tokenize(sentence)
-        val candidates = mutableListOf<NormalizedCandidate>()
+        val out = mutableListOf<ExtractedToken>()
         val seenExpressionsInSentence = HashSet<String>()
 
         for (token in tokens) {
             val pos1 = token.partOfSpeechLevel1
             val pos2 = token.partOfSpeechLevel2
-            if (pos1 !in ALLOWED_POS1) continue
-            if (pos2 in EXCLUDED_POS2) continue
-
             val surface = token.surface.trim()
-            if (surface.isEmpty()) continue
+            val range = if (token.position >= 0 && token.surface.isNotEmpty())
+                token.position..(token.position + token.surface.length - 1) else null
+
+            if (pos1 !in ALLOWED_POS1 || pos2 in EXCLUDED_POS2 || surface.isEmpty()) {
+                out += ExtractedToken(token.surface, range, candidate = null)
+                continue
+            }
 
             val baseForm = token.baseForm?.takeIf { it != "*" && it.isNotBlank() } ?: surface
             val cleanExpression = stripNoise(baseForm)
-            if (!isValidWordCandidate(cleanExpression)) continue
-            if (cleanExpression in STOPWORDS) continue
-
-            if (!seenExpressionsInSentence.add(cleanExpression)) continue
-
             val rawReading = token.reading?.takeIf { it != "*" && it.isNotBlank() }
             val readingKana = rawReading?.let { katakanaToHiragana(it) }
-
-            candidates.add(
-                NormalizedCandidate(
-                    expression = cleanExpression,
-                    surfaceForm = surface,
-                    readingKana = readingKana,
-                ),
+            val candidate = if (!isValidWordCandidate(cleanExpression) ||
+                cleanExpression in STOPWORDS ||
+                !seenExpressionsInSentence.add(cleanExpression)
+            ) null else NormalizedCandidate(
+                expression = cleanExpression,
+                surfaceForm = surface,
+                readingKana = readingKana,
             )
+            out += ExtractedToken(token.surface, range, candidate)
         }
-        return candidates
+        return out
     }
 
     companion object {

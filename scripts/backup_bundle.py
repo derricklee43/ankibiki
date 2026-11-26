@@ -64,7 +64,11 @@ TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # Pre-v14 bundles restore unchanged and the tables materialize on first open; stremio rows
 # ride along in item_occurrences wholesale, which is exactly what the bundle contract wants
 # (corpus state IN; secrets never entered the db in the first place — they live in prefs).
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+# Same again for v15 (media_refs, docs/sentence-media-refs-design.md, 2026-11-23) and
+# v16 (user_words table + extracted_items.definition_source/system_meaning merge,
+# docs/definition-model-design.md, 2026-11-26): new table + two optional columns, NOT in
+# MINING_COLUMNS — pre-v16 bundles keep validating; the file migrates on first open.
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",
