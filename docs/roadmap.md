@@ -141,7 +141,13 @@ migration.
        §16 item 9; JVM 153/153 fresh incl. 5 new plan specs + lane-lifecycle
        guard). Still open: instrumented emulator run, SM-3/SM-4, C2 sentence
        verification (needs a season-0 row mined end-to-end, e.g. Gachiakuta E04
-       walkthrough), 44->13 parse-gap closeout.
+       walkthrough), 44->13 parse-gap closeout (RESOLVED as tombstones above).
+       Console UI rulings 2026-11-26 (user, implemented + device-verified on the
+       Demon Slayer episode list): unwatched rows carry NO label ("watched" kept
+       for watched rows), nothing is pre-selected (supersedes the watched&&unmined
+       pre-check design default), and the whole list row — not just the checkbox —
+       is the selection touch target (ripple added; long-press still opens
+       per-episode settings).
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix

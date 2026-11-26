@@ -86,8 +86,10 @@ class StremioEpisodesActivity : AppCompatActivity() {
                 EpisodeRow(
                     episode = ep,
                     watchedHint = watched,
-                    // design default: watched && unmined pre-checked; hint only, never a gate
-                    selected = watched && ledger?.status != StremioLedgerStatus.MINED,
+                    // USER RULING 2026-11-26: nothing is pre-selected; the watched
+                    // hint is display-only (supersedes the design default of
+                    // watched && unmined pre-checked).
+                    selected = false,
                     ledger = ledger,
                     isResumeSlot = resumeVideoId == ep.episodeId,
                 )
@@ -218,8 +220,16 @@ class StremioEpisodesActivity : AppCompatActivity() {
                 StremioLedgerStatus.FAILED -> "failed: ${ledger.error?.take(60)} (re-queueable)"
                 StremioLedgerStatus.QUEUED, StremioLedgerStatus.FETCHING,
                 StremioLedgerStatus.PARSING -> "in progress…"
-                null -> if (row.watchedHint) "watched" else "unwatched (still queueable)"
+                // unwatched carries NO label (user ruling 2026-11-26); the row stays
+                // queueable regardless - hint was never a gate
+                null -> if (row.watchedHint) "watched" else ""
                 else -> ledger?.status.orEmpty()
+            }
+            holder.itemView.setOnClickListener {
+                // whole row toggles (user request 2026-11-26); the CheckBox consumes
+                // its own taps so no double-toggle, and the listener below keeps
+                // row.selected in sync whichever path flips it
+                holder.check.toggle()
             }
             holder.itemView.setOnLongClickListener {
                 showSettings(scopeKey = ep.episodeId)
