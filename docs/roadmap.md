@@ -174,6 +174,19 @@ migration.
        bundle restore of a v15 backup; device walkthrough = add a real name →
        mine one episode → chip shows the single token with the user's meaning;
        delete + undo round-trips.
+       STATUS 2026-11-26 EVENING: shipped at 938619c + bidi-follow-up (below).
+       Device walkthrough PASSED on the phone: 炭治郎 registered via UI
+       (katakana input normalized), E5/E6 mined -> single-token item, 73
+       occurrences, 名簿 chip + user gloss on word detail, chips in sentence
+       view. JVM 174/174, emulator instrumented 161/0-fail, v16 migration ran
+       clean on the real v15 db (10 legacy USER rows normalized). REMAINING:
+       bundle restore of a v15 backup (recovery ritual — needs the SAF flow,
+       not driven from adb). DEVICE-FIX found during walkthrough: fan-sub
+       lines carry bidi isolates (U+202A..E) INSIDE names — exact-substring
+       matching silently failed while Kuromoji tokenized around them (E2 doc:
+       331/336 cues affected) -> SubtitleParser now strips invisible formatting
+       controls at ingest; JVM spec pins it; legacy cue rows stay as-stored
+       (re-mine re-parses clean).
 10. [ ] **Merged definition model (one definition per item; user text +
        dictionary unified; notes untouched)**: design doc DELIVERED 2026-11-26
        (user D4 rework request: "merging user entered def and default dictionary,
@@ -193,6 +206,12 @@ migration.
        upsert-carry instrumented hazard spec (rule 7), re-mine-over-USER-device
        walkthrough, `DraftAdapterContractTest` deliberate re-pin. Same v16 bump
        as item 9 (E3) — these two ship together or not at all.
+       STATUS 2026-11-26 EVENING: shipped at 938619c. Re-mine-over-USER
+       walkthrough PASSED on the phone: pencil-edit 炭治郎 -> "my boy - hand
+       typed" (chip ユーザー), E6 re-mined -> meaning + USER stamp +
+       system_meaning revert target all intact, kana carried. Migration on real
+       db normalized 10 legacy user-definition rows. REMAINING: same
+       v15-bundle-restore ritual as item 9.
 
 Acceptance framing for the list: interrupted work resumes or retries without corrupting
 or duplicating data; a fresh checkout has a documented path to a working build; a fix

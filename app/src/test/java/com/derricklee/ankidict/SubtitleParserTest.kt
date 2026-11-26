@@ -130,4 +130,16 @@ class SubtitleParserTest {
         val vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\ntext\n"
         assertEquals(1, SubtitleParser.parse("a.vtt", vtt).size)
     }
+
+    @Test
+    fun invisibleBidiAndZeroWidthControlsStrippedFromCueText() {
+        // device-found 2026-11-26 (Demon Slayer E4): a fan-sub line wrapped in bidi
+        // isolates broke the user-dictionary exact-substring match while Kuromoji
+        // tokenized AROUND the invisible chars -> fragments in the word list.
+        // Write the characters ESCAPED only - raw ones in source are the hazard.
+        val srt = "1\n00:00:01,000 --> 00:00:02,000\n" +
+            "\u202A" + "竈門炭治郎\u202Cです\u200B～！\u200E" + "\n"
+        val cues = SubtitleParser.parse("a.srt", srt)
+        assertEquals("竈門炭治郎です～！", cues[0].text)
+    }
 }

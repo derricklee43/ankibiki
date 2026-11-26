@@ -36,6 +36,15 @@ class UserDictionaryActivity : AppCompatActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(24, 24, 24, 24)
+            // Android 15+ forces edge-to-edge; without a toolbar this root would
+            // draw under the status bar (found on device 2026-11-26 - the add
+            // button sat beneath the clock and swallowed taps)
+            androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(this) { v, insets ->
+                val bars = androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                val i = insets.getInsets(bars)
+                v.setPadding(24 + i.left, 24 + i.top, 24 + i.right, 24 + i.bottom)
+                insets
+            }
         }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL

@@ -39,6 +39,17 @@ object SubtitleParser {
         .joinToString(" ") { stripTags(it) }
         .trim()
         .replace(Regex("\\s+"), " ")
+        // Subtitle files carry invisible formatting controls (bidi isolates U+202A-E,
+        // direction marks, zero-widths, BOMs). They sit INSIDE words in fan subs
+        // (device 2026-11-26: "U+202A + 竈門炭治郎です～！ + U+202C" broke exact-
+        // substring name matching while Kuromoji tokenized around them) — text
+        // truth must be clean. NB: keep this comment ASCII-escaped; the raw
+        // characters in source are exactly the hazard being removed.
+        .replace(INVISIBLE_REGEX, "")
+
+    private val INVISIBLE_REGEX = Regex(
+        "[\\u200B\\u200C\\u200D\\u200E\\u200F\\u202A-\\u202E\\u2060\\u2066-\\u2069\\uFEFF]",
+    )
 
     private val TAG_REGEX = Regex("<[^>]*>")
     private fun stripTags(line: String): String =
