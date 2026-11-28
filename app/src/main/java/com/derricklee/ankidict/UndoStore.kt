@@ -84,7 +84,7 @@ internal fun MiningRepository.undoPhotoRow(mediaStoreId: Long): UndoPhotoRow? =
     }
 
 private const val OCC_COLS =
-    "id, language_tag, item_type, expression, photo_id, sentence, created_at, state, modified_by_user_flag, is_manual"
+    "id, language_tag, item_type, expression, photo_id, sentence, created_at, state, modified_by_user_flag, is_manual, media_id"
 
 private fun MiningRepository.readOccRows(query: String, args: Array<String>): List<UndoOccRow> =
     readableDatabase.rawQuery(query, args).use { c ->
@@ -95,10 +95,39 @@ private fun MiningRepository.readOccRows(query: String, args: Array<String>): Li
                     expression = c.getString(3), photoId = c.getLong(4), sentence = c.getString(5),
                     createdAt = c.getLong(6), state = c.getString(7),
                     modifiedByUserFlag = c.getInt(8) != 0, isManual = c.getInt(9) != 0,
+                    mediaId = if (c.isNull(10)) null else c.getLong(10),
                 ))
             }
         }
     }
+
+/** Batch capture by primary key (chunked well under SQLite's 999 bind limit). */
+internal fun MiningRepository.undoOccRowsByIds(ids: Collection<Long>): List<UndoOccRow> {
+    if (ids.isEmpty()) return emptyList()
+    val out = ArrayList<UndoOccRow>(ids.size)
+    for (chunk in ids.distinct().chunked(500)) {
+        val placeholders = chunk.joinToString(",") { "?" }
+        out += readOccRows(
+            "SELECT $OCC_COLS FROM item_occurrences WHERE id IN ($placeholders) ORDER BY id",
+            chunk.map { it.toString() }.toTypedArray(),
+        )
+    }
+    return out
+}
+
+/** True if any occurrence id in [ids] currently exists (stale guard for delta undo). */
+internal fun MiningRepository.anyOccurrenceIdExists(ids: Collection<Long>): Boolean {
+    if (ids.isEmpty()) return false
+    for (chunk in ids.distinct().chunked(500)) {
+        val placeholders = chunk.joinToString(",") { "?" }
+        val hit = readableDatabase.rawQuery(
+            "SELECT 1 FROM item_occurrences WHERE id IN ($placeholders) LIMIT 1",
+            chunk.map { it.toString() }.toTypedArray(),
+        ).use { it.moveToFirst() }
+        if (hit) return true
+    }
+    return false
+}
 
 /** All rows of one photo (the wide-capture scope for destructive actions: ruling, photo delete). */
 internal fun MiningRepository.undoOccRowsForPhoto(photoId: Long): List<UndoOccRow> =
@@ -247,6 +276,28 @@ internal fun MiningRepository.restoreOccurrenceScopeByMedia(
     }
 }
 
+/** Delta restore for USER_WORD_REPARSE: drop newly inserted ids, re-insert deleted rows
+ *  with their exact original ids, media_id, photo_id, and triage state. */
+internal fun MiningRepository.restoreReparsedOccurrences(
+    insertedIds: List<Long>,
+    deletedRows: List<UndoOccRow>,
+) {
+    for (chunk in insertedIds.distinct().chunked(500)) {
+        val placeholders = chunk.joinToString(",") { "?" }
+        writableDatabase.delete(
+            "item_occurrences",
+            "id IN ($placeholders)",
+            chunk.map { it.toString() }.toTypedArray(),
+        )
+    }
+    for (r in deletedRows) {
+        writableDatabase.insertWithOnConflict(
+            "item_occurrences", null, undoOccValues(r),
+            android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+}
+
 private fun undoOccValues(r: UndoOccRow) = ContentValues().apply {
     put("id", r.id)
     put("language_tag", r.languageTag)
@@ -258,6 +309,7 @@ private fun undoOccValues(r: UndoOccRow) = ContentValues().apply {
     put("state", r.state)
     put("modified_by_user_flag", r.modifiedByUserFlag)
     put("is_manual", r.isManual)
+    if (r.mediaId != null) put("media_id", r.mediaId)
 }
 
 internal fun MiningRepository.restoreItemVisibility(languageTag: String, itemType: String, expression: String, visibilityState: String, isHidden: Boolean) {

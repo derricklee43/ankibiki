@@ -68,6 +68,61 @@
                 android:textSize="13sp"
                 android:visibility="gone" />
 
+            <!-- 1c. Stage-3 Step 3 lazy video slice controls (frame loads into photoImage
+                 above; audio plays inline; adjust nudges offset_ms / audio_track). -->
+            <LinearLayout
+                android:id="@+id/videoMediaControls"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/loadVideoMediaButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/video_slice_load" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/playVideoAudioButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/video_slice_play"
+                    android:visibility="gone" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/saveVideoClipButton"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="@string/video_slice_save"
+                    android:visibility="gone" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/adjustVideoMediaButton"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/video_slice_adjust"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/videoMediaStatusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
             <!-- 2. Parsed words, de-emphasized outline chips, ABOVE the sentence. -->
             <com.google.android.material.chip.ChipGroup
                 android:id="@+id/wordChipGroup"

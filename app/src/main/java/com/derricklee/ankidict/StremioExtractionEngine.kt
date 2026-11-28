@@ -57,39 +57,49 @@ class StremioExtractionEngine(
                     "no subtitle language set - open the gear and enter e.g. jpn")
             }
             val candidates = addons.subtitleAddonCandidates()
-            if (candidates.isEmpty()) {
+            if (candidates.isEmpty() && jimaku == null) {
                 return fail(videoId, generation, "no subtitle addon installed in Stremio")
             }
-            // Try each subtitle addon (pure ones ranked first) until one yields
-            // results; metadata addons with stub subtitle resources are skipped
-            // by falling through on 404/empty.
+            // User-ordered subtitle ladder (2026-11-27):
+            //   1. Anime Kitsu
+            //   2. Jimaku (builtin direct)
+            //   3. OpenSubtitles
+            //   4. OpenSubtitles v3
+            //   5. Other synced subtitle addons
+            //   6. Buta No Subs (LAST resort)
+            val beforeJimaku = candidates.filter { it.addonId == SUBTITLE_ADDON_KITSU }
+            val afterJimaku = candidates.filter { it.addonId != SUBTITLE_ADDON_KITSU }
+
             var choices: List<SubtitleChoice> = emptyList()
             val tried = ArrayList<String>()
-            for (cand in candidates) {
-                val result = runCatching {
-                    AddonResources(transport).subtitles(cand, metaType, videoId,
-                        settings.subtitleLang)
+
+            fun tryAddonList(list: List<StremioAddon>) {
+                for (cand in list) {
+                    if (choices.isNotEmpty()) return
+                    val result = runCatching {
+                        AddonResources(transport).subtitles(cand, metaType, videoId,
+                            settings.subtitleLang)
+                    }
+                    if (result.isFailure) {
+                        // StremioHttpException ends with "-> HTTP <code>" -- keep the
+                        // TAIL of the message (the status is the diagnostic; an earlier
+                        // take(60) amputated it and broke the failure-path spec).
+                        val m = result.exceptionOrNull()?.message
+                        tried += "${cand.name}: " +
+                            (if (m != null && m.length > 50) "…" + m.takeLast(50) else m ?: "?")
+                        continue
+                    }
+                    val got = result.getOrDefault(emptyList())
+                    if (got.isNotEmpty()) {
+                        choices = got
+                        return
+                    }
+                    tried += "${cand.name}: 0 results"
                 }
-                if (result.isFailure) {
-                    // StremioHttpException ends with "-> HTTP <code>" -- keep the
-                    // TAIL of the message (the status is the diagnostic; an earlier
-                    // take(60) amputated it and broke the failure-path spec).
-                    val m = result.exceptionOrNull()?.message
-                    tried += "${cand.name}: " +
-                        (if (m != null && m.length > 50) "…" + m.takeLast(50) else m ?: "?")
-                    continue
-                }
-                val got = result.getOrDefault(emptyList())
-                if (got.isNotEmpty()) {
-                    choices = got
-                    break
-                }
-                tried += "${cand.name}: 0 results"
             }
+
+            tryAddonList(beforeJimaku)
             if (choices.isEmpty()) {
-                // Builtin rung (spikes/007 D4a ruling): after ALL synced addons missed,
-                // try Jimaku-direct. Failures append to the SAME tried-list so the
-                // ledger keeps one honest line per source.
                 val jm = jimaku
                 if (jm != null) {
                     val builtinResult = runCatching {
@@ -106,10 +116,13 @@ class StremioExtractionEngine(
                 }
             }
             if (choices.isEmpty()) {
+                tryAddonList(afterJimaku)
+            }
+            if (choices.isEmpty()) {
                 return fail(videoId, generation, "no ${settings.subtitleLang} subtitles - " +
                     "tried: ${tried.joinToString("; ").take(180)}")
             }
-            val choice = selectChoice(settings, choices)
+            val choice = selectChoice(settings, choices, videoId)
 
             val text = AddonResources(transport).fetchSubtitleText(choice.fileUrl)
             if (text.isBlank()) return fail(videoId, generation, "empty subtitle file")
@@ -214,9 +227,12 @@ class StremioExtractionEngine(
         return Outcome(StremioLedgerStatus.FAILED, videoId, null, 0, 0, error)
     }
 
-    /** D1/D8 selection ladder: exact pin > name-pattern substring > first candidate. */
-    fun selectChoice(settings: StremioSettingsRow, choices: List<SubtitleChoice>): SubtitleChoice =
-        StremioSelection.select(settings, choices)
+    /** D1/D8 selection ladder: exact pin > name-pattern substring > episode-matching candidate > first. */
+    fun selectChoice(
+        settings: StremioSettingsRow,
+        choices: List<SubtitleChoice>,
+        videoId: String? = null,
+    ): SubtitleChoice = StremioSelection.select(settings, choices, videoId)
 
     /**
      * M6-lite (S0-D tier2 fallback, D2 ruling): best-effort infoHash/fileIdx observation
@@ -264,18 +280,55 @@ class StremioExtractionEngine(
 }
 
 /** Pure subtitle-version selection ladder (D1/D8), extracted for JVM specs: exact pin >
- *  release-name pattern substring > first candidate (never fails on a pin miss). */
+ *  release-name pattern substring > episode-matching candidate (guards against addons like
+ *  Buta No Subs / Kitsunekko that mix S05E02..S01E02 in reverse order) > first candidate
+ *  (never fails on a pin miss). */
 object StremioSelection {
-    fun select(settings: StremioSettingsRow, choices: List<SubtitleChoice>): SubtitleChoice {
+    fun select(
+        settings: StremioSettingsRow,
+        choices: List<SubtitleChoice>,
+        videoId: String? = null,
+    ): SubtitleChoice {
         settings.subtitlePin?.let { pin ->
             choices.firstOrNull { it.releaseName.equals(pin, ignoreCase = true) }?.let { return it }
         }
+        val target = videoId?.let { AddonResources.regexEpisodeRef(it) }
         settings.subtitlePattern?.let { pattern ->
             if (pattern.isNotBlank()) {
-                choices.firstOrNull { it.releaseName.contains(pattern, ignoreCase = true) }
-                    ?.let { return it }
+                val patternHits = choices.filter { it.releaseName.contains(pattern, ignoreCase = true) }
+                if (patternHits.isNotEmpty()) {
+                    return pickByEpisodeMatch(patternHits, target)
+                }
             }
         }
-        return choices.first()
+        return pickByEpisodeMatch(choices, target)
+    }
+
+    private fun pickByEpisodeMatch(
+        choices: List<SubtitleChoice>,
+        target: ParsedEpisodeRef?,
+    ): SubtitleChoice {
+        if (target == null) return choices.first()
+        // Tier 0 = exact (season, episode) match; Tier 1 = no parseable S/E tag;
+        // Tier 2 = explicit season/episode mismatch (e.g. S05E02 when target is S01E02).
+        return choices.minByOrNull { choice ->
+            val parsed = parseChoiceEpisode(choice)
+            when {
+                parsed == null -> 1
+                parsed.season == target.season && parsed.episode == target.episode -> 0
+                else -> 2
+            }
+        } ?: choices.first()
+    }
+
+    private fun parseChoiceEpisode(choice: SubtitleChoice): ParsedEpisodeRef? {
+        AddonResources.parseEpisodeFromFilename(choice.releaseName)?.let { return it }
+        val urlTail = runCatching {
+            java.net.URLDecoder.decode(
+                choice.fileUrl.substringAfterLast('/').substringBefore('?'),
+                "UTF-8",
+            )
+        }.getOrNull() ?: return null
+        return AddonResources.parseEpisodeFromFilename(urlTail)
     }
 }

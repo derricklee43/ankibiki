@@ -147,26 +147,48 @@ fun List<StremioAddon>.firstSubtitleAddon(): StremioAddon? = firstOrNull { addon
 }
 
 /**
- * Subtitle-capable addons, RANKED. Pure-subtitle addons (every resource is the
- * subtitle family, e.g. OpenSubtitles) come before general addons that merely
- * declare subtitles among catalog/meta (Anime Kitsu stubs the resource and 404s
- * -- live repro 2026-11-23: ORDER BY addon_id put community.anime.kitsu ahead
- * of org.stremio.opensubtitles and the first match won). Stable within a rank.
+ * Subtitle-capable addons, RANKED per user preference (2026-11-27):
+ *   1. Anime Kitsu (`community.anime.kitsu`)
+ *   [Builtin Jimaku runs immediately after Kitsu in StremioExtractionEngine]
+ *   2. OpenSubtitles (`org.stremio.opensubtitles`)
+ *   3. OpenSubtitles v3 (`org.stremio.opensubtitlesv3`)
+ *   4. Other pure-subtitle addons
+ *   5. Other mixed-resource subtitle addons
+ *   6. Buta No Subs (`com.buta.no.subs.stremio.addon`) — LAST resort
  */
 fun List<StremioAddon>.subtitleAddonCandidates(): List<StremioAddon> =
     mapNotNull { addon ->
         val subs = addon.resourceTypes.count { it.lowercase().startsWith("subtitle") }
-        if (subs == 0) null else addon to if (subs == addon.resourceTypes.size) 0 else 1
+        if (subs == 0) return@mapNotNull null
+        val rank = subtitleAddonRank(addon, isPureSubtitle = subs == addon.resourceTypes.size)
+        addon to rank
     }.sortedBy { it.second }
      .map { it.first }
+
+internal fun subtitleAddonRank(addon: StremioAddon, isPureSubtitle: Boolean): Int = when (addon.addonId) {
+    SUBTITLE_ADDON_KITSU -> 0
+    SUBTITLE_ADDON_OPENSUBS -> 2
+    SUBTITLE_ADDON_OPENSUBS_V3 -> 3
+    SUBTITLE_ADDON_BUTA -> 6
+    else -> if (isPureSubtitle) 4 else 5
+}
+
+internal const val SUBTITLE_ADDON_KITSU = "community.anime.kitsu"
+internal const val SUBTITLE_ADDON_OPENSUBS = "org.stremio.opensubtitles"
+internal const val SUBTITLE_ADDON_OPENSUBS_V3 = "org.stremio.opensubtitlesv3"
+internal const val SUBTITLE_ADDON_BUTA = "com.buta.no.subs.stremio.addon"
 
 fun List<StremioAddon>.firstMetaAddon(): StremioAddon? = firstOrNull { addon ->
     addon.resourceTypes.any { it.lowercase() == "meta" }
 }
 
-fun List<StremioAddon>.firstStreamAddon(): StremioAddon? = firstOrNull { addon ->
-    addon.resourceTypes.any { it.lowercase().startsWith("stream") }
-}
+/** Stream-capable addons ranked with non-local addons (e.g. Torrentio RD) before org.stremio.local. */
+fun List<StremioAddon>.streamAddonCandidates(): List<StremioAddon> =
+    filter { addon -> addon.resourceTypes.any { it.lowercase().startsWith("stream") } }
+        .sortedBy { if (it.addonId == "org.stremio.local") 1 else 0 }
+
+fun List<StremioAddon>.firstStreamAddon(): StremioAddon? =
+    streamAddonCandidates().firstOrNull()
 
 /** D1 scope chain: episode row > show row > global > built-in default. */
 fun MiningRepository.stremioSettingsFor(videoId: String, baseId: String): StremioSettingsRow {
@@ -373,6 +395,89 @@ fun MiningRepository.saveStremioWatchSnapshot(
     )
 }
 
+/** Load stored cues for a mined doc (Stage 3 slice harness / preview). */
+fun MiningRepository.loadStremioCues(docId: Long): List<SubtitleCue> =
+    readableDatabase.rawQuery(
+        "SELECT start_ms, end_ms, text FROM stremio_cues WHERE doc_id = ? ORDER BY start_ms",
+        arrayOf(docId.toString()),
+    ).use { c ->
+        buildList {
+            while (c.moveToNext()) add(SubtitleCue(c.getLong(0), c.getLong(1), c.getString(2)))
+        }
+    }
+
+/** Read stored (infoHash, fileIdx) identity for a cue doc. */
+fun MiningRepository.loadStremioDocIdentity(docId: Long): Pair<String?, Int?> =
+    readableDatabase.rawQuery(
+        "SELECT info_hash, file_idx FROM stremio_cue_documents WHERE id = ?",
+        arrayOf(docId.toString()),
+    ).use { c ->
+        if (!c.moveToFirst()) null to null
+        else c.getStringOrNull(0) to if (c.isNull(1)) null else c.getInt(1)
+    }
+
+/** Backfill (infoHash, fileIdx) onto an already-mined cue doc once resolved. */
+fun MiningRepository.updateStremioDocIdentity(docId: Long, infoHash: String?, fileIdx: Int?) {
+    if (infoHash.isNullOrBlank()) return
+    writableDatabase.execSQL(
+        "UPDATE stremio_cue_documents SET info_hash = ?, file_idx = ? WHERE id = ?",
+        arrayOf(infoHash.lowercase(), fileIdx, docId),
+    )
+}
+
+/** Resolved episode + cue timing for a `video_cues` sentence (Stage 3 Step 3 lazy slicer). */
+data class VideoCueContext(
+    val docId: Long,
+    val videoId: String,
+    val baseId: String,
+    val metaType: String,
+    val infoHash: String?,
+    val fileIdx: Int?,
+    val cue: SubtitleCue,
+)
+
+/** Looks up the cue document + timestamp window for a `video_cues` (mediaId, sentence) pair. */
+fun MiningRepository.findVideoCueContext(mediaId: Long, sentence: String): VideoCueContext? {
+    if (mediaId < 0L || sentence.isBlank()) return null
+    return runCatching {
+        val docId = readableDatabase.rawQuery(
+            "SELECT ref_int FROM media_refs WHERE id = ? AND kind = 'video_cues'",
+            arrayOf(mediaId.toString()),
+        ).use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else return@runCatching null }
+
+        val doc = readableDatabase.rawQuery(
+            "SELECT video_id, info_hash, file_idx FROM stremio_cue_documents WHERE id = ?",
+            arrayOf(docId.toString()),
+        ).use { c ->
+            if (!c.moveToFirst()) return@runCatching null
+            Triple(c.getString(0), c.getStringOrNull(1), if (c.isNull(2)) null else c.getInt(2))
+        }
+        val videoId = doc.first
+        val baseId = VideoSourceLabel.baseId(videoId) ?: videoId
+        val metaType = readableDatabase.rawQuery(
+            "SELECT type FROM stremio_library WHERE base_id = ?",
+            arrayOf(baseId),
+        ).use { c -> if (c.moveToFirst()) c.getString(0) else "series" }
+
+        val cue = readableDatabase.rawQuery(
+            "SELECT start_ms, end_ms, text FROM stremio_cues WHERE doc_id = ? AND text = ? ORDER BY start_ms LIMIT 1",
+            arrayOf(docId.toString(), sentence),
+        ).use { c ->
+            if (!c.moveToFirst()) return@runCatching null
+            SubtitleCue(c.getLong(0), c.getLong(1), c.getString(2))
+        }
+        VideoCueContext(
+            docId = docId,
+            videoId = videoId,
+            baseId = baseId,
+            metaType = metaType,
+            infoHash = doc.second,
+            fileIdx = doc.third,
+            cue = cue,
+        )
+    }.getOrNull()
+}
+
 /** JSON dump of a doc's cues for debugging/inspection from any screen. */
 fun MiningRepository.stremioDocCuesJson(docId: Long): String {
     val arr = org.json.JSONArray()
@@ -385,4 +490,104 @@ fun MiningRepository.stremioDocCuesJson(docId: Long): String {
         }
     }
     return arr.toString()
+}
+
+data class EpisodeDeleteSummary(
+    val docsDeleted: Int,
+    val occurrencesDeleted: Int,
+    val clipsDeleted: Int,
+)
+
+/**
+ * Hard-deletes all mined corpus data for a single Stremio episode ([videoId]):
+ *  - all `item_occurrences` belonging to that episode's `video_cues` media refs
+ *  - all `saved_video_clips` rows and their permanent `.webp`/`.m4a` files
+ *  - all `media_refs`, `stremio_cues`, `stremio_cue_documents`, `stremio_ledger`,
+ *    and per-episode `stremio_settings` rows for [videoId]
+ *  - evicts warm Media3 sessions & cached slice files for those docs
+ *
+ * Canonical `extracted_items` rows, Anki links, photos, and other episodes are untouched.
+ */
+fun MiningRepository.deleteMinedEpisode(
+    context: android.content.Context,
+    videoId: String,
+): EpisodeDeleteSummary {
+    val docIds = ArrayList<Long>()
+    val mediaIds = ArrayList<Long>()
+    val clipFilesToDelete = ArrayList<Pair<String, String>>()
+    var occDeleted = 0
+    var clipsDeleted = 0
+    var docsDeleted = 0
+
+    inTransaction {
+        val db = writableDatabase
+        db.rawQuery(
+            "SELECT id FROM stremio_cue_documents WHERE video_id = ?",
+            arrayOf(videoId),
+        ).use { c ->
+            while (c.moveToNext()) docIds += c.getLong(0)
+        }
+
+        for (docId in docIds) {
+            db.rawQuery(
+                "SELECT id FROM media_refs WHERE kind = 'video_cues' AND (ref_int = ? OR ref_key = ?)",
+                arrayOf(docId.toString(), docId.toString()),
+            ).use { c ->
+                while (c.moveToNext()) {
+                    val mid = c.getLong(0)
+                    if (mid !in mediaIds) mediaIds += mid
+                }
+            }
+        }
+
+        // Collect saved clip files keyed by video_id or any of the episode's media_ids.
+        db.rawQuery(
+            "SELECT image_file, audio_file FROM saved_video_clips WHERE video_id = ?",
+            arrayOf(videoId),
+        ).use { c ->
+            while (c.moveToNext()) clipFilesToDelete += c.getString(0) to c.getString(1)
+        }
+        for (mid in mediaIds) {
+            db.rawQuery(
+                "SELECT image_file, audio_file FROM saved_video_clips WHERE media_id = ?",
+                arrayOf(mid.toString()),
+            ).use { c ->
+                while (c.moveToNext()) clipFilesToDelete += c.getString(0) to c.getString(1)
+            }
+        }
+
+        for (mid in mediaIds) {
+            occDeleted += db.delete("item_occurrences", "media_id = ?", arrayOf(mid.toString()))
+            clipsDeleted += db.delete("saved_video_clips", "media_id = ?", arrayOf(mid.toString()))
+            db.delete("media_refs", "id = ?", arrayOf(mid.toString()))
+        }
+        clipsDeleted += db.delete("saved_video_clips", "video_id = ?", arrayOf(videoId))
+
+        for (docId in docIds) {
+            db.delete("stremio_cues", "doc_id = ?", arrayOf(docId.toString()))
+        }
+        docsDeleted = db.delete("stremio_cue_documents", "video_id = ?", arrayOf(videoId))
+        db.delete("stremio_ledger", "video_id = ?", arrayOf(videoId))
+        db.delete("stremio_settings", "scope_key = ?", arrayOf(videoId))
+    }
+
+    // File and in-memory cache cleanup runs after the DB commit succeeds.
+    val permDir = SavedVideoClipStorage.dir(context)
+    for ((img, aud) in clipFilesToDelete) {
+        SavedVideoClipStorage.deleteFiles(permDir, img, aud)
+    }
+    val sliceCacheDir = VideoSliceService.sliceDir(context)
+    for (docId in docIds) {
+        VideoSliceService.evictEpisode(docId)
+        val prefix = "doc${docId}_"
+        sliceCacheDir.listFiles()?.forEach { f ->
+            if (f.isFile && f.name.startsWith(prefix)) f.delete()
+        }
+    }
+
+    return EpisodeDeleteSummary(
+        docsDeleted = docsDeleted,
+        occurrencesDeleted = occDeleted,
+        clipsDeleted = clipsDeleted,
+    )
 }

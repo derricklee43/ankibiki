@@ -69,10 +69,14 @@ class AddonResources(private val transport: StremioTransport) {
             val url = row.optString("url").takeIf { it.isNotEmpty() } ?: continue
             val langCode = row.optString("lang", "").lowercase()
             if (lang.isNotEmpty() && langCode.isNotEmpty() && !langCode.startsWith(lang.lowercase())) continue
+            val releaseName = row.optString("filename").takeIf { it.isNotBlank() }
+                ?: row.optString("label").takeIf { it.isNotBlank() }
+                ?: row.optString("name").takeIf { it.isNotBlank() }
+                ?: row.optString("lang", "subtitle")
             out += SubtitleChoice(
                 subId = row.optString("id", ""),
                 lang = langCode,
-                releaseName = row.optString("filename", row.optString("lang", "subtitle")),
+                releaseName = releaseName,
                 fileUrl = url,
                 addonId = subtitleAddon.addonId,
             )
@@ -94,19 +98,43 @@ class AddonResources(private val transport: StremioTransport) {
         val out = ArrayList<StreamCandidate>()
         for (i in 0 until rows.length()) {
             val s = rows.optJSONObject(i) ?: continue
+            val streamUrl = s.optString("url").takeIf { it.isNotEmpty() }
+            val urlIdentity = streamUrl?.let { extractInfoHashFromUrl(it) }
             val infoHash = s.optString("infoHash").takeIf { it.isNotEmpty() }?.lowercase()
-            val fileIdx = if (s.has("fileIdx") && !s.isNull("fileIdx")) s.optInt("fileIdx") else null
+                ?: urlIdentity?.first
+            val fileIdx = if (s.has("fileIdx") && !s.isNull("fileIdx")) s.optInt("fileIdx")
+                else urlIdentity?.second
+            val title = s.optString("title").ifEmpty { s.optString("description") }
+                .takeIf { it.isNotEmpty() }
+            val filename = s.optJSONObject("behaviorHints")?.optString("filename")
+                ?.takeIf { it.isNotEmpty() }
             out += StreamCandidate(
                 name = s.optString("name", ""),
-                url = s.optString("url").takeIf { it.isNotEmpty() },
+                url = streamUrl,
                 infoHash = infoHash,
                 fileIdx = fileIdx,
+                title = title,
+                filename = filename,
             )
         }
         return out
     }
 
     companion object {
+        /**
+         * Extracts (infoHash, fileIdx) from Torrentio/debrid resolve URLs when top-level
+         * `infoHash` is absent (configured Torrentio RD emits `/resolve/realdebrid/<key>/<hash>/<season|null>/<fileIdx>/<name>`).
+         */
+        fun extractInfoHashFromUrl(url: String): Pair<String, Int?>? {
+            Regex("/([0-9a-fA-F]{40})/[^/]+/(\\d+)(?:/|\\?|$)").find(url)?.let { m ->
+                return m.groupValues[1].lowercase() to m.groupValues[2].toIntOrNull()
+            }
+            Regex("/([0-9a-fA-F]{40})(?:/|\\?|$)").find(url)?.let { m ->
+                return m.groupValues[1].lowercase() to null
+            }
+            return null
+        }
+
         /** "<imdb>:<season>:<episode>" (Stremio video ids) -> S/E. */
         fun regexEpisodeRef(id: String): ParsedEpisodeRef? {
             val parts = id.split(":")

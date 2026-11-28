@@ -157,7 +157,33 @@ migration.
        path untouched — and 文を削除 soft-delete of the whole sentence with
        SENTENCE_DELETE undo (re-mine also restores). JVM 157/157 fresh
        (4 MediaProvenanceTest pins); VideoSentenceOpsInstrumentedTest (3 specs)
-       pending emulator run with the rest.
+       pending emulator run with the rest. Stage-2 M2 UI SHIPPED 2026-11-27:
+       inbox source badges (`MediaKindUi`, U1/I2), inbox source-kind filter
+       (`すべて / 写真 / 動画`, D3 default ALL, U2), word-detail grouped
+       `動画ソース` section (R4/U3, tapping opens sentence view), and Gold
+       dashboard `動画の文` counter (I6). JVM 182/182; emulator 17/17 across
+       VideoSentenceOps + GoldDashboardStats + StremioConsole.
+       Stage-3 media slicing (Steps 1–3; Step 4 CardWizard export held off by
+       user) SHIPPED 2026-11-27: on-device RD direct-URL minting
+       (`RdClient`, `StreamUrlResolver`, Torrentio `/resolve/realdebrid/` hash
+       extraction), Media3 `MatroskaExtractor` single-pass remote MKV range
+       demux + parallel hardware `MediaCodec` WebP frame & AAC `.m4a` audio
+       (`Media3SliceEngine` — replaced AOSP `MediaExtractor` which pulled
+       484 MB/54.5s; Pixel 10 Pro XL S0-D/S3.1 PASS on Demon Slayer S1E5 1080p
+       HDR HEVC + dual FLAC: 2.19 MB slice / 5.88 MB total, ~3.4–4.0s, auto
+       Japanese track), process-wide `VideoSliceService` (3-episode warm RD URL
+       + Media3 `SeekMap` cache with 2h TTL + 100 MB LRU disk cache), and
+       `SentenceDetailActivity` lazy screenshot + inline audio playback +
+       `offset_ms` / audio-track adjustment dialog. JVM 194/194; emulator 13/13
+       (`VideoSentenceOps` + `StremioConsole`). Permanent saved video clips +
+       dedicated gallery section SHIPPED 2026-11-27 (schema v17
+       `saved_video_clips`, `filesDir/saved_video_clips/`, `SavedVideoClips.kt`,
+       `PhotoLibraryAdapter.kt`): **保存 / ✓ 保存済み** toggle in
+       `SentenceDetailActivity` (offline playback, auto-updates saved files on
+       re-slice), dedicated **保存した動画クリップ** section + `動画` filter chip
+       in すべての写真 (`PhotoLibraryActivity`, tapping opens
+       `SentenceDetailActivity`), and `RecoveryManager` zip export/restore
+       bundling (`video_clips/`).
 9. [ ] **User dictionary (add own words — names — so parsing extracts them
        right)**: design doc DELIVERED 2026-11-26 (user request) at
        [user-dictionary-design.md](user-dictionary-design.md) — **RULED
@@ -187,6 +213,12 @@ migration.
        331/336 cues affected) -> SubtitleParser now strips invisible formatting
        controls at ingest; JVM spec pins it; legacy cue rows stay as-stored
        (re-mine re-parses clean).
+       Phase-2 retroactive reparse DELIVERED 2026-11-27
+       ([user-dictionary-reparse-design.md](user-dictionary-reparse-design.md),
+       RULED R1a–R7a): checkbox on create & edit modals (default checked on
+       create) exact-matches active `item_occurrences` + zero-candidate KEEP
+       photos / active Stremio cues, reparses via plan/apply on `AppIo.pipeline`
+       (`UserDictionaryReparse.kt`), records delta `USER_WORD_REPARSE` undo.
 10. [ ] **Merged definition model (one definition per item; user text +
        dictionary unified; notes untouched)**: design doc DELIVERED 2026-11-26
        (user D4 rework request: "merging user entered def and default dictionary,

@@ -70,6 +70,7 @@ class GoldDashboardActivity : AppCompatActivity() {
             stats.goldUntouchedPhotos,
         )
         binding.corpusText.text = getString(R.string.dashboard_corpus, stats.totalPhotos, stats.keepPhotos)
+        binding.videoCorpusText.text = getString(R.string.dashboard_video_corpus, stats.videoSentences)
     }
 
     private fun renderRecord(record: JSONObject?) {

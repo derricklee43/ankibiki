@@ -27,7 +27,7 @@ class GoldDashboardStatsInstrumentedTest {
     fun setUp() {
         context = InstrumentationRegistry.getInstrumentation().targetContext
         repo = MiningRepository(context, "mining_test_dashboard.db")
-        for (t in listOf("scraped_photos", "ocr_corrections")) {
+        for (t in listOf("scraped_photos", "ocr_corrections", "item_occurrences", "media_refs")) {
             repo.writableDatabase.delete(t, null, null)
         }
     }
@@ -77,6 +77,12 @@ class GoldDashboardStatsInstrumentedTest {
             correctionsApplied = c("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'applied'"),
             correctionsRejected = c("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'rejected'"),
             correctionsExcluded = c("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'excluded'"),
+            videoSentences = c(
+                "SELECT COUNT(*) FROM (" +
+                    "SELECT DISTINCT o.media_id, o.sentence FROM item_occurrences o " +
+                    "JOIN media_refs m ON o.media_id = m.id AND m.active = 1 " +
+                    "WHERE m.kind = 'video_cues' AND o.state IN ('UNSEEN', 'SEEN'))",
+            ),
         )
     }
 
@@ -129,7 +135,29 @@ class GoldDashboardStatsInstrumentedTest {
 
     @Test
     fun stats_emptyCorpus_isZerosNotFailure() {
-        assertEquals(MiningRepository.DashboardStats(0, 0, 0, 0, 0, 0, 0, 0), repo.getDashboardStats())
+        assertEquals(MiningRepository.DashboardStats(0, 0, 0, 0, 0, 0, 0, 0, 0), repo.getDashboardStats())
         assertEquals(scriptedExpectation(), repo.getDashboardStats())
+    }
+
+    @Test
+    fun stats_videoSentences_countsDistinctActiveNonDeletedCuesOnly() {
+        val activeRef = repo.getOrCreateMediaRef("video_cues", 101L, "tt1:1:1")
+        val retiredRef = repo.getOrCreateMediaRef("video_cues", 102L, "tt1:1:1")
+        repo.writableDatabase.execSQL("UPDATE media_refs SET active = 0 WHERE id = ?", arrayOf(retiredRef.toString()))
+
+        // Same sentence with 2 words -> counts as 1 distinct sentence
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "猫", photoId = null, sentence = "猫と犬。", mediaId = activeRef)
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "犬", photoId = null, sentence = "猫と犬。", mediaId = activeRef)
+        // Second active sentence
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "鳥", photoId = null, sentence = "鳥が飛ぶ。", mediaId = activeRef)
+        // DELETED sentence -> excluded
+        val delId = repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "魚", photoId = null, sentence = "魚。", mediaId = activeRef)
+        repo.restoreOccurrenceState(delId, OccurrenceState.DELETED.name)
+        // Retired ref sentence -> excluded
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "猫", photoId = null, sentence = "古い世代。", mediaId = retiredRef)
+
+        val stats = repo.getDashboardStats()
+        assertEquals(2, stats.videoSentences)
+        assertEquals(scriptedExpectation(), stats)
     }
 }

@@ -73,6 +73,43 @@ class StremioKeysAndSelectionTest {
     }
 
     @Test
+    fun selectionPrefersMatchingSeasonAndEpisodeOverWrongSeasonKitsunekkoList() {
+        // Real Buta No Subs response for Demon Slayer S1E2 (tt9335498:1:2): Kitsunekko returned
+        // S05E02..S02E02 and S01E19 ahead of the actual S01E02 file.
+        val choices = listOf(
+            SubtitleChoice("1001", "jpn", "Kitsunekko: Kimetsu.no.Yaiba.S05E02.Netflix.jpn.srt", "u1", "buta"),
+            SubtitleChoice("1002", "jpn", "Kitsunekko: Demon.Slayer.Kimetsu.no.Yaiba.S04E02.ja.srt", "u2", "buta"),
+            SubtitleChoice("1003", "jpn", "Kitsunekko: Demon.Slayer .Kimetsu.no.Yaiba.S03E02.ja.srt", "u3", "buta"),
+            SubtitleChoice("1004", "jpn", "Kitsunekko: Demon.Slayer .Kimetsu.no.Yaiba.S02E02.ja.srt", "u4", "buta"),
+            SubtitleChoice("1005", "jpn", "Kitsunekko: Demon Slayer Kimetsu no Yaiba.S01E19.CC.ja.srt", "u5", "buta"),
+            SubtitleChoice("1006", "jpn", "Kitsunekko: Demon Slayer Kimetsu no Yaiba.S01E02.CC.ja.srt", "u6", "buta"),
+        )
+        val defaults = StremioSettingsRow("g", "jpn", null, null, null, 0)
+        assertEquals("1006", StremioSelection.select(defaults, choices, "tt9335498:1:2").subId)
+        assertEquals("1004", StremioSelection.select(defaults, choices, "tt9335498:2:2").subId)
+        assertEquals("1001", StremioSelection.select(defaults, choices, "tt9335498:5:2").subId)
+    }
+
+    @Test
+    fun addonResourcesUsesLabelFieldWhenFilenameAbsent() {
+        val fakeTransport = object : StremioTransport {
+            override fun get(url: String, headers: Map<String, String>) =
+                """{"subtitles":[{"id":"1006","lang":"jpn","label":"Kitsunekko: Show.S01E02.ja.srt","url":"https://example.test/s.srt"}]}"""
+            override fun post(url: String, body: String, contentType: String, headers: Map<String, String>) = ""
+        }
+        val addon = StremioAddon(
+            addonId = "com.buta.no.subs.stremio.addon",
+            name = "Buta",
+            version = "1.0.0",
+            transportUrl = "https://example.test/manifest.json",
+            resourceTypes = setOf("subtitles"),
+        )
+        val got = AddonResources(fakeTransport).subtitles(addon, "series", "tt9335498:1:2", "jpn")
+        assertEquals(1, got.size)
+        assertEquals("Kitsunekko: Show.S01E02.ja.srt", got.first().releaseName)
+    }
+
+    @Test
     fun generationIsContentHashStableAndSensitive() {
         val a = StremioSettingsRow("g", "jpn", "grp", null, 2, 0)
         val b = StremioSettingsRow("ep", "jpn", "grp", null, 2, 0) // scope differs, tuple same
@@ -191,18 +228,40 @@ class AddonResourceUrlTest {
     }
 }
 
-// Lives outside the other classes: subtitle addon ranking spec (kitsu 404 bug).
+// Subtitle addon ranking spec (re-pinned 2026-11-27 per user preference:
+// Anime Kitsu -> [Jimaku builtin] -> OpenSubtitles -> OpenSubtitles v3 -> others -> Buta No Subs).
 class SubtitleRankingTest {
     @Test
-    fun pureSubtitleAddonsRankBeforeGeneralAddons() {
+    fun subtitleAddonOrder_kitsuFirst_openSubsMiddle_butaLast() {
+        val buta = StremioAddon("com.buta.no.subs.stremio.addon", "Buta No Subs", "1",
+            "https://buta.example/manifest.json", setOf("subtitles"))
         val kitsu = StremioAddon("community.anime.kitsu", "Anime Kitsu", "1",
             "https://anime-kitsu.strem.fun/manifest.json",
             setOf("subtitles", "catalog", "meta"))
-        val osu = StremioAddon("org.stremio.opensubtitlesv3", "OpenSubtitles v3", "1",
+        val osuV3 = StremioAddon("org.stremio.opensubtitlesv3", "OpenSubtitles v3", "1",
             "https://opensubtitles-v3.strem.io/manifest.json", setOf("subtitles"))
-        val order = listOf(kitsu, osu).subtitleAddonCandidates()
-        assertEquals(2, order.size)
-        assertEquals("org.stremio.opensubtitlesv3", order.first().addonId)
+        val osu = StremioAddon("org.stremio.opensubtitles", "OpenSubtitles", "1",
+            "https://opensubtitles.strem.io/stremio/v1/manifest.json", setOf("subtitles"))
+        val customPure = StremioAddon("org.example.customsubs", "Custom Subs", "1",
+            "https://custom.example/manifest.json", setOf("subtitles"))
+        val customMixed = StremioAddon("org.example.mixed", "Mixed", "1",
+            "https://mixed.example/manifest.json", setOf("subtitles", "meta"))
+
+        val order = listOf(buta, customMixed, osuV3, customPure, osu, kitsu)
+            .subtitleAddonCandidates()
+            .map { it.addonId }
+
+        assertEquals(
+            listOf(
+                "community.anime.kitsu",
+                "org.stremio.opensubtitles",
+                "org.stremio.opensubtitlesv3",
+                "org.example.customsubs",
+                "org.example.mixed",
+                "com.buta.no.subs.stremio.addon",
+            ),
+            order,
+        )
     }
 
     @Test

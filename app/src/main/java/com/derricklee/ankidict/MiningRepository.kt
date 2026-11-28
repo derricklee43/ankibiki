@@ -18,6 +18,8 @@ class MiningRepository(
     DB_VERSION,
 ) {
     internal val appContext = context.applicationContext
+    @Volatile private var cachedUserWordsGen: Long = -1L
+    @Volatile private var cachedUserWords: Map<LanguageTag, List<UserWord>> = emptyMap()
 
     override fun onCreate(db: SQLiteDatabase) {
         createMediaRefsSchema(db)
@@ -117,6 +119,7 @@ class MiningRepository(
         createUndoLogSchema(db)
         createStremioSchema(db)
         createUserWordsSchema(db)
+        createSavedVideoClipsSchema(db)
     }
 
 
@@ -282,6 +285,41 @@ class MiningRepository(
                 )
             }
         }
+        if (oldVersion < 17) {
+            // v17: permanent saved_video_clips table for selected video screenshots + audio
+            // clips rendered in a dedicated section of すべての写真 (PhotoLibraryActivity).
+            // Auxiliary table only; NOT in REQUIRED_COLUMNS/MINING_COLUMNS so pre-v17 bundles
+            // keep validating and materialize the table on first open.
+            createSavedVideoClipsSchema(db)
+        }
+    }
+
+    /** v17 permanent saved video clips (screenshot + audio files in filesDir/saved_video_clips/). */
+    private fun createSavedVideoClipsSchema(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS saved_video_clips (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                media_id INTEGER NOT NULL,
+                sentence TEXT NOT NULL,
+                doc_id INTEGER NOT NULL,
+                video_id TEXT NOT NULL,
+                start_ms INTEGER NOT NULL,
+                end_ms INTEGER NOT NULL,
+                offset_ms INTEGER NOT NULL DEFAULT 0,
+                audio_track INTEGER,
+                image_file TEXT NOT NULL,
+                audio_file TEXT NOT NULL,
+                language_tag TEXT NOT NULL DEFAULT 'JAPANESE',
+                provenance_label TEXT NOT NULL DEFAULT '',
+                saved_at INTEGER NOT NULL,
+                UNIQUE(media_id, sentence)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS idx_saved_video_clips_saved_at ON saved_video_clips(saved_at DESC)",
+        )
     }
 
     /** media_refs registry (v15). CREATE IF NOT EXISTS = self-guarding. */
@@ -428,6 +466,13 @@ class MiningRepository(
             db.endTransaction()
         }
     }
+
+    /** Read-only lookup of a media_refs id (returns null if never created). */
+    internal fun findMediaRefId(kind: String, refInt: Long): Long? =
+        readableDatabase.rawQuery(
+            "SELECT id FROM media_refs WHERE kind = ? AND ref_key = ?",
+            arrayOf(kind, refInt.toString()),
+        ).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
 
     /**
      * Resolve-or-create the media_refs row for one (kind, numeric key). The
@@ -880,6 +925,8 @@ class MiningRepository(
         val correctionsApplied: Int,
         val correctionsRejected: Int,
         val correctionsExcluded: Int,
+        /** Stage-2 M2 (I6): distinct active non-deleted sentences from active video_cues refs. */
+        val videoSentences: Int = 0,
     )
 
 
@@ -1829,11 +1876,15 @@ class MiningRepository(
     }
 
     fun userWordEntries(languageTag: LanguageTag): List<UserWord> {
+        val gen = userWordsGeneration.get()
+        if (gen == cachedUserWordsGen) {
+            cachedUserWords[languageTag]?.let { return it }
+        }
         val hasTable = readableDatabase.rawQuery(
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'user_words'", null,
         ).use { it.moveToFirst() }
         if (!hasTable) return emptyList()
-        return readableDatabase.rawQuery(
+        val loaded = readableDatabase.rawQuery(
             "SELECT expression, reading_kana, meaning, notes FROM user_words WHERE language_tag = ? ORDER BY created_at DESC",
             arrayOf(languageTag.name),
         ).use { c ->
@@ -1841,6 +1892,17 @@ class MiningRepository(
                 while (c.moveToNext()) add(UserWord(c.getString(0), c.getStringOrNull(1), c.getString(2), c.getStringOrNull(3)))
             }
         }
+        synchronized(this) {
+            if (userWordsGeneration.get() == gen) {
+                cachedUserWords = if (cachedUserWordsGen == gen) {
+                    cachedUserWords + (languageTag to loaded)
+                } else {
+                    mapOf(languageTag to loaded)
+                }
+                cachedUserWordsGen = gen
+            }
+        }
+        return loaded
     }
 
     /**
@@ -1873,6 +1935,7 @@ class MiningRepository(
         writableDatabase.insertWithOnConflict(
             "user_words", null, values, SQLiteDatabase.CONFLICT_REPLACE,
         )
+        userWordsGeneration.incrementAndGet()
         runCatching {
             // E5a propagation (USER/PICK rows excluded by the WHERE): AUTO rows
             // additionally capture the replaced gloss as revert target; USER_DICT
@@ -1919,6 +1982,7 @@ class MiningRepository(
                 arrayOf(languageTag.name, expression),
             )
         }
+        userWordsGeneration.incrementAndGet()
         return true
     }
 
@@ -1943,6 +2007,7 @@ class MiningRepository(
         writableDatabase.insertWithOnConflict(
             "user_words", null, values, SQLiteDatabase.CONFLICT_REPLACE,
         )
+        userWordsGeneration.incrementAndGet()
     }
 
     /** Row snapshot for the USER_WORD_DELETE undo memento (no new public surface). */
@@ -2064,7 +2129,8 @@ class MiningRepository(
 
     companion object {
         private const val DB_NAME = "mining.db"
-        private const val DB_VERSION = 16 // v16: user_words + definition_source/system_meaning (2026-11-26)
+        private const val DB_VERSION = 17 // v17: saved_video_clips table (2026-11-27)
+        private val userWordsGeneration = java.util.concurrent.atomic.AtomicLong(0L)
 
         /** For RecoveryManager: schema expectations of the live corpus db. */
         internal fun expectedDbName(): String = DB_NAME

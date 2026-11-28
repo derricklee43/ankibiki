@@ -2,16 +2,25 @@ package com.derricklee.ankidict
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.MediaPlayer
 import android.os.Bundle
+import android.text.InputType
 import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.chip.Chip
 import com.derricklee.ankidict.databinding.ActivitySentenceDetailBinding
 import com.derricklee.ankidict.databinding.ItemSentenceChipBinding
+import java.io.File
 
 /**
  * The "single sentence view": sentence-centered screen where the photo is an
@@ -38,6 +47,15 @@ class SentenceDetailActivity : AppCompatActivity() {
     private var languageTag = LanguageTag.JAPANESE
     private var editorBusy = false
     private var deleteBusy = false
+    private var sliceBusy = false
+    private var videoCueCtx: VideoCueContext? = null
+    private var currentVideoImageFile: File? = null
+    private var currentVideoAudioFile: File? = null
+    private var currentVideoBitmap: Bitmap? = null
+    private var savedVideoClip: SavedVideoClip? = null
+    private var currentSliceOffsetMs: Int = 0
+    private var currentSliceAudioTrack: Int? = null
+    private var mediaPlayer: MediaPlayer? = null
     private val editorRows = mutableListOf<EditorRow>()
 
     /** One table row; original null = user-added. [input] holds the live expression text. */
@@ -93,7 +111,13 @@ class SentenceDetailActivity : AppCompatActivity() {
             binding.wordEditorSaveButton.setOnClickListener { saveEditor() }
         }
 
+        binding.loadVideoMediaButton.setOnClickListener { fetchVideoSlice(forceRefresh = false) }
+        binding.playVideoAudioButton.setOnClickListener { toggleVideoAudio() }
+        binding.saveVideoClipButton.setOnClickListener { toggleSaveVideoClip() }
+        binding.adjustVideoMediaButton.setOnClickListener { showVideoAdjustDialog() }
+
         loadPhoto()
+        loadVideoMediaState()
     }
 
     override fun onResume() {
@@ -428,7 +452,414 @@ class SentenceDetailActivity : AppCompatActivity() {
         }
     }
 
+    // ---- Stage-3 Step 3 + v17: lazy video screenshot + audio preview, permanent save & adjust ----
+
+    private fun loadVideoMediaState() {
+        if (photoId >= 0L || mediaId < 0L) return
+        val appCtx = applicationContext
+        ioExecutor.execute {
+            val saved = miningRepository.getSavedVideoClip(mediaId, sentence)
+                ?.takeIf { it.hasValidFiles(appCtx) }
+            val ctx = miningRepository.findVideoCueContext(mediaId, sentence)
+            val settings = ctx?.let { miningRepository.stremioSettingsFor(it.videoId, it.baseId) }
+            val mediaPair: Pair<File, File>? = if (saved != null) {
+                saved.imageFile(appCtx) to saved.audioFile(appCtx)
+            } else if (ctx != null && settings != null) {
+                VideoSliceService.getCachedSlice(appCtx, ctx.docId, ctx.cue, settings)
+            } else {
+                null
+            }
+            val bmp = mediaPair?.first?.let { runCatching { BitmapFactory.decodeFile(it.absolutePath) }.getOrNull() }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) {
+                    bmp?.recycle()
+                    return@runOnUiThread
+                }
+                videoCueCtx = ctx
+                savedVideoClip = saved
+                currentSliceOffsetMs = saved?.offsetMs ?: settings?.offsetMs ?: 0
+                currentSliceAudioTrack = saved?.audioTrack ?: settings?.audioTrack
+                if (saved == null && ctx == null) {
+                    bmp?.recycle()
+                    return@runOnUiThread
+                }
+                binding.videoMediaControls.visibility = View.VISIBLE
+                if (mediaPair != null && bmp != null) {
+                    applyVideoSliceVisuals(
+                        bmp = bmp,
+                        imageFile = mediaPair.first,
+                        audioFile = mediaPair.second,
+                        isSaved = saved != null,
+                        canAdjust = ctx != null,
+                    )
+                } else {
+                    bmp?.recycle()
+                    binding.loadVideoMediaButton.visibility = View.VISIBLE
+                    binding.playVideoAudioButton.visibility = View.GONE
+                    binding.saveVideoClipButton.visibility = View.GONE
+                    binding.adjustVideoMediaButton.visibility = View.GONE
+                }
+            }
+        }
+    }
+
+    private fun fetchVideoSlice(forceRefresh: Boolean) {
+        val ctx = videoCueCtx ?: return
+        if (sliceBusy) return
+        sliceBusy = true
+        stopVideoAudio()
+        binding.loadVideoMediaButton.isEnabled = false
+        binding.playVideoAudioButton.isEnabled = false
+        binding.saveVideoClipButton.isEnabled = false
+        binding.adjustVideoMediaButton.isEnabled = false
+        binding.videoMediaStatusText.visibility = View.VISIBLE
+        binding.videoMediaStatusText.text = getString(R.string.video_slice_load)
+
+        val appCtx = applicationContext
+        val wasSaved = savedVideoClip != null
+        val provenance = binding.provenanceLine.text?.toString().orEmpty()
+        AppIo.pipeline.execute {
+            val result = runCatching {
+                val repo = MiningRepository(appCtx)
+                try {
+                    val settings = repo.stremioSettingsFor(ctx.videoId, ctx.baseId)
+                    val res = VideoSliceService.sliceOrLoad(
+                        context = appCtx,
+                        repo = repo,
+                        prefs = StremioPrefs(appCtx),
+                        ctx = ctx,
+                        settings = settings,
+                        forceRefresh = forceRefresh,
+                        onStatus = { status ->
+                            runOnUiThread {
+                                if (!isFinishing && !isDestroyed) {
+                                    binding.videoMediaStatusText.text = status
+                                }
+                            }
+                        },
+                    )
+                    // If this clip is already permanently saved, keep the saved copy in sync
+                    // with the newly re-sliced offset / audio track.
+                    val updatedSaved = if (wasSaved) {
+                        repo.saveVideoClip(
+                            context = appCtx,
+                            mediaId = mediaId,
+                            sentence = sentence,
+                            docId = ctx.docId,
+                            videoId = ctx.videoId,
+                            startMs = ctx.cue.startMs,
+                            endMs = ctx.cue.endMs,
+                            offsetMs = settings.offsetMs,
+                            audioTrack = settings.audioTrack,
+                            languageTag = languageTag,
+                            provenanceLabel = provenance,
+                            srcImage = res.imageFile,
+                            srcAudio = res.audioFile,
+                        )
+                    } else {
+                        null
+                    }
+                    val imgFile = updatedSaved?.imageFile(appCtx) ?: res.imageFile
+                    val audFile = updatedSaved?.audioFile(appCtx) ?: res.audioFile
+                    val bmp = BitmapFactory.decodeFile(imgFile.absolutePath)
+                        ?: throw IllegalStateException("could not decode extracted WebP")
+                    Triple(Pair(imgFile, audFile), Pair(settings, updatedSaved), bmp)
+                } finally {
+                    repo.close()
+                }
+            }
+            runOnUiThread {
+                sliceBusy = false
+                if (isFinishing || isDestroyed) {
+                    result.getOrNull()?.third?.recycle()
+                    return@runOnUiThread
+                }
+                binding.loadVideoMediaButton.isEnabled = true
+                binding.playVideoAudioButton.isEnabled = true
+                binding.saveVideoClipButton.isEnabled = true
+                binding.adjustVideoMediaButton.isEnabled = true
+                result.fold(
+                    onSuccess = { (files, meta, bmp) ->
+                        val (settings, updatedSaved) = meta
+                        currentSliceOffsetMs = settings.offsetMs
+                        currentSliceAudioTrack = settings.audioTrack
+                        if (updatedSaved != null) savedVideoClip = updatedSaved
+                        applyVideoSliceVisuals(
+                            bmp = bmp,
+                            imageFile = files.first,
+                            audioFile = files.second,
+                            isSaved = savedVideoClip != null,
+                            canAdjust = true,
+                        )
+                        binding.videoMediaStatusText.visibility = View.GONE
+                    },
+                    onFailure = { err ->
+                        binding.videoMediaStatusText.visibility = View.VISIBLE
+                        binding.videoMediaStatusText.text =
+                            getString(R.string.video_slice_failed, err.message ?: err.javaClass.simpleName)
+                    },
+                )
+            }
+        }
+    }
+
+    private fun applyVideoSliceVisuals(
+        bmp: Bitmap,
+        imageFile: File,
+        audioFile: File,
+        isSaved: Boolean,
+        canAdjust: Boolean,
+    ) {
+        currentVideoBitmap?.recycle()
+        currentVideoBitmap = bmp
+        currentVideoImageFile = imageFile
+        currentVideoAudioFile = audioFile
+        binding.photoImage.setImageBitmap(bmp)
+        binding.photoImage.isClickable = false
+        binding.photoImage.isFocusable = false
+        binding.photoImage.setOnClickListener(null)
+        binding.photoImage.visibility = View.VISIBLE
+        binding.loadVideoMediaButton.visibility = View.GONE
+        binding.playVideoAudioButton.visibility = View.VISIBLE
+        binding.playVideoAudioButton.text = getString(R.string.video_slice_play)
+        binding.saveVideoClipButton.visibility = View.VISIBLE
+        binding.saveVideoClipButton.text = getString(
+            if (isSaved) R.string.video_slice_saved else R.string.video_slice_save,
+        )
+        binding.adjustVideoMediaButton.visibility = if (canAdjust) View.VISIBLE else View.GONE
+    }
+
+    private fun toggleSaveVideoClip() {
+        if (sliceBusy || mediaId < 0L) return
+        val appCtx = applicationContext
+        val existing = savedVideoClip
+        binding.saveVideoClipButton.isEnabled = false
+        if (existing != null) {
+            stopVideoAudio()
+            val ctx = videoCueCtx
+            ioExecutor.execute {
+                val removed = runCatching {
+                    miningRepository.deleteSavedVideoClip(appCtx, mediaId, sentence)
+                }.getOrDefault(false)
+                val fallbackCache = ctx?.let {
+                    val settings = miningRepository.stremioSettingsFor(it.videoId, it.baseId)
+                    VideoSliceService.getCachedSlice(appCtx, it.docId, it.cue, settings)
+                }
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    binding.saveVideoClipButton.isEnabled = true
+                    if (removed) {
+                        savedVideoClip = null
+                        Toast.makeText(this, R.string.video_slice_unsaved_toast, Toast.LENGTH_SHORT).show()
+                        if (fallbackCache != null) {
+                            currentVideoImageFile = fallbackCache.first
+                            currentVideoAudioFile = fallbackCache.second
+                            binding.saveVideoClipButton.text = getString(R.string.video_slice_save)
+                        } else {
+                            // Permanent files were deleted and cache no longer has a copy.
+                            currentVideoImageFile = null
+                            currentVideoAudioFile = null
+                            currentVideoBitmap?.recycle()
+                            currentVideoBitmap = null
+                            binding.photoImage.setImageDrawable(null)
+                            binding.photoImage.visibility = View.GONE
+                            binding.playVideoAudioButton.visibility = View.GONE
+                            binding.saveVideoClipButton.visibility = View.GONE
+                            binding.adjustVideoMediaButton.visibility = View.GONE
+                            binding.loadVideoMediaButton.visibility =
+                                if (ctx != null) View.VISIBLE else View.GONE
+                        }
+                    }
+                }
+            }
+            return
+        }
+
+        val imgFile = currentVideoImageFile ?: run {
+            binding.saveVideoClipButton.isEnabled = true
+            return
+        }
+        val audFile = currentVideoAudioFile ?: run {
+            binding.saveVideoClipButton.isEnabled = true
+            return
+        }
+        val ctx = videoCueCtx
+        val provenance = binding.provenanceLine.text?.toString().orEmpty()
+        val offsetMs = currentSliceOffsetMs
+        val audioTrack = currentSliceAudioTrack
+        ioExecutor.execute {
+            val savedResult = runCatching {
+                miningRepository.saveVideoClip(
+                    context = appCtx,
+                    mediaId = mediaId,
+                    sentence = sentence,
+                    docId = ctx?.docId ?: 0L,
+                    videoId = ctx?.videoId.orEmpty(),
+                    startMs = ctx?.cue?.startMs ?: 0L,
+                    endMs = ctx?.cue?.endMs ?: 0L,
+                    offsetMs = offsetMs,
+                    audioTrack = audioTrack,
+                    languageTag = languageTag,
+                    provenanceLabel = provenance,
+                    srcImage = imgFile,
+                    srcAudio = audFile,
+                )
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                binding.saveVideoClipButton.isEnabled = true
+                savedResult.fold(
+                    onSuccess = { clip ->
+                        savedVideoClip = clip
+                        currentVideoImageFile = clip.imageFile(appCtx)
+                        currentVideoAudioFile = clip.audioFile(appCtx)
+                        binding.saveVideoClipButton.text = getString(R.string.video_slice_saved)
+                        Toast.makeText(this, R.string.video_slice_saved_toast, Toast.LENGTH_SHORT).show()
+                    },
+                    onFailure = { err ->
+                        Toast.makeText(
+                            this,
+                            getString(R.string.video_slice_failed, err.message ?: err.javaClass.simpleName),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                )
+            }
+        }
+    }
+
+    private fun toggleVideoAudio() {
+        val mp = mediaPlayer
+        if (mp != null && mp.isPlaying) {
+            stopVideoAudio()
+            return
+        }
+        val audioFile = currentVideoAudioFile ?: return
+        stopVideoAudio()
+        runCatching {
+            val fresh = MediaPlayer().apply {
+                setDataSource(audioFile.absolutePath)
+                setOnCompletionListener {
+                    runOnUiThread {
+                        if (!isFinishing && !isDestroyed) {
+                            binding.playVideoAudioButton.text = getString(R.string.video_slice_play)
+                        }
+                    }
+                    stopVideoAudio()
+                }
+                prepare()
+                start()
+            }
+            mediaPlayer = fresh
+            binding.playVideoAudioButton.text = getString(R.string.video_slice_stop)
+        }.onFailure { err ->
+            stopVideoAudio()
+            Toast.makeText(this, getString(R.string.video_slice_failed, err.message ?: "?"), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun stopVideoAudio() {
+        runCatching { mediaPlayer?.stop() }
+        runCatching { mediaPlayer?.release() }
+        mediaPlayer = null
+        if (!isFinishing && !isDestroyed && ::binding.isInitialized) {
+            binding.playVideoAudioButton.text = getString(R.string.video_slice_play)
+        }
+    }
+
+    private fun showVideoAdjustDialog() {
+        val ctx = videoCueCtx ?: return
+        if (sliceBusy) return
+        val current = miningRepository.stremioSettingsFor(ctx.videoId, ctx.baseId)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 16, 32, 8)
+        }
+        val offsetInput = EditText(this).apply {
+            hint = getString(R.string.video_slice_offset_hint)
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_SIGNED
+            setText(current.offsetMs.toString())
+        }
+        container.addView(offsetInput)
+
+        // Quick offset nudges for BD/Web-DL subtitle shift tuning.
+        val nudgeRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 4, 0, 8)
+        }
+        for (delta in listOf(-1000, -500, 500, 1000)) {
+            nudgeRow.addView(
+                MaterialButton(this, null, com.google.android.material.R.style.Widget_Material3_Button_TextButton).apply {
+                    text = if (delta > 0) "+${delta / 1000.0}s" else "${delta / 1000.0}s"
+                    textSize = 12f
+                    minWidth = 0
+                    setPadding(12, 4, 12, 4)
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    setOnClickListener {
+                        val cur = offsetInput.text.toString().toIntOrNull() ?: 0
+                        offsetInput.setText((cur + delta).toString())
+                    }
+                },
+            )
+        }
+        container.addView(nudgeRow)
+
+        val tracks = VideoSliceService.probedTracksFor(ctx.docId)
+        val radioGroup = RadioGroup(this)
+        val trackByBtn = HashMap<Int, Int?>()
+        val autoId = View.generateViewId()
+        trackByBtn[autoId] = null
+        radioGroup.addView(RadioButton(this).apply {
+            id = autoId
+            text = "Auto (${current.subtitleLang})"
+            textSize = 13f
+        })
+        var checkedId = autoId
+        for (t in tracks) {
+            val btnId = View.generateViewId()
+            trackByBtn[btnId] = t.trackIndex
+            radioGroup.addView(RadioButton(this).apply {
+                id = btnId
+                text = t.displayLabel()
+                textSize = 13f
+            })
+            if (current.audioTrack == t.trackIndex) checkedId = btnId
+        }
+        radioGroup.check(checkedId)
+        if (tracks.isNotEmpty()) {
+            container.addView(TextView(this).apply {
+                text = "音声トラック"
+                textSize = 12f
+                setPadding(0, 8, 0, 4)
+            })
+            container.addView(radioGroup)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.video_slice_adjust_title)
+            .setView(container)
+            .setNegativeButton(R.string.word_editor_cancel, null)
+            .setPositiveButton(R.string.video_slice_apply_reslice) { _, _ ->
+                val newOffset = offsetInput.text.toString().toIntOrNull() ?: 0
+                val newTrack = if (tracks.isNotEmpty()) trackByBtn[radioGroup.checkedRadioButtonId] else current.audioTrack
+                miningRepository.saveStremioSettings(
+                    current.copy(scopeKey = ctx.videoId, audioTrack = newTrack, offsetMs = newOffset),
+                    System.currentTimeMillis(),
+                )
+                fetchVideoSlice(forceRefresh = true)
+            }
+            .show()
+    }
+
+    override fun onStop() {
+        stopVideoAudio()
+        super.onStop()
+    }
+
     override fun onDestroy() {
+        stopVideoAudio()
+        currentVideoBitmap?.recycle()
+        currentVideoBitmap = null
         miningRepository.close()
         super.onDestroy()
     }

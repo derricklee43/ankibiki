@@ -116,6 +116,20 @@ internal object UndoManager {
                     h[4].ifEmpty { null }, h[5].toLongOrNull() ?: return true,
                 )
             }
+            UndoAction.USER_WORD_REPARSE -> {
+                // header: lang, expression, csv insertedIds, csv touched mediaIds.
+                // R6a: reverts corpus occurrences only (user_words entry stays).
+                // Guards: every touched media_ref is still active (a later episode
+                // re-mine retires the old ref) and none of the deleted row ids came back.
+                val insertedIds = h.getOrNull(2).orEmpty()
+                    .split(',').mapNotNull { it.trim().toLongOrNull() }
+                val touchedMediaIds = h.getOrNull(3).orEmpty()
+                    .split(',').mapNotNull { it.trim().toLongOrNull() }
+                if (touchedMediaIds.any { !repo.mediaRefActive(it) }) return false
+                val deletedIds = m.occurrences.map { it.id }
+                if (deletedIds.isNotEmpty() && repo.anyOccurrenceIdExists(deletedIds)) return false
+                repo.restoreReparsedOccurrences(insertedIds, m.occurrences)
+            }
             UndoAction.SENTENCE_TEXT_EDIT -> {
                 // header: mediaStoreId, expectedAfterText. Capture is the whole photo + all its
                 // occurrence rows; restore replaces them (byte-identity without key-set math).

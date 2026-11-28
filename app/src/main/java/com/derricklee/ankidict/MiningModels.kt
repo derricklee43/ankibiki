@@ -54,6 +54,14 @@ enum class OccurrenceFilter {
     NO_ANKI_CARD,
 }
 
+/** Inbox media-source filter (stage-2 U2, docs/sentence-media-refs-design.md §4).
+ *  ALL = mixed inbox (D3 default); PHOTO = kind='photo'; NON_PHOTO = video_cues + future kinds. */
+enum class MediaKindFilter {
+    ALL,
+    PHOTO,
+    NON_PHOTO,
+}
+
 data class OccurrenceQuery(
     val languageTag: LanguageTag = LanguageTag.JAPANESE,
     val itemType: ItemType,
@@ -62,6 +70,7 @@ data class OccurrenceQuery(
     val visibilities: Set<ItemVisibility> = setOf(ItemVisibility.ACTIVE),
     val filters: Set<OccurrenceFilter> = emptySet(),
     val limit: Int? = null,
+    val mediaKindFilter: MediaKindFilter = MediaKindFilter.ALL,
 )
 
 data class ScrapedPhoto(
@@ -104,6 +113,8 @@ data class ExtractedOccurrenceRow(
     /** Stored reading (kana for JP, pinyin for ZH) — feeds the romaji search matcher. */
     val kana: String? = null,
     val folderName: String? = null,
+    /** v15 media_refs.kind ('photo' | 'video_cues' | future) for inbox source badges (U1). */
+    val mediaKind: String = "photo",
 ) {
     fun formatFrequencyColumn(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }
@@ -144,6 +155,14 @@ data class MatchedSentence(
     val mediaId: Long = -1L,
 )
 
+/** Non-photo source summary for word detail (stage-2 R4 / U3). */
+data class MediaSourceItem(
+    val mediaId: Long,
+    val mediaKind: String,
+    val label: String,
+    val occurrenceCount: Int,
+)
+
 data class ExtractedItemDetail(
     val languageTag: LanguageTag,
     val itemType: ItemType,
@@ -179,6 +198,8 @@ data class ExtractedItemDetail(
      *  shown meaning came from, and the revert target when the user overwrote it. */
     val definitionSource: DefinitionSource = DefinitionSource.AUTO,
     val systemMeaning: String? = null,
+    /** Stage-2 M2 (R4 / U3): grouped non-photo media sources (show + Sx-Ey), never fake photos. */
+    val mediaSources: List<MediaSourceItem> = emptyList(),
 ) {
     fun formatFrequencyLine(): String = formatFrequencySummary(occurrenceCount, levelBadge, corpusRank)
 }

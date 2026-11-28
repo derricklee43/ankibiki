@@ -827,12 +827,37 @@ class MiningPipelineRunner(
         timestamp = timestamp, modifiedByUserFlag = modifiedByUserFlag,
     )
 
-    private fun parsePhotoText(config: PipelineConfig?, text: String): List<String> {
-        val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
-        val blocks = lines.map { line -> OcrBlock(text = line, lines = listOf(OcrLine(text = line))) }
-        return config?.sentenceParser?.parseSentences(OcrDocument(fullText = text, blocks = blocks))
-            ?.takeIf { it.isNotEmpty() } ?: lines
+    /**
+     * Saves a user-dictionary entry and optionally searches all active sentence strings
+     * for an exact match to reparse them (docs/user-dictionary-reparse-design.md).
+     */
+    fun saveUserWord(
+        languageTag: LanguageTag,
+        expression: String,
+        readingKana: String?,
+        meaning: String,
+        notes: String?,
+        reparseMatches: Boolean,
+    ): ReparseSummary {
+        miningRepository.upsertUserWord(
+            languageTag = languageTag,
+            expression = expression,
+            readingKana = readingKana,
+            meaning = meaning,
+            notes = notes,
+        )
+        if (!reparseMatches) return ReparseSummary()
+        return reparseUserWord(languageTag, expression)
     }
+
+    /** Retroactively reparses all active sentences containing [expression] exactly. */
+    fun reparseUserWord(languageTag: LanguageTag, expression: String): ReparseSummary {
+        val config = pipelineConfigs[languageTag] ?: return ReparseSummary()
+        return UserDictionaryReparse.reparseMatchingSentences(miningRepository, config, expression)
+    }
+
+    private fun parsePhotoText(config: PipelineConfig?, text: String): List<String> =
+        Companion.parsePhotoText(config, text)
 
     /**
      * Truth for the 導出した単語が古い chip: would reprocessing this display text actually
@@ -850,6 +875,13 @@ class MiningPipelineRunner(
     }
 
     companion object {
+        internal fun parsePhotoText(config: PipelineConfig?, text: String): List<String> {
+            val lines = text.lines().map { it.trim() }.filter { it.isNotEmpty() }
+            val blocks = lines.map { line -> OcrBlock(text = line, lines = listOf(OcrLine(text = line))) }
+            return config?.sentenceParser?.parseSentences(OcrDocument(fullText = text, blocks = blocks))
+                ?.takeIf { it.isNotEmpty() } ?: lines
+        }
+
         fun createDefault(
             context: Context,
             miningRepository: MiningRepository,

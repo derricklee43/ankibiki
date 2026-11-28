@@ -353,6 +353,7 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                 photosAdapter.submitList(detail.photos)
                 binding.matchingPhotosStrip.visibility =
                     if (detail.photos.isEmpty()) View.GONE else View.VISIBLE
+                renderMediaSources(detail)
 
                 binding.targetExpressionText.text = detail.expression
                 updateRevealViews()
@@ -432,6 +433,44 @@ class WordGrammarDetailActivity : AppCompatActivity() {
                 }
                 binding.sentenceViewButton.setOnClickListener { onOpenSentence(matched) }
             }
+        }
+    }
+
+    /** Stage-2 M2 (R4 / U3): renders grouped non-photo media sources (e.g. anime episodes). */
+    private fun renderMediaSources(detail: ExtractedItemDetail) {
+        val sources = detail.mediaSources
+        binding.videoSourcesContainer.removeAllViews()
+        if (sources.isEmpty()) {
+            binding.videoSourcesSection.visibility = View.GONE
+            return
+        }
+        binding.videoSourcesSection.visibility = View.VISIBLE
+        val ripple = android.util.TypedValue().also {
+            theme.resolveAttribute(android.R.attr.selectableItemBackground, it, true)
+        }
+        for (src in sources) {
+            val row = android.widget.TextView(this).apply {
+                text = getString(R.string.video_source_item, src.label, src.occurrenceCount)
+                textSize = 13f
+                setPadding(4, 10, 4, 10)
+                setBackgroundResource(ripple.resourceId)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    val firstMatch = detail.matchedSentences.firstOrNull { it.mediaId == src.mediaId }
+                        ?: return@setOnClickListener
+                    startActivity(
+                        SentenceDetailActivity.newIntent(
+                            context = this@WordGrammarDetailActivity,
+                            photoId = -1L,
+                            sentence = firstMatch.sentence,
+                            languageTag = detail.languageTag,
+                            mediaId = firstMatch.mediaId,
+                        ),
+                    )
+                }
+            }
+            binding.videoSourcesContainer.addView(row)
         }
     }
 

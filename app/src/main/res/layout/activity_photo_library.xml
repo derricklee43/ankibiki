@@ -43,49 +43,64 @@
     </LinearLayout>
 
     <!-- Library filters (roadmap B3, user 2026-11-14): facets AND-join; hidden in camera-roll mode -->
-    <com.google.android.material.chip.ChipGroup
-        android:id="@+id/filterChipGroup"
+    <HorizontalScrollView
+        android:id="@+id/filterChipScroll"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="6dp"
-        app:singleLine="true">
+        android:scrollbars="none">
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/filterUnseenChip"
-            style="@style/Widget.MaterialComponents.Chip.Filter"
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/filterChipGroup"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/filter_unseen" />
+            android:paddingBottom="6dp"
+            app:singleLine="true">
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/filterGoldChip"
-            style="@style/Widget.MaterialComponents.Chip.Filter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/filter_gold" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filterUnseenChip"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filter_unseen" />
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/filterFlagChip"
-            style="@style/Widget.MaterialComponents.Chip.Filter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/filter_flag" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filterVideoChip"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filter_video_clips" />
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/filterJapaneseChip"
-            style="@style/Widget.MaterialComponents.Chip.Filter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/filter_japanese" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filterGoldChip"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filter_gold" />
 
-        <com.google.android.material.chip.Chip
-            android:id="@+id/filterChineseChip"
-            style="@style/Widget.MaterialComponents.Chip.Filter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/filter_chinese" />
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filterFlagChip"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filter_flag" />
 
-    </com.google.android.material.chip.ChipGroup>
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filterJapaneseChip"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filter_japanese" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/filterChineseChip"
+                style="@style/Widget.MaterialComponents.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/filter_chinese" />
+
+        </com.google.android.material.chip.ChipGroup>
+
+    </HorizontalScrollView>
 
     <FrameLayout
         android:layout_width="match_parent"

@@ -145,16 +145,14 @@ internal object CorpusInsertion {
         return InsertionPlan(items.values.toList(), links.values.toList(), occurrences)
     }
 
-    /** Applies a plan inside the CALLER's transaction; write-only, no lookups. */
-    fun applyInsertions(
+    /** Applies ONLY the canonical item upserts and Anki link updates of [plan] inside the
+     *  CALLER's transaction (write-only, no lookups). Shared by [applyInsertions] and
+     *  [UserDictionaryReparse]. */
+    fun applyItemsAndLinks(
         repo: MiningRepository,
         config: PipelineConfig,
         plan: InsertionPlan,
-        mediaId: Long,
-        photoId: Long? = null,
-        timestamp: Long,
-        modifiedByUserFlag: Boolean = false,
-    ): Int {
+    ) {
         for (u in plan.items) {
             repo.upsertExtractedItem(
                 languageTag = config.tag,
@@ -176,6 +174,19 @@ internal object CorpusInsertion {
         for (l in plan.links) {
             repo.updateExtractedItemAnkiMatch(config.tag, l.itemType, l.expression, l.match)
         }
+    }
+
+    /** Applies a plan inside the CALLER's transaction; write-only, no lookups. */
+    fun applyInsertions(
+        repo: MiningRepository,
+        config: PipelineConfig,
+        plan: InsertionPlan,
+        mediaId: Long,
+        photoId: Long? = null,
+        timestamp: Long,
+        modifiedByUserFlag: Boolean = false,
+    ): Int {
+        applyItemsAndLinks(repo, config, plan)
         for (o in plan.occurrences) {
             repo.insertOccurrence(
                 languageTag = config.tag,

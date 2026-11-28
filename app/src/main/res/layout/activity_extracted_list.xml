@@ -129,6 +129,44 @@
 
     </HorizontalScrollView>
 
+    <!-- Stage-2 M2 (U2): Media source filter (all / photo / video); D3 default = ALL mixed. -->
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/sourceFilterChipGroup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:selectionRequired="true"
+        app:singleLine="true"
+        app:singleSelection="true">
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/filterSourceAllChip"
+            style="@style/Widget.MaterialComponents.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checkable="true"
+            android:checked="true"
+            android:text="@string/filter_source_all" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/filterSourcePhotoChip"
+            style="@style/Widget.MaterialComponents.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checkable="true"
+            android:checked="false"
+            android:text="@string/filter_source_photo" />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/filterSourceVideoChip"
+            style="@style/Widget.MaterialComponents.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:checkable="true"
+            android:checked="false"
+            android:text="@string/filter_source_video" />
+
+    </com.google.android.material.chip.ChipGroup>
+
     <!-- 3-Column Header Row -->
     <LinearLayout
         android:layout_width="match_parent"

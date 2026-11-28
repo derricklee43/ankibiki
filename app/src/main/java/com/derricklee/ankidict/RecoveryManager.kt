@@ -137,6 +137,19 @@ class RecoveryManager(
                             .put("bytes", bytes.size),
                     )
                 }
+                // Also bundle any permanently saved video clip assets (v17) so offline clips
+                // survive device migrations alongside mining.db.
+                val clipFiles = SavedVideoClipStorage.dir(context)
+                    .listFiles()
+                    ?.filter { it.isFile && it.length() > 0L }
+                    ?.sortedBy { it.name }
+                    .orEmpty()
+                if (clipFiles.isNotEmpty()) {
+                    manifest.put(
+                        "video_clips",
+                        JSONObject().put("count", clipFiles.size),
+                    )
+                }
                 // Re-serialize manifest now that the files array is complete.
                 zip.putNextEntry(ZipEntry("manifest.json"))
                 manifest.toString(2).toByteArray().inputStream().copyTo(zip)
@@ -144,6 +157,11 @@ class RecoveryManager(
                 for ((entryName, _, bytes) in photoBytes) {
                     zip.putNextEntry(ZipEntry("photos/$entryName"))
                     bytes.inputStream().copyTo(zip)
+                    zip.closeEntry()
+                }
+                for (clip in clipFiles) {
+                    zip.putNextEntry(ZipEntry("video_clips/${clip.name}"))
+                    clip.inputStream().use { it.copyTo(zip) }
                     zip.closeEntry()
                 }
                 zip.putNextEntry(ZipEntry(DB_ENTRY))
@@ -194,9 +212,14 @@ class RecoveryManager(
                         entry.name == DB_ENTRY -> dbBytes = zis.readBytes()
                         entry.name.startsWith("photos/") && entry.name != "photos/" -> {
                             val out = File(File(dir, "photos"), File(entry.name).name)
-                            out.parentFile.mkdirs()
+                            out.parentFile?.mkdirs()
                             out.outputStream().use { zis.copyTo(it) }
                             photoCount++
+                        }
+                        entry.name.startsWith("video_clips/") && entry.name != "video_clips/" -> {
+                            val out = File(File(dir, "video_clips"), File(entry.name).name)
+                            out.parentFile?.mkdirs()
+                            out.outputStream().use { zis.copyTo(it) }
                         }
                     }
                     zis.closeEntry()
@@ -328,6 +351,13 @@ class RecoveryManager(
                     .put("files", filesArray)
                     .toString(2),
             )
+        }
+        val clipsDir = File(workDir(), "video_clips")
+        if (clipsDir.isDirectory) {
+            val dest = SavedVideoClipStorage.dir(context).apply { mkdirs() }
+            clipsDir.listFiles()?.filter { it.isFile }?.forEach { f ->
+                f.copyTo(File(dest, f.name), overwrite = true)
+            }
         }
         clearWorkDir()
     }

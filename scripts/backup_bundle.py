@@ -68,7 +68,9 @@ TABLES = ("scraped_photos", "extracted_items", "item_occurrences")
 # v16 (user_words table + extracted_items.definition_source/system_meaning merge,
 # docs/definition-model-design.md, 2026-11-26): new table + two optional columns, NOT in
 # MINING_COLUMNS — pre-v16 bundles keep validating; the file migrates on first open.
-SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+# Same again for v17 (saved_video_clips table, 2026-11-27): auxiliary table for permanently
+# saved video screenshots + audio clips; NOT in MINING_COLUMNS — pre-v17 bundles stay valid.
+SUPPORTED_USER_VERSIONS = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17}
 MINING_COLUMNS = {
     "scraped_photos": {"media_store_id", "content_uri", "date_added",
                        "language_tag", "extracted_text", "ocr_blocks_json",

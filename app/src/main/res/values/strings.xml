@@ -263,6 +263,7 @@
          docs/user-dictionary-design.md; ruled 2026-11-26). -->
     <string name="undo_label_definition_edit">定義を編集しました</string>
     <string name="undo_label_user_word_deleted">ユーザー事典から削除しました</string>
+    <string name="undo_label_user_word_reparsed">「%1$s」の文を再解析しました（%2$d文）</string>
     <string name="definition_edit_title">定義を編集</string>
     <string name="definition_edit_hint">この単語の定義（空にすると辞書に戻す）</string>
     <string name="revert_to_dictionary">辞書に戻す</string>
@@ -279,6 +280,12 @@
     <string name="user_word_meaning_hint">定義</string>
     <string name="user_word_notes_hint">メモ（任意）</string>
     <string name="user_word_saved">保存しました</string>
+    <string name="user_word_reparse_checkbox">一致する既存の文を再解析する</string>
+    <string name="user_word_reparsing">既存の文を検索・再解析中…</string>
+    <string name="user_word_reparse_none">保存しました（一致する文はありませんでした）</string>
+    <string name="user_word_reparse_unchanged">保存しました（%1$d文一致・変更なし）</string>
+    <string name="user_word_reparse_done">保存しました：%1$d文を再解析（+%2$d / -%3$d）</string>
+    <string name="user_word_reparse_failed">保存しましたが、再解析に失敗しました</string>
     <string name="user_word_delete_title">この項目を削除しますか？</string>
     <string name="user_word_delete_message">辞書のデータは変わりません。すでに抽出済みの単語の定義はそのまま残ります（元に戻すできます）。</string>
     <string name="user_dictionary_empty">まだ単語がありません。名前の読み違えを防ぐため、まずここで登録します。</string>
@@ -295,6 +302,38 @@
     <string name="stremio_rd_token">RD トークン</string>
     <string name="stremio_jimaku_key">Jimaku キー</string>
     <string name="stremio_extract">選択を抽出</string>
+    <string name="stremio_delete_selected">選択を削除</string>
+    <string name="stremio_delete_confirm_title">採掘データを削除</string>
+    <string name="stremio_delete_confirm_message">選択した %1$d 話の採掘済み文・字幕キュー・保存クリップを削除しますか？（Ankiカードや他のエピソード・写真は影響を受けません）</string>
+    <string name="stremio_delete_done">%1$d 話の採掘データを削除しました（出現 %2$d 件・クリップ %3$d 件）</string>
+    <string name="stremio_delete_episode_button">このエピソードの採掘データを削除</string>
     <string name="stremio_gear">⚙</string>
     <string name="stremio_console_entry">Stremio コンソール</string>
+    <!-- Stage-2 M2 media-refs UI (docs/stremio-stage2-plan.md, docs/sentence-media-refs-design.md). -->
+    <string name="media_kind_photo">写真</string>
+    <string name="media_kind_video">動画</string>
+    <string name="filter_source_all">すべて</string>
+    <string name="filter_source_photo">写真</string>
+    <string name="filter_source_video">動画</string>
+    <string name="video_sources_title">動画ソース</string>
+    <string name="video_source_item">%1$s（%2$d回）</string>
+    <string name="dashboard_video_corpus">動画の文: %1$d 件</string>
+    <!-- Stage-3 Step 3 lazy video slice preview in SentenceDetailActivity. -->
+    <string name="video_slice_load">動画から画像・音声を取得</string>
+    <string name="video_slice_play">▶ 音声を再生</string>
+    <string name="video_slice_stop">■ 停止</string>
+    <string name="video_slice_adjust">調整</string>
+    <string name="video_slice_adjust_title">音声・タイミング調整</string>
+    <string name="video_slice_offset_hint">オフセット（ms、例: -500 / 500）</string>
+    <string name="video_slice_apply_reslice">保存して再取得</string>
+    <string name="video_slice_failed">取得に失敗しました: %1$s</string>
+    <!-- v17 permanent saved video clips + すべての写真 video section. -->
+    <string name="video_slice_save">保存</string>
+    <string name="video_slice_saved">✓ 保存済み</string>
+    <string name="video_slice_saved_toast">動画クリップを保存しました</string>
+    <string name="video_slice_unsaved_toast">動画クリップの保存を解除しました</string>
+    <string name="filter_video_clips">動画</string>
+    <string name="gallery_section_video_clips">保存した動画クリップ (%1$d)</string>
+    <string name="gallery_section_photos">写真 (%1$d)</string>
+    <string name="video_clip_badge">▶ 動画</string>
 </resources>

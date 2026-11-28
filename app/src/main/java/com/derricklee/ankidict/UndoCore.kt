@@ -31,6 +31,9 @@ enum class UndoAction {
     // per-item definition edit (write-through, mirror, provenance) and entry deletion.
     ITEM_DEFINITION_EDIT,
     USER_WORD_DELETE,
+    // Retroactive reparse on user-word save (docs/user-dictionary-reparse-design.md,
+    // RULED R1a-R7a): delta memento restoring deleted fragment rows + removing inserted rows.
+    USER_WORD_REPARSE,
 }
 
 /** One `item_occurrences` row captured exactly as stored (restore re-inserts with the SAME id). */
@@ -45,6 +48,8 @@ data class UndoOccRow(
     val state: String,
     val modifiedByUserFlag: Boolean,
     val isManual: Boolean,
+    /** v15 media_refs.id; optional trailing codec field so legacy 11-field logs keep decoding. */
+    val mediaId: Long? = null,
 )
 
 /** One `scraped_photos` row captured exactly as stored. */
@@ -158,10 +163,12 @@ internal object UndoCodec {
             )))
         }
         for (r in m.occurrences) {
-            sb.append('\n').append("r").append(SEP).append(fields(listOf(
+            val rowFields = mutableListOf(
                 r.id.toString(), r.languageTag, r.itemType, r.expression, r.photoId.toString(),
                 r.sentence, r.createdAt.toString(), r.state, boolOf(r.modifiedByUserFlag), boolOf(r.isManual),
-            )))
+            )
+            if (r.mediaId != null) rowFields += r.mediaId.toString()
+            sb.append('\n').append("r").append(SEP).append(fields(rowFields))
         }
         return sb.toString()
     }
@@ -189,10 +196,12 @@ internal object UndoCodec {
                     val id = parts[1].toLongOrNull() ?: return null
                     val photoId = parts[5].toLongOrNull() ?: return null
                     val createdAt = parts[7].toLongOrNull() ?: return null
+                    val mediaId = parts.getOrNull(11)?.let { it.toLongOrNull() ?: return null }
                     rows.add(UndoOccRow(
                         id = id, languageTag = parts[2], itemType = parts[3], expression = parts[4],
                         photoId = photoId, sentence = parts[6], createdAt = createdAt,
                         state = parts[8], modifiedByUserFlag = boolOf(parts[9]), isManual = boolOf(parts[10]),
+                        mediaId = mediaId,
                     ))
                 } else return null
                 else -> return null

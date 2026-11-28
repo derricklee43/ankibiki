@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -15,18 +16,21 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 
 /**
- * User dictionary screen (docs/user-dictionary-design.md §3.7, RULED 2026-11-26).
- * List of the user's own word/name entries; 追加 opens the add/edit dialog
- * (expression required; reading optional, D6a; meaning; notes). Rows tap to edit,
- * carry a 削除 button with confirm + USER_WORD_DELETE undo (D5a). Programmatic
- * layout (mirrors the console screens' no-XML row building) — the screen is a
- * simple vertical list.
+ * User dictionary screen (docs/user-dictionary-design.md §3.7, RULED 2026-11-26;
+ * retroactive exact-match reparse docs/user-dictionary-reparse-design.md, RULED
+ * 2026-11-27 R1a-R7a). List of the user's own word/name entries; 追加 opens the
+ * add/edit dialog (expression required; reading optional, D6a; meaning; notes;
+ * checkbox to search exact-matching sentences and reparse them on AppIo.pipeline
+ * — shown on create & edit, default checked on create, R1a/R2a). Rows tap to
+ * edit, carry a 削除 button with confirm + USER_WORD_DELETE undo (D5a).
  */
 class UserDictionaryActivity : AppCompatActivity() {
 
     private lateinit var miningRepository: MiningRepository
     private val ioExecutor = AppIo.io
     private lateinit var listContainer: LinearLayout
+    private lateinit var addButton: MaterialButton
+    private lateinit var statusView: TextView
     private var busy = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,12 +60,20 @@ class UserDictionaryActivity : AppCompatActivity() {
             setPadding(8, 0, 0, 0)
             layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         })
-        val addButton = MaterialButton(this, null, com.google.android.material.R.style.Widget_Material3_Button_OutlinedButton).apply {
+        addButton = MaterialButton(this, null, com.google.android.material.R.style.Widget_Material3_Button_OutlinedButton).apply {
             text = getString(R.string.user_word_add)
             setOnClickListener { showEntryDialog(null) }
         }
         header.addView(addButton)
         root.addView(header)
+
+        statusView = TextView(this).apply {
+            text = getString(R.string.user_word_reparsing)
+            textSize = 13f
+            setPadding(8, 8, 8, 4)
+            visibility = View.GONE
+        }
+        root.addView(statusView)
 
         val scroll = ScrollView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
@@ -154,6 +166,7 @@ class UserDictionaryActivity : AppCompatActivity() {
 
     /** Add (existing == null) or edit; re-tapping a row prefills (row -> dialog). */
     private fun showEntryDialog(existing: UserWord?) {
+        if (busy) return
         val expressionInput = EditText(this).apply {
             hint = getString(R.string.user_word_expression_hint)
             setText(existing?.expression.orEmpty())
@@ -177,6 +190,12 @@ class UserDictionaryActivity : AppCompatActivity() {
             setText(existing?.notes.orEmpty())
             isSingleLine = true
         }
+        // R1a: shown on both create and edit; R2a: default checked on create, unchecked on edit.
+        val reparseCheckBox = CheckBox(this).apply {
+            text = getString(R.string.user_word_reparse_checkbox)
+            isChecked = existing == null
+            setPadding(0, 12, 0, 4)
+        }
         val container = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 16, 32, 8)
@@ -184,6 +203,7 @@ class UserDictionaryActivity : AppCompatActivity() {
             addView(readingInput)
             addView(meaningInput)
             addView(notesInput)
+            addView(reparseCheckBox)
         }
         AlertDialog.Builder(this)
             .setTitle(if (existing == null) R.string.user_word_add else R.string.definition_edit_title)
@@ -192,20 +212,72 @@ class UserDictionaryActivity : AppCompatActivity() {
             .setPositiveButton(R.string.btn_save_text) { _, _ ->
                 val expr = expressionInput.text.toString().trim()
                 if (expr.isEmpty()) return@setPositiveButton
+                val reading = readingInput.text.toString().trim().ifEmpty { null }
+                val meaning = meaningInput.text.toString().trim()
+                val notes = notesInput.text.toString().trim().ifEmpty { null }
+                val shouldReparse = reparseCheckBox.isChecked
                 busy = true
-                ioExecutor.execute {
-                    miningRepository.upsertUserWord(
-                        LanguageTag.JAPANESE,
-                        expr,
-                        readingInput.text.toString().trim().ifEmpty { null },
-                        meaningInput.text.toString().trim(),
-                        notesInput.text.toString().trim().ifEmpty { null },
-                    )
-                    runOnUiThread {
-                        busy = false
-                        if (isFinishing || isDestroyed) return@runOnUiThread
-                        Toast.makeText(this, R.string.user_word_saved, Toast.LENGTH_SHORT).show()
-                        loadEntries()
+                addButton.isEnabled = false
+                if (!shouldReparse) {
+                    ioExecutor.execute {
+                        miningRepository.upsertUserWord(
+                            LanguageTag.JAPANESE,
+                            expr,
+                            reading,
+                            meaning,
+                            notes,
+                        )
+                        runOnUiThread {
+                            busy = false
+                            if (isFinishing || isDestroyed) return@runOnUiThread
+                            addButton.isEnabled = true
+                            Toast.makeText(this, R.string.user_word_saved, Toast.LENGTH_SHORT).show()
+                            loadEntries()
+                        }
+                    }
+                } else {
+                    // Serial corpus lane + process-wide MiningPipelineHolder repo so
+                    // rotation/teardown (onDestroy closing this Activity's repo) never
+                    // aborts an in-flight reparse.
+                    statusView.visibility = View.VISIBLE
+                    val appCtx = applicationContext
+                    AppIo.pipeline.execute {
+                        val result = runCatching {
+                            MiningPipelineHolder.of(appCtx).saveUserWord(
+                                languageTag = LanguageTag.JAPANESE,
+                                expression = expr,
+                                readingKana = reading,
+                                meaning = meaning,
+                                notes = notes,
+                                reparseMatches = true,
+                            )
+                        }
+                        runOnUiThread {
+                            busy = false
+                            if (isFinishing || isDestroyed) return@runOnUiThread
+                            addButton.isEnabled = true
+                            statusView.visibility = View.GONE
+                            val summary = result.getOrNull()
+                            val msg = when {
+                                summary == null -> getString(R.string.user_word_reparse_failed)
+                                summary.matchedSentences == 0 -> getString(R.string.user_word_reparse_none)
+                                summary.changedSentences == 0 -> getString(
+                                    R.string.user_word_reparse_unchanged,
+                                    summary.matchedSentences,
+                                )
+                                else -> getString(
+                                    R.string.user_word_reparse_done,
+                                    summary.changedSentences,
+                                    summary.addedOccurrences,
+                                    summary.removedOccurrences,
+                                )
+                            }
+                            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                            loadEntries()
+                            if (summary != null && summary.hasCorpusChanges) {
+                                UndoUi.maybeShow(listContainer, miningRepository) { loadEntries() }
+                            }
+                        }
                     }
                 }
             }

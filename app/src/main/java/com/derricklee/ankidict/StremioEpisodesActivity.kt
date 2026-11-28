@@ -1,13 +1,20 @@
 package com.derricklee.ankidict
 
+import android.graphics.BitmapFactory
+import android.media.MediaPlayer
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.RadioButton
+import android.widget.RadioGroup
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -15,6 +22,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.derricklee.ankidict.databinding.ActivityStremioEpisodesBinding
+import java.io.File
+import java.util.Locale
 
 /**
  * Episode screen (design §3): checkboxes pre-checked watched-unmined (S0-B bitfield;
@@ -57,6 +66,7 @@ class StremioEpisodesActivity : AppCompatActivity() {
         binding.episodeList.adapter = adapter
         binding.gearButton.setOnClickListener { showSettings(scopeKey = baseId) }
         binding.extractButton.setOnClickListener { extractSelected() }
+        binding.deleteButton.setOnClickListener { confirmDeleteSelected() }
         loadEpisodes()
     }
 
@@ -124,12 +134,20 @@ class StremioEpisodesActivity : AppCompatActivity() {
             hint = "offset ms (stored for media phase; no effect on text)"
             setText(current.offsetMs.toString())
         }
-        AlertDialog.Builder(this)
+        val audioTrackSummary = TextView(this).apply {
+            text = "Audio track: ${current.audioTrack?.let { "#$it" } ?: "auto (${current.subtitleLang})"}"
+            textSize = 13f
+            setPadding(8, 12, 8, 4)
+        }
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 12, 24, 8)
+            addView(langInput); addView(patternInput); addView(pinInput); addView(offsetInput)
+            addView(audioTrackSummary)
+        }
+        val builder = AlertDialog.Builder(this)
             .setTitle("Settings for $scopeKey")
-            .setView(LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                addView(langInput); addView(patternInput); addView(pinInput); addView(offsetInput)
-            })
+            .setView(container)
             .setPositiveButton("Save") { _, _ ->
                 miningRepository.saveStremioSettings(
                     StremioSettingsRow(
@@ -145,7 +163,237 @@ class StremioEpisodesActivity : AppCompatActivity() {
                 Toast.makeText(this, "settings saved", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null)
-            .show()
+        if (scopeKey != baseId) {
+            builder.setNeutralButton("Probe & Test Slice") { _, _ ->
+                runMediaProbeAndSlice(scopeKey)
+            }
+        }
+        val dialog = builder.create()
+        if (scopeKey != baseId) {
+            val row = rows.firstOrNull { it.episode.episodeId == scopeKey }
+            if (row?.ledger != null) {
+                container.addView(Button(this).apply {
+                    text = getString(R.string.stremio_delete_episode_button)
+                    setTextColor(0xFFB00020.toInt())
+                    setOnClickListener {
+                        dialog.dismiss()
+                        confirmDeleteEpisodes(listOf(row.episode))
+                    }
+                })
+            }
+        }
+        dialog.show()
+    }
+
+    /**
+     * Stage 3 Step 1 + Step 2 on-device spike runner (S0-D audio track probe + S3.1 native
+     * frame/audio slice). Resolves a playable RD URL under the phone's IP, probes tracks,
+     * slices a real mid-episode cue, logs structured metrics, and shows frame + audio playback
+     * + track picker so correctness is verified audibly and visually on device.
+     */
+    private fun runMediaProbeAndSlice(videoId: String) {
+        if (working) {
+            Toast.makeText(this, "pipeline busy — wait a moment", Toast.LENGTH_SHORT).show()
+            return
+        }
+        working = true
+        binding.statusLine.text = "Stage 3 probe & slice: resolving stream for $videoId…"
+        val appCtx = applicationContext
+        AppIo.pipeline.execute {
+            val result = runCatching {
+                val repo = MiningRepository(appCtx)
+                try {
+                    val settings = repo.stremioSettingsFor(videoId, baseId)
+                    val ledger = repo.loadStremioLedgerByEpisode()[videoId]
+                    val docId = ledger?.docId ?: -1L
+                    val (storedHash, storedIdx) = if (docId > 0L) repo.loadStremioDocIdentity(docId) else (null to null)
+
+                    // Pick a real mid-episode dialogue cue if mined, else a 2-minute probe window.
+                    val cues = if (docId > 0L) repo.loadStremioCues(docId) else emptyList()
+                    val cue = cues.drop(cues.size / 4).firstOrNull { it.endMs - it.startMs in 800L..6000L }
+                        ?: cues.firstOrNull()
+                        ?: SubtitleCue(120_000L, 123_000L, "(unmined episode — 02:00 test window)")
+
+                    val ctx = VideoCueContext(
+                        docId = docId,
+                        videoId = videoId,
+                        baseId = baseId,
+                        metaType = mediaType,
+                        infoHash = storedHash,
+                        fileIdx = storedIdx,
+                        cue = cue,
+                    )
+                    val res = VideoSliceService.sliceOrLoad(
+                        context = appCtx,
+                        repo = repo,
+                        prefs = StremioPrefs(appCtx),
+                        ctx = ctx,
+                        settings = settings,
+                        forceRefresh = true,
+                        onStatus = { status ->
+                            runOnUiThread {
+                                if (!isFinishing && !isDestroyed) {
+                                    binding.statusLine.text = "Stage 3: $status"
+                                }
+                            }
+                        },
+                    )
+                    val resolved = res.resolved ?: error("missing resolved stream")
+                    val probe = res.probe ?: error("missing probe result")
+                    val slice = res.slice ?: error("missing slice outcome")
+                    Triple(Triple(resolved, probe, cue), slice, settings)
+                } finally {
+                    repo.close()
+                }
+            }
+            runOnUiThread {
+                working = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { (meta, slice, settings) ->
+                        val (resolved, probe, cue) = meta
+                        binding.statusLine.text = String.format(
+                            Locale.US,
+                            "Media3 OK: total=%dms (demux=%d, frame=%d, audio=%d), %.2f MB pulled",
+                            slice.totalMs, slice.demuxMs, slice.frameMs, slice.audioMs,
+                            slice.rxBytes / (1024.0 * 1024.0),
+                        )
+                        showSliceResultDialog(videoId, resolved, probe, cue, slice, settings)
+                    },
+                    onFailure = { e ->
+                        Log.w("Stage3Spike", "failed for $videoId: ${e.message}", e)
+                        binding.statusLine.text = "Stage 3 failed: ${e.message?.take(120)}"
+                        AlertDialog.Builder(this)
+                            .setTitle("Probe / Slice Failed")
+                            .setMessage("${e.javaClass.simpleName}: ${e.message}")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    },
+                )
+            }
+        }
+    }
+
+    private fun showSliceResultDialog(
+        videoId: String,
+        resolved: StreamUrlResolver.ResolvedStream,
+        probe: MediaProbeResult,
+        cue: SubtitleCue,
+        slice: Media3SliceEngine.SliceOutcome,
+        settings: StremioSettingsRow,
+    ) {
+        var player: MediaPlayer? = null
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 16, 24, 16)
+        }
+        val bmp = BitmapFactory.decodeFile(slice.imageFile.absolutePath)
+        if (bmp != null) {
+            root.addView(ImageView(this).apply {
+                setImageBitmap(bmp)
+                adjustViewBounds = true
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                )
+            })
+        }
+        root.addView(TextView(this).apply {
+            text = cue.text
+            textSize = 16f
+            setPadding(0, 12, 0, 8)
+        })
+        val playBtn = Button(this).apply {
+            text = "▶ Play audio (${slice.audioBytes / 1024} KB · ${slice.audioMode})"
+            setOnClickListener {
+                runCatching {
+                    player?.release()
+                    player = MediaPlayer().apply {
+                        setDataSource(slice.audioFile.absolutePath)
+                        prepare()
+                        start()
+                    }
+                }.onFailure { err ->
+                    Toast.makeText(this@StremioEpisodesActivity, "Play failed: ${err.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        root.addView(playBtn)
+
+        val metricsText = String.format(
+            Locale.US,
+            "Engine: Media3 MatroskaExtractor\nFile: %s\nSource: %s (%dms)\n" +
+                "Probe: %dms (%d KB) · %s %dx%d\n" +
+                "Demux: %dms (%.2f MB · %d HTTP opens · seekable=%s @ %dms)\n" +
+                "Frame: %dms (%d KB WebP @ %dms)\n" +
+                "Audio: %dms (%d KB M4A · %d..%dms)\n" +
+                "Slice total: %dms",
+            resolved.displayName,
+            resolved.source, resolved.resolveMs,
+            probe.probeMs, probe.rxBytes / 1024, probe.videoMime ?: "?", probe.videoWidth, probe.videoHeight,
+            slice.demuxMs, slice.rxBytes / (1024.0 * 1024.0), slice.httpOpens, slice.seekable, slice.seekedPtsMs,
+            slice.frameMs, slice.imageBytes / 1024, slice.window.frameAtMs,
+            slice.audioMs, slice.audioBytes / 1024, slice.window.startMs, slice.window.endMs,
+            slice.totalMs,
+        )
+        root.addView(TextView(this).apply {
+            text = metricsText
+            textSize = 12f
+            setPadding(0, 10, 0, 10)
+        })
+
+        // Audio track picker (0-based audio ordinal; Save & Re-slice persists and re-cuts immediately).
+        root.addView(TextView(this).apply {
+            text = "Audio track (currently sliced: ${slice.selectedTrack.displayLabel()}):"
+            textSize = 12f
+            setPadding(0, 4, 0, 4)
+        })
+        val radioGroup = RadioGroup(this)
+        val trackByButtonId = HashMap<Int, Int?>()
+        val autoId = View.generateViewId()
+        trackByButtonId[autoId] = null
+        radioGroup.addView(RadioButton(this).apply {
+            id = autoId
+            text = "Auto (match ${settings.subtitleLang})"
+            textSize = 12f
+        })
+        var initialCheckedId = autoId
+        for (t in probe.audioTracks) {
+            val rbId = View.generateViewId()
+            trackByButtonId[rbId] = t.trackIndex
+            radioGroup.addView(RadioButton(this).apply {
+                id = rbId
+                text = t.displayLabel()
+                textSize = 12f
+            })
+            if (t.trackIndex == slice.selectedTrack.trackIndex) {
+                initialCheckedId = rbId
+            }
+        }
+        radioGroup.check(initialCheckedId)
+        root.addView(radioGroup)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Stage 3 Slice · $videoId")
+            .setView(ScrollView(this).apply { addView(root) })
+            .setPositiveButton("Save & Re-slice") { _, _ ->
+                val chosenTrack: Int? = trackByButtonId[radioGroup.checkedRadioButtonId]
+                miningRepository.saveStremioSettings(
+                    settings.copy(scopeKey = videoId, audioTrack = chosenTrack),
+                    System.currentTimeMillis(),
+                )
+                val label = chosenTrack?.let { "#$it" } ?: "auto"
+                Toast.makeText(this, "saved audio track $label — re-slicing…", Toast.LENGTH_SHORT).show()
+                runMediaProbeAndSlice(videoId)
+            }
+            .setNegativeButton("Close", null)
+            .create()
+        dialog.setOnDismissListener {
+            runCatching { player?.release() }
+            player = null
+            bmp?.recycle()
+        }
+        dialog.show()
     }
 
     private fun extractSelected() {
@@ -180,6 +428,60 @@ class StremioEpisodesActivity : AppCompatActivity() {
             runOnUiThread {
                 working = false
                 binding.statusLine.text = "extracted $mined, failed $failed — sentences are in the inbox now"
+                loadEpisodes()
+            }
+        }
+    }
+
+    private fun confirmDeleteSelected() {
+        if (working) return
+        val targets = rows.filter { it.selected }.map { it.episode }
+        if (targets.isEmpty()) {
+            Toast.makeText(this, "nothing selected", Toast.LENGTH_SHORT).show()
+            return
+        }
+        confirmDeleteEpisodes(targets)
+    }
+
+    private fun confirmDeleteEpisodes(targets: List<MetaEpisode>) {
+        if (working || targets.isEmpty()) return
+        AlertDialog.Builder(this)
+            .setTitle(R.string.stremio_delete_confirm_title)
+            .setMessage(getString(R.string.stremio_delete_confirm_message, targets.size))
+            .setNegativeButton(R.string.word_editor_cancel, null)
+            .setPositiveButton(R.string.stremio_delete_selected) { _, _ ->
+                deleteEpisodes(targets)
+            }
+            .show()
+    }
+
+    private fun deleteEpisodes(targets: List<MetaEpisode>) {
+        if (working) return
+        working = true
+        val appCtx = applicationContext
+        AppIo.pipeline.execute {
+            var totalOccs = 0
+            var totalClips = 0
+            var clearedCount = 0
+            for (ep in targets) {
+                val summary = miningRepository.deleteMinedEpisode(appCtx, ep.episodeId)
+                totalOccs += summary.occurrencesDeleted
+                totalClips += summary.clipsDeleted
+                if (summary.docsDeleted > 0 || summary.occurrencesDeleted > 0 || summary.clipsDeleted > 0) {
+                    clearedCount++
+                }
+            }
+            runOnUiThread {
+                working = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val msg = getString(
+                    R.string.stremio_delete_done,
+                    clearedCount,
+                    totalOccs,
+                    totalClips,
+                )
+                binding.statusLine.text = msg
+                Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
                 loadEpisodes()
             }
         }

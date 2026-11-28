@@ -1,7 +1,9 @@
 package com.derricklee.ankidict
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -47,5 +49,38 @@ class MediaProvenanceTest {
         // nothing known -> no line
         assertNull(VideoSourceLabel.display(null, null, "Cruelty"))
         assertNull(VideoSourceLabel.display("", null, null))
+    }
+
+    @Test
+    fun mediaKindBadgeRegistry_handlesKnownAndUnknownKinds() {
+        val photo = MediaKindUi.badgeFor("photo")
+        assertEquals(R.string.media_kind_photo, photo.labelResId)
+        assertFalse(photo.emphasized)
+
+        val video = MediaKindUi.badgeFor("video_cues")
+        assertEquals(R.string.media_kind_video, video.labelResId)
+        assertTrue(video.emphasized)
+
+        // Forward-compat: unknown future kinds never crash and fall back to raw kind text.
+        val future = MediaKindUi.badgeFor("audio_book")
+        assertNull(future.labelResId)
+        assertEquals("audio_book", future.fallbackLabel)
+        assertTrue(future.emphasized)
+    }
+
+    @Test
+    fun groupNonPhotoSources_skipsPhotos_groupsAndSortsByCountDesc() {
+        val sentences = listOf(
+            MatchedSentence(1L, 10L, "写真文", mediaKind = "photo", mediaId = 1L),
+            MatchedSentence(2L, -1L, "動画A1", mediaKind = "video_cues", mediaLabel = "tt1:1:1", mediaId = 20L),
+            MatchedSentence(3L, -1L, "動画B1", mediaKind = "video_cues", mediaLabel = "tt1:1:2", mediaId = 30L),
+            MatchedSentence(4L, -1L, "動画B2", mediaKind = "video_cues", mediaLabel = "tt1:1:2", mediaId = 30L),
+        )
+        val grouped = MediaKindUi.groupNonPhotoSources(sentences) { mid, fallback, _ ->
+            if (mid == 30L) "Show - S1-E2" else fallback.orEmpty()
+        }
+        assertEquals(2, grouped.size)
+        assertEquals(MediaSourceItem(30L, "video_cues", "Show - S1-E2", 2), grouped[0])
+        assertEquals(MediaSourceItem(20L, "video_cues", "tt1:1:1", 1), grouped[1])
     }
 }

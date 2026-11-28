@@ -70,6 +70,78 @@ data class StreamCandidate(
     val url: String?,
     val infoHash: String?,
     val fileIdx: Int?,
+    val title: String? = null,
+    val filename: String? = null,
+)
+
+/** RD /torrents list row (Stage 3 Step 1 link minting). */
+data class RdTorrentSummary(
+    val id: String,
+    val filename: String,
+    val hash: String,
+    val status: String,
+    val links: List<String>,
+)
+
+data class RdTorrentFile(
+    val id: Int,
+    val path: String,
+    val bytes: Long,
+    val selected: Boolean,
+)
+
+data class RdTorrentInfo(
+    val id: String,
+    val hash: String,
+    val status: String,
+    val files: List<RdTorrentFile>,
+    val links: List<String>,
+)
+
+/** RD /unrestrict/link response: freshly minted HTTPS download URL on the phone's IP. */
+data class RdUnrestrictedLink(
+    val id: String,
+    val filename: String,
+    val mimeType: String?,
+    val filesize: Long,
+    val downloadUrl: String,
+)
+
+/** One audio track discovered by Media3 probe (S0-D). [trackIndex] is a stable 0-based
+ *  audio-track ordinal (0, 1, ...) stored in stremio_settings.audio_track; [containerTrackId]
+ *  is the demuxer's internal track id (e.g. MKV TrackNumber). */
+data class AudioTrackInfo(
+    val trackIndex: Int,
+    val mime: String,
+    val language: String?,
+    val channelCount: Int,
+    val sampleRate: Int,
+    val isDefault: Boolean = false,
+    val containerTrackId: Int = trackIndex,
+) {
+    fun displayLabel(): String {
+        val lang = language?.takeIf { it.isNotBlank() && it != "und" } ?: "und"
+        val codec = mime.substringAfter("audio/", mime)
+        val ch = when (channelCount) {
+            1 -> "1ch"
+            2 -> "2ch"
+            6 -> "5.1"
+            else -> "${channelCount}ch"
+        }
+        val khz = if (sampleRate > 0) "${sampleRate / 1000}kHz" else ""
+        val def = if (isDefault) " ★" else ""
+        return "#$trackIndex $lang ($codec $ch $khz)$def".trim()
+    }
+}
+
+data class MediaProbeResult(
+    val audioTracks: List<AudioTrackInfo>,
+    val videoMime: String?,
+    val videoWidth: Int,
+    val videoHeight: Int,
+    val durationMs: Long,
+    val probeMs: Long,
+    val rxBytes: Long,
 )
 
 /** RD /downloads entry fields we consume (identity spine + candidate hints only). */

@@ -66,4 +66,26 @@ class UndoCodecTest {
         assertEquals(null, d?.photo)
         assertEquals(emptyList<UndoOccRow>(), d?.occurrences)
     }
+
+    @Test
+    fun occRow_withMediaId_roundTrips_andLegacy11FieldLineDecodesWithNullMediaId() {
+        val m = UndoMemento(
+            action = UndoAction.USER_WORD_REPARSE,
+            label = "「竈門炭治郎」の文を再解析しました（2文）",
+            header = listOf("JAPANESE", "竈門炭治郎", "101,102", "5,9"),
+            occurrences = listOf(
+                UndoOccRow(10L, "JAPANESE", "WORD", "竈門", 42L, "竈門炭治郎だ", 100L, "UNSEEN", false, false, mediaId = 5L),
+                UndoOccRow(11L, "JAPANESE", "WORD", "炭", 0L, "竈門炭治郎！", 200L, "SEEN", false, false, mediaId = 9L),
+            ),
+        )
+        val decoded = UndoMemento.decode(m.action, m.label, m.encode())
+        assertEquals(m, decoded)
+
+        // Legacy 11-field row payload (before mediaId was added) must decode cleanly with mediaId = null.
+        val legacyPayload = "v1\nr\u001F7\u001FJAPANESE\u001FWORD\u001F手\u001F42\u001F文\u001F100\u001FSEEN\u001F1\u001F0"
+        val legacyDecoded = UndoMemento.decode(UndoAction.SENTENCE_WORDS_EDIT, "x", legacyPayload)!!
+        assertEquals(1, legacyDecoded.occurrences.size)
+        assertNull(legacyDecoded.occurrences.single().mediaId)
+        assertEquals(7L, legacyDecoded.occurrences.single().id)
+    }
 }

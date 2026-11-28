@@ -74,6 +74,9 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-japanese:16.0.1")
     implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
     implementation("com.atilika.kuromoji:kuromoji-ipadic:0.9.0")
+    implementation("androidx.media3:media3-common:1.5.1")
+    implementation("androidx.media3:media3-extractor:1.5.1")
+    implementation("androidx.media3:media3-datasource:1.5.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20231013")

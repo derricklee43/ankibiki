@@ -284,6 +284,15 @@ fun MiningRepository.getDashboardStats(): MiningRepository.DashboardStats {
         correctionsApplied = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'applied'"),
         correctionsRejected = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'rejected'"),
         correctionsExcluded = count("SELECT COUNT(*) FROM ocr_corrections WHERE decision = 'excluded'"),
+        videoSentences = runCatching {
+            count(
+                "SELECT COUNT(*) FROM (" +
+                    "SELECT DISTINCT o.media_id, o.sentence FROM item_occurrences o " +
+                    "JOIN media_refs m ON o.media_id = m.id AND m.active = 1 " +
+                    "WHERE m.kind = 'video_cues' AND o.state IN ('UNSEEN', 'SEEN')" +
+                    ")",
+            )
+        }.getOrDefault(0),
     )
 }
 
@@ -468,6 +477,175 @@ fun MiningRepository.occurrenceStatesForExpressionForMedia(
         arrayOf(mediaId.toString(), sentence, expression),
     ).use { c -> generateSequence { if (c.moveToNext()) c.getString(0) else null }.toSet() }
 
+/** Media-scoped twin of [occurrenceRowsForSentence] (photo + video_cues alike). */
+internal fun MiningRepository.occurrenceRowsForMediaSentence(
+    mediaId: Long,
+    sentence: String,
+): List<MiningRepository.OccurrenceRow> =
+    readableDatabase.query(
+        "item_occurrences",
+        arrayOf("id", "item_type", "expression", "state", "created_at", "modified_by_user_flag", "is_manual"),
+        "media_id = ? AND sentence = ?",
+        arrayOf(mediaId.toString(), sentence),
+        null, null, "created_at DESC, id DESC",
+    ).use { c ->
+        buildList {
+            while (c.moveToNext()) {
+                add(
+                    MiningRepository.OccurrenceRow(
+                        id = c.getLong(0), itemType = c.getString(1), expression = c.getString(2),
+                        state = c.getString(3), createdAt = c.getLong(4),
+                        modifiedByUserFlag = c.getInt(5) != 0,
+                        isManual = c.getInt(6) != 0,
+                    ),
+                )
+            }
+        }
+    }
+
+/** True if ANY occurrence row (including DELETED) exists for (media_id, sentence).
+ *  Distinguishes zero-candidate sentences from explicitly SENTENCE_DELETEd ones. */
+internal fun MiningRepository.hasAnyOccurrenceForMediaSentence(
+    mediaId: Long,
+    sentence: String,
+): Boolean =
+    readableDatabase.rawQuery(
+        "SELECT 1 FROM item_occurrences WHERE media_id = ? AND sentence = ? LIMIT 1",
+        arrayOf(mediaId.toString(), sentence),
+    ).use { it.moveToFirst() }
+
+/**
+ * Active (media_id, sentence) scopes containing an exact substring match of [expression]
+ * (docs/user-dictionary-reparse-design.md §3.2). Mirrors [getActiveOccurrences]'s visibility
+ * filter (`media_refs.active = 1`, photo `status = 'KEEP'`), and skips scopes where EVERY row
+ * is DELETED so SENTENCE_DELETEd sentences are never resurrected.
+ */
+internal fun MiningRepository.findActiveSentenceScopesContaining(
+    languageTag: LanguageTag,
+    expression: String,
+): List<SentenceScope> {
+    if (expression.isEmpty()) return emptyList()
+    val sql = """
+        SELECT o.media_id,
+               m.kind,
+               m.ref_int,
+               o.sentence,
+               MAX(o.created_at) AS latest_created_at
+        FROM item_occurrences o
+        JOIN media_refs m
+          ON o.media_id = m.id AND m.active = 1
+        LEFT JOIN scraped_photos p
+          ON m.kind = 'photo' AND p.media_store_id = m.ref_int
+        WHERE o.language_tag = ?
+          AND (m.kind <> 'photo' OR p.status = ?)
+          AND instr(o.sentence, ?) > 0
+        GROUP BY o.media_id, m.kind, m.ref_int, o.sentence
+        HAVING SUM(CASE WHEN o.state != 'DELETED' THEN 1 ELSE 0 END) > 0
+    """.trimIndent()
+    return readableDatabase.rawQuery(
+        sql,
+        arrayOf(languageTag.name, PhotoStatus.KEEP.name, expression),
+    ).use { c ->
+        buildList {
+            while (c.moveToNext()) {
+                val sentence = c.getString(3)
+                if (!sentence.contains(expression)) continue
+                val kind = c.getString(1)
+                val photoId = if (kind == "photo" && !c.isNull(2)) c.getLong(2) else null
+                val createdAt = if (c.isNull(4)) null else c.getLong(4)
+                add(SentenceScope(mediaId = c.getLong(0), photoId = photoId, sentence = sentence, existingCreatedAt = createdAt))
+            }
+        }
+    }
+}
+
+/** KEEP photos whose extracted_text contains [expression] (R3a zero-candidate scan input). */
+internal fun MiningRepository.findKeepPhotosContaining(
+    languageTag: LanguageTag,
+    expression: String,
+): List<Triple<Long, String, Long>> {
+    if (expression.isEmpty()) return emptyList()
+    val where = if (languageTag == LanguageTag.JAPANESE) {
+        "status = ? AND (language_tag = ? OR language_tag = ?) AND instr(extracted_text, ?) > 0"
+    } else {
+        "status = ? AND language_tag = ? AND instr(extracted_text, ?) > 0"
+    }
+    val args = if (languageTag == LanguageTag.JAPANESE) {
+        arrayOf(PhotoStatus.KEEP.name, languageTag.name, LanguageTag.NA.name, expression)
+    } else {
+        arrayOf(PhotoStatus.KEEP.name, languageTag.name, expression)
+    }
+    return readableDatabase.rawQuery(
+        "SELECT media_store_id, extracted_text, date_added FROM scraped_photos WHERE $where",
+        args,
+    ).use { c ->
+        buildList {
+            while (c.moveToNext()) {
+                val text = c.getString(1)
+                if (text.contains(expression)) add(Triple(c.getLong(0), text, c.getLong(2)))
+            }
+        }
+    }
+}
+
+/** Active Stremio cues containing [expression] with ZERO rows in item_occurrences (R3a).
+ *  Wrapped in runCatching so partial harness DBs lacking stremio_cues degrade cleanly. */
+internal fun MiningRepository.findZeroCandidateStremioCues(
+    languageTag: LanguageTag,
+    expression: String,
+): List<SentenceScope> {
+    if (expression.isEmpty()) return emptyList()
+    return runCatching {
+        val sql = """
+            SELECT DISTINCT m.id, d.video_id, c.text, d.created_at
+            FROM stremio_cues c
+            JOIN stremio_cue_documents d ON d.id = c.doc_id
+            JOIN media_refs m ON m.kind = 'video_cues' AND m.active = 1 AND m.ref_int = d.id
+            WHERE instr(c.text, ?) > 0
+              AND NOT EXISTS (
+                  SELECT 1 FROM item_occurrences o
+                  WHERE o.media_id = m.id AND o.sentence = c.text
+              )
+        """.trimIndent()
+        val langCache = HashMap<Long, LanguageTag>()
+        readableDatabase.rawQuery(sql, arrayOf(expression)).use { c ->
+            buildList {
+                while (c.moveToNext()) {
+                    val text = c.getString(2)
+                    if (!text.contains(expression)) continue
+                    val mediaId = c.getLong(0)
+                    val videoId = c.getString(1)
+                    val docLang = langCache.getOrPut(mediaId) {
+                        val occTag = readableDatabase.rawQuery(
+                            "SELECT language_tag FROM item_occurrences WHERE media_id = ? LIMIT 1",
+                            arrayOf(mediaId.toString()),
+                        ).use { oc ->
+                            if (oc.moveToFirst()) runCatching { LanguageTag.valueOf(oc.getString(0)) }.getOrNull() else null
+                        }
+                        occTag ?: run {
+                            val baseId = VideoSourceLabel.baseId(videoId) ?: videoId
+                            StremioExtractionEngine.tagForLang(stremioSettingsFor(videoId, baseId).subtitleLang)
+                        }
+                    }
+                    if (docLang != languageTag) continue
+                    val rawCreated = c.getLong(3)
+                    // stremio_cue_documents.created_at is always epoch ms (StremioExtractionEngine);
+                    // item_occurrences.created_at is epoch seconds.
+                    val createdSec = rawCreated / 1000L
+                    add(
+                        SentenceScope(
+                            mediaId = mediaId,
+                            photoId = null,
+                            sentence = text,
+                            existingCreatedAt = createdSec.takeIf { it > 0L },
+                        ),
+                    )
+                }
+            }
+        }
+    }.getOrDefault(emptyList())
+}
+
 /**
  * Where a sentence came from, for the single-sentence view header (user request
  * 2026-11-26). Only video_cues refs resolve a series/episode; photo rows return
@@ -571,6 +749,11 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
     if (OccurrenceFilter.NO_ANKI_CARD in query.filters) {
         whereClauses.add("i.anki_note_id IS NULL")
     }
+    when (query.mediaKindFilter) {
+        MediaKindFilter.PHOTO -> whereClauses.add("m.kind = 'photo'")
+        MediaKindFilter.NON_PHOTO -> whereClauses.add("m.kind <> 'photo'")
+        MediaKindFilter.ALL -> Unit
+    }
 
     val activeSortCriteria = query.sortCriteria.filter { it.second != SortDirection.OFF }
     val orderBySql = if (activeSortCriteria.isNotEmpty()) {
@@ -625,7 +808,8 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
             i.corpus_rank,
             o.created_at,
             i.kana,
-            f.name AS folder_name
+            f.name AS folder_name,
+            m.kind
         FROM item_occurrences o
         JOIN extracted_items i
           ON o.language_tag = i.language_tag
@@ -657,6 +841,7 @@ fun MiningRepository.getActiveOccurrences(query: OccurrenceQuery): List<Extracte
                     createdAt = cursor.getLong(8),
                     kana = cursor.getStringOrNull(9),
                     folderName = cursor.getStringOrNull(10),
+                    mediaKind = cursor.getStringOrNull(11) ?: "photo",
                 ),
             )
         }
@@ -962,6 +1147,13 @@ fun MiningRepository.getItemDetail(
         sentences.addAll(ordered)
     }
 
+    val mediaSources = MediaKindUi.groupNonPhotoSources(matchedSentences) { mediaId, fallbackLabel, kind ->
+        val pro = runCatching { getSentenceProvenance(mediaId) }.getOrNull()
+        pro?.let { VideoSourceLabel.display(it.seriesName, it.episodeLabel, it.episodeTitle) }
+            ?: fallbackLabel?.takeIf { it.isNotBlank() }
+            ?: kind
+    }
+
     return ExtractedItemDetail(
         languageTag = languageTag,
         itemType = itemType,
@@ -991,6 +1183,7 @@ fun MiningRepository.getItemDetail(
             DefinitionSource.valueOf(definitionSourceName ?: "AUTO")
         }.getOrDefault(DefinitionSource.AUTO),
         systemMeaning = systemMeaning,
+        mediaSources = mediaSources,
     )
 }
 

@@ -348,6 +348,54 @@ class StremioConsoleInstrumentedTest {
         repo = reopened
     }
 
+    @Test
+    fun deleteMinedEpisode_removesOccurrencesCuesLedgerAndClips_preservesOtherEpisodes() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val choice = SubtitleChoice("1", "jpn", "Show.S01E01.srt", "https://ex/1.srt", "a")
+        val docA = repo.createStremioDoc("tt999:1:1", "gen1", choice, "hashA", null, null, 1000L)
+        val docB = repo.createStremioDoc("tt999:1:2", "gen1", choice, "hashB", null, null, 1000L)
+        repo.replaceStremioCues(docA, listOf(SubtitleCue(1000L, 2000L, "消える文")))
+        repo.replaceStremioCues(docB, listOf(SubtitleCue(1000L, 2000L, "残る文")))
+        val refA = repo.getOrCreateMediaRef("video_cues", docA, "tt999:1:1")
+        val refB = repo.getOrCreateMediaRef("video_cues", docB, "tt999:1:2")
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "消える", null, "消える文", mediaId = refA)
+        repo.insertOccurrence(LanguageTag.JAPANESE, ItemType.WORD, "残る", null, "残る文", mediaId = refB)
+        repo.upsertStremioLedger("tt999:1:1", "gen1", StremioLedgerStatus.MINED, docId = docA, cueCount = 1, now = 1000L)
+        repo.upsertStremioLedger("tt999:1:2", "gen1", StremioLedgerStatus.MINED, docId = docB, cueCount = 1, now = 1000L)
+
+        val tmp = java.io.File(context.cacheDir, "ep_del_test").apply { mkdirs() }
+        val img = java.io.File(tmp, "a.webp").apply { writeBytes(byteArrayOf(1, 2, 3)) }
+        val aud = java.io.File(tmp, "a.m4a").apply { writeBytes(byteArrayOf(4, 5, 6)) }
+        val clipA = repo.saveVideoClip(
+            context, refA, "消える文", docA, "tt999:1:1", 1000L, 2000L, 0, null,
+            LanguageTag.JAPANESE, "Show - S1-E1", img, aud, 1000L,
+        )
+        tmp.deleteRecursively()
+
+        val summary = repo.deleteMinedEpisode(context, "tt999:1:1")
+        assertEquals(1, summary.docsDeleted)
+        assertEquals(1, summary.occurrencesDeleted)
+        assertEquals(1, summary.clipsDeleted)
+        assertTrue(!clipA.imageFile(context).exists())
+        assertTrue(!clipA.audioFile(context).exists())
+
+        // Episode 1 completely gone from cues, docs, ledger, media_refs, occurrences.
+        assertTrue(repo.loadStremioCues(docA).isEmpty())
+        assertTrue(repo.loadStremioLedgerByEpisode()["tt999:1:1"] == null)
+        repo.readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM item_occurrences WHERE media_id = ?",
+            arrayOf(refA.toString()),
+        ).use { c -> assertTrue(c.moveToFirst()); assertEquals(0, c.getInt(0)) }
+
+        // Episode 2 untouched.
+        assertEquals(1, repo.loadStremioCues(docB).size)
+        assertTrue(repo.loadStremioLedgerByEpisode()["tt999:1:2"] != null)
+        repo.readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM item_occurrences WHERE media_id = ?",
+            arrayOf(refB.toString()),
+        ).use { c -> assertTrue(c.moveToFirst()); assertEquals(1, c.getInt(0)) }
+    }
+
     companion object {
         private const val TEST_DB_NAME = "mining_stremio_test.db"
     }

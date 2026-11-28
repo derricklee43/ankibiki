@@ -135,7 +135,9 @@ class ExtractedListActivity : AppCompatActivity() {
         currentTab = tab
         // Chips (sort overrides + visibility partitions) are inbox triage tools; the Words
         // tab pins gojūon order and ACTIVE+HIDDEN membership by spec (user 2026-11-13).
-        binding.sortAndFilterScrollView.visibility = if (tab == ListTab.OCCURRENCES) View.VISIBLE else View.GONE
+        val occVisibility = if (tab == ListTab.OCCURRENCES) View.VISIBLE else View.GONE
+        binding.sortAndFilterScrollView.visibility = occVisibility
+        binding.sourceFilterChipGroup.visibility = occVisibility
         binding.colSecondHeader.text = when (tab) {
             ListTab.OCCURRENCES -> getString(R.string.label_folder)
             ListTab.WORDS -> getString(R.string.col_definition)
@@ -188,6 +190,7 @@ class ExtractedListActivity : AppCompatActivity() {
         binding.filterActiveChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
         binding.filterHiddenChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
         binding.filterArchiveChip.setOnCheckedChangeListener { _, _ -> loadOccurrences() }
+        binding.sourceFilterChipGroup.setOnCheckedStateChangeListener { _, _ -> loadOccurrences() }
 
         // Word search (kanji / kana / romaji / pinyin): filters the already-loaded set in
         // memory — the list is bounded and the matcher is cheap; no SQL re-query per keystroke.
@@ -285,6 +288,13 @@ class ExtractedListActivity : AppCompatActivity() {
         }
     }
 
+    private fun buildCurrentMediaKindFilter(): MediaKindFilter =
+        when (binding.sourceFilterChipGroup.checkedChipId) {
+            R.id.filterSourcePhotoChip -> MediaKindFilter.PHOTO
+            R.id.filterSourceVideoChip -> MediaKindFilter.NON_PHOTO
+            else -> MediaKindFilter.ALL
+        }
+
     private fun loadOccurrences() {
         val query = OccurrenceQuery(
             languageTag = languageTag,
@@ -293,6 +303,7 @@ class ExtractedListActivity : AppCompatActivity() {
             sortCriteria = buildCurrentSortCriteria(),
             visibilities = buildCurrentVisibilities(),
             limit = null,
+            mediaKindFilter = buildCurrentMediaKindFilter(),
         )
         ioExecutor.execute {
             val rows = miningRepository.getActiveOccurrences(query)
